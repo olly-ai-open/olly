@@ -6,7 +6,7 @@ export default function BriefActions({
   readAt,
 }: {
   briefId: string;
-  readAt: string | null;
+  readAt: string | Date | null;
 }) {
   const [isRead, setIsRead] = useState(!!readAt);
   const [sending, setSending] = useState(false);

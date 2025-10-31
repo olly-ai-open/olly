@@ -52,10 +52,11 @@ export async function POST(req: Request) {
       );
     const token = await getAccessTokenFromAccount(account);
     const event = await getEventDetailsWithToken(token, eventId);
-    const meeting = await upsertMeetingFromEvent(session.user.id, event);
+    const userId = session.user.id;
+    const meeting = await upsertMeetingFromEvent(userId, event);
 
     const titleQ = event.title?.split(/\s+/).slice(0, 6).join(" ");
-    const attendees = (event.attendees || [])
+    const attendees = ((event.attendees || []) as { email?: string | null }[])
       .map((a) => a.email)
       .filter(Boolean) as string[];
     const attendeeQuery = attendees
@@ -102,8 +103,10 @@ export async function POST(req: Request) {
 
     // People: upsert Person rows for attendees, and link to meeting/brief
     const personRows = await upsertPersonsForEmails(
-      session.user.id,
-      (event.attendees || []).map((a) => a.email),
+      userId,
+      ((event.attendees || []) as { email?: string | null }[]).map(
+        (a) => a.email,
+      ),
     );
     const personIds = personRows.map((p) => p.id);
     await linkMeetingParticipants(meeting.id, personIds);
@@ -116,14 +119,12 @@ export async function POST(req: Request) {
       : [];
     if (actions.length) {
       await prisma.actionItem.createMany({
-        data: actions
-          .slice(0, 20)
-          .map((title) => ({
-            userId: session.user.id,
-            title,
-            briefId: saved.id,
-            status: "open",
-          })),
+        data: actions.slice(0, 20).map((title) => ({
+          userId,
+          title,
+          briefId: saved.id,
+          status: "open",
+        })),
       });
     }
 

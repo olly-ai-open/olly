@@ -5,9 +5,7 @@ import { unstable_noStore as noStore } from "next/cache";
 export default async function NavAuth() {
   noStore();
   const session = await auth();
-  const user = session?.user as
-    | (typeof session.user & { id: string })
-    | undefined;
+  const user = session?.user ?? undefined;
   return (
     <div className="flex items-center justify-end gap-3 text-sm">
       {user && (

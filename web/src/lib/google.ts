@@ -26,8 +26,8 @@ export async function getAccessTokenFromAccount(
     access_token: account.access_token || undefined,
     refresh_token: account.refresh_token || undefined,
     expiry_date: expiresAt,
-    scope: account.scope || undefined,
-    token_type: (account.token_type || undefined) as any,
+    scope: (account.scope ?? undefined) as string | undefined,
+    token_type: (account.token_type ?? undefined) as any,
     id_token: account.id_token || undefined,
   });
   let token =
@@ -62,7 +62,7 @@ export async function getUserGoogleAuth(userId: string) {
     access_token: account.access_token || undefined,
     refresh_token: account.refresh_token || undefined,
     expiry_date: expiresAt,
-    scope: account.scope,
+    scope: (account.scope ?? undefined) as string | undefined,
     token_type: account.token_type as any,
     id_token: account.id_token || undefined,
   });

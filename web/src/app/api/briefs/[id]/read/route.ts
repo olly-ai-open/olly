@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
 export async function POST(
-  _req: Request,
-  { params }: { params: { id: string } },
+  _req: NextRequest,
+  context: RouteContext<"/api/briefs/[id]/read">,
 ) {
+  const { id } = await context.params;
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json(
@@ -13,7 +14,7 @@ export async function POST(
       { status: 401 },
     );
   const brief = await prisma.brief.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { meeting: true },
   });
   if (!brief || brief.meeting?.userId !== session.user.id)
@@ -22,7 +23,7 @@ export async function POST(
       { status: 404 },
     );
   await prisma.brief.update({
-    where: { id: params.id },
+    where: { id },
     data: { readAt: new Date() },
   });
   return NextResponse.json({ ok: true });

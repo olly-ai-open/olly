@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     const token = await getAccessTokenFromAccount(account);
     const event = await getEventDetailsWithToken(token, eventId);
     const titleQ = event.title?.split(/\s+/).slice(0, 6).join(" ");
-    const attendees = (event.attendees || [])
+    const attendees = ((event.attendees || []) as { email?: string | null }[])
       .map((a) => a.email)
       .filter(Boolean) as string[];
     const attendeeQuery = attendees

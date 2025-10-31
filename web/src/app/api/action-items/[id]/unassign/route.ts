@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
-  req: Request,
-  { params }: { params: { id: string } },
+  req: NextRequest,
+  context: RouteContext<"/api/action-items/[id]/unassign">,
 ) {
+  const { id } = await context.params;
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json(
@@ -21,7 +22,7 @@ export async function POST(
     );
 
   // Verify ownership
-  const ai = await prisma.actionItem.findUnique({ where: { id: params.id } });
+  const ai = await prisma.actionItem.findUnique({ where: { id } });
   if (!ai || ai.userId !== session.user.id)
     return NextResponse.json(
       { ok: false, error: "not_found" },
@@ -29,7 +30,7 @@ export async function POST(
     );
 
   await prisma.actionItemAssignee.deleteMany({
-    where: { actionItemId: params.id, personId },
+    where: { actionItemId: id, personId },
   });
   return NextResponse.json({ ok: true });
 }

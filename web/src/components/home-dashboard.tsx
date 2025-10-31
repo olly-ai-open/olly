@@ -23,15 +23,13 @@ export default async function HomeDashboard({ day }: { day?: string }) {
   // Ensure fresh data on each request/navigation (meetings/briefs update frequently)
   noStore();
   const session = await auth();
-  const user = session?.user as
-    | (typeof session.user & { id: string })
-    | undefined;
+  const userId = session?.user?.id ?? null;
   const targetDay = day || new Date().toISOString().slice(0, 10);
-  const meetings = user
+  const meetings = userId
     ? await (async () => {
         try {
           const account = await prisma.account.findFirst({
-            where: { userId: user.id, provider: "google" },
+            where: { userId, provider: "google" },
           });
           if (!account)
             return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
@@ -45,12 +43,12 @@ export default async function HomeDashboard({ day }: { day?: string }) {
 
   // Map existing meetings/briefs by Google event id for badge/status
   const byExternalId =
-    user && meetings.length
+    userId && meetings.length
       ? await (async () => {
           try {
             const ids = meetings.map((m) => m.id);
             const rows = await prisma.meeting.findMany({
-              where: { userId: user.id, externalId: { in: ids } },
+              where: { userId, externalId: { in: ids } },
               include: {
                 briefs: { orderBy: { generatedAt: "desc" }, take: 1 },
               },
@@ -144,7 +142,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
             <h2 className="mb-3 text-xl font-semibold text-primary">
               Upcoming Meetings
             </h2>
-            {user ? (
+            {userId ? (
               meetings.length ? (
                 <ul className="divide-y divide-border">
                   {meetings.map((m) => {
