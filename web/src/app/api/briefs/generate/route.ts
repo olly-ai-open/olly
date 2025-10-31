@@ -1,15 +1,28 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getAccessTokenFromAccount, getEventDetailsWithToken, searchDriveSnippetsWithToken, searchGmailSnippetsWithToken } from "@/lib/google";
+import {
+  getAccessTokenFromAccount,
+  getEventDetailsWithToken,
+  searchDriveSnippetsWithToken,
+  searchGmailSnippetsWithToken,
+} from "@/lib/google";
 import { generateBriefFromContext } from "@/lib/llm";
 import { upsertMeetingFromEvent } from "@/lib/meetings";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { linkBriefParticipants, linkMeetingParticipants, upsertPersonsForEmails } from "@/lib/people";
+import {
+  linkBriefParticipants,
+  linkMeetingParticipants,
+  upsertPersonsForEmails,
+} from "@/lib/people";
 
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  if (!session?.user?.id)
+    return NextResponse.json(
+      { ok: false, error: "unauthorized" },
+      { status: 401 },
+    );
   let eventId: string | undefined;
   let wantsRedirect = false;
   const contentType = req.headers.get("content-type") || "";
@@ -22,23 +35,41 @@ export async function POST(req: Request) {
     eventId = (form.get("eventId") as string) || undefined;
     wantsRedirect = (form.get("redirect") as string) === "1";
   }
-  if (!eventId) return NextResponse.json({ ok: false, error: "missing eventId" }, { status: 400 });
+  if (!eventId)
+    return NextResponse.json(
+      { ok: false, error: "missing eventId" },
+      { status: 400 },
+    );
 
   try {
-    const account = await prisma.account.findFirst({ where: { userId: session.user.id, provider: "google" } });
-    if (!account) return NextResponse.json({ ok: false, error: "no_account" }, { status: 404 });
+    const account = await prisma.account.findFirst({
+      where: { userId: session.user.id, provider: "google" },
+    });
+    if (!account)
+      return NextResponse.json(
+        { ok: false, error: "no_account" },
+        { status: 404 },
+      );
     const token = await getAccessTokenFromAccount(account);
     const event = await getEventDetailsWithToken(token, eventId);
     const meeting = await upsertMeetingFromEvent(session.user.id, event);
 
     const titleQ = event.title?.split(/\s+/).slice(0, 6).join(" ");
-    const attendees = (event.attendees || []).map((a) => a.email).filter(Boolean) as string[];
-    const attendeeQuery = attendees.slice(0, 3).map((e) => `"${e}"`).join(" OR ");
+    const attendees = (event.attendees || [])
+      .map((a) => a.email)
+      .filter(Boolean) as string[];
+    const attendeeQuery = attendees
+      .slice(0, 3)
+      .map((e) => `"${e}"`)
+      .join(" OR ");
 
     const driveQ = [titleQ, attendeeQuery].filter(Boolean).join(" ");
     const gmailQ = [
       titleQ,
-      attendees.slice(0, 2).map((e) => `from:${e}`).join(" "),
+      attendees
+        .slice(0, 2)
+        .map((e) => `from:${e}`)
+        .join(" "),
       "newer_than:30d",
     ]
       .filter(Boolean)
@@ -70,17 +101,29 @@ export async function POST(req: Request) {
     });
 
     // People: upsert Person rows for attendees, and link to meeting/brief
-    const personRows = await upsertPersonsForEmails(session.user.id, (event.attendees || []).map((a) => a.email));
+    const personRows = await upsertPersonsForEmails(
+      session.user.id,
+      (event.attendees || []).map((a) => a.email),
+    );
     const personIds = personRows.map((p) => p.id);
     await linkMeetingParticipants(meeting.id, personIds);
     await linkBriefParticipants(saved.id, personIds);
 
     // Create ActionItems from structured suggested_actions if present
     const content: any = saved.content as any;
-    const actions: string[] = Array.isArray(content?.suggested_actions) ? content.suggested_actions : [];
+    const actions: string[] = Array.isArray(content?.suggested_actions)
+      ? content.suggested_actions
+      : [];
     if (actions.length) {
       await prisma.actionItem.createMany({
-        data: actions.slice(0, 20).map((title) => ({ userId: session.user.id, title, briefId: saved.id, status: "open" })),
+        data: actions
+          .slice(0, 20)
+          .map((title) => ({
+            userId: session.user.id,
+            title,
+            briefId: saved.id,
+            status: "open",
+          })),
       });
     }
 
@@ -96,6 +139,9 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ ok: true, brief: saved });
   } catch (err: any) {
-    return NextResponse.json({ ok: false, error: err?.message || "failed" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: err?.message || "failed" },
+      { status: 500 },
+    );
   }
 }

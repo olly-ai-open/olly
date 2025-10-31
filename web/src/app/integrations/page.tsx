@@ -21,20 +21,32 @@ export default async function IntegrationsPage() {
 
   let account: any = null;
   try {
-    account = await prisma.account.findFirst({ where: { userId: session.user.id, provider: "google" } });
+    account = await prisma.account.findFirst({
+      where: { userId: session.user.id, provider: "google" },
+    });
   } catch {
     account = null;
   }
-  let health: { connected: boolean; reason?: string } = { connected: false, reason: "no_account" };
+  let health: { connected: boolean; reason?: string } = {
+    connected: false,
+    reason: "no_account",
+  };
   if (account) {
     try {
       const token = await getAccessTokenFromAccount(account);
-      const resp = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1", {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
+      const resp = await fetch(
+        "https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        },
+      );
       if (resp.ok) health = { connected: true };
-      else health = { connected: false, reason: `calendar_health_failed: ${resp.status}` };
+      else
+        health = {
+          connected: false,
+          reason: `calendar_health_failed: ${resp.status}`,
+        };
     } catch (e: any) {
       health = { connected: false, reason: e?.message || "unknown_error" };
     }
@@ -69,9 +81,16 @@ export default async function IntegrationsPage() {
             )}
             <div className="mt-4 flex items-center gap-4">
               {health.connected ? (
-                <Link className="underline" href="/api/auth/signout?callbackUrl=/integrations">Disconnect</Link>
+                <Link
+                  className="underline"
+                  href="/api/auth/signout?callbackUrl=/integrations"
+                >
+                  Disconnect
+                </Link>
               ) : (
-                <Link className="underline" href={providerSignInUrl}>Connect Google</Link>
+                <Link className="underline" href={providerSignInUrl}>
+                  Connect Google
+                </Link>
               )}
             </div>
           </div>

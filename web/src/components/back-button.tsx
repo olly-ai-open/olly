@@ -1,7 +1,11 @@
 "use client";
 import { useRouter } from "next/navigation";
 
-export default function BackButton({ fallbackHref = "/" }: { fallbackHref?: string }) {
+export default function BackButton({
+  fallbackHref = "/",
+}: {
+  fallbackHref?: string;
+}) {
   const router = useRouter();
   return (
     <button
@@ -21,4 +25,3 @@ export default function BackButton({ fallbackHref = "/" }: { fallbackHref?: stri
     </button>
   );
 }
-

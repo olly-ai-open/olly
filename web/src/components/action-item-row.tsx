@@ -9,7 +9,6 @@ export default function ActionItemRow({
   id,
   title,
   completedAt,
-  status,
   dueAt,
   briefId,
   assigned,
@@ -41,7 +40,11 @@ export default function ActionItemRow({
     }
   }
 
-  const dueLabel = dueAt ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(dueAt)) : null;
+  const dueLabel = dueAt
+    ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(
+        new Date(dueAt),
+      )
+    : null;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -49,16 +52,29 @@ export default function ActionItemRow({
         <div>
           <div className="font-medium">
             <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={completed} onChange={(e) => toggleComplete(e.target.checked)} disabled={saving} />
-              <span className={completed ? 'line-through text-muted-foreground' : ''}>{title}</span>
+              <input
+                type="checkbox"
+                checked={completed}
+                onChange={(e) => toggleComplete(e.target.checked)}
+                disabled={saving}
+              />
+              <span
+                className={
+                  completed ? "line-through text-muted-foreground" : ""
+                }
+              >
+                {title}
+              </span>
             </label>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {dueLabel ? <>Due: {dueLabel}</> : null}
             {briefId ? (
               <>
-                {dueLabel ? ' • ' : ''}
-                <Link className="underline" href={`/briefs/${briefId}`}>View Context</Link>
+                {dueLabel ? " • " : ""}
+                <Link className="underline" href={`/briefs/${briefId}`}>
+                  View Context
+                </Link>
               </>
             ) : null}
           </div>
@@ -72,4 +88,3 @@ export default function ActionItemRow({
     </div>
   );
 }
-

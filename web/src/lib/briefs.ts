@@ -2,7 +2,10 @@ export function extractKeyBullets(content: any, maxItems = 3): string[] {
   if (!content) return [];
   // If structured JSON
   if (typeof content === "object") {
-    const possible = (content.key_points || content.keyPoints || content.context || []) as any[];
+    const possible = (content.key_points ||
+      content.keyPoints ||
+      content.context ||
+      []) as any[];
     if (Array.isArray(possible) && possible.length) {
       return possible
         .map((x) => (typeof x === "string" ? x : (x?.text as string) || ""))
@@ -33,4 +36,3 @@ export function extractKeyBullets(content: any, maxItems = 3): string[] {
     .filter(Boolean)
     .slice(0, maxItems);
 }
-

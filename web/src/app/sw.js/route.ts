@@ -3,4 +3,3 @@ export function GET() {
     headers: { "content-type": "application/javascript" },
   });
 }
-

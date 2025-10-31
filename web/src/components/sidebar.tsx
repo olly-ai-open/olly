@@ -14,7 +14,9 @@ export default async function Sidebar() {
   };
   if (userId) {
     try {
-      const account = await prisma.account.findFirst({ where: { userId, provider: "google" } });
+      const account = await prisma.account.findFirst({
+        where: { userId, provider: "google" },
+      });
       const scope = account?.scope || "";
       connected = {
         gmail: scope.includes("gmail"),
@@ -27,9 +29,12 @@ export default async function Sidebar() {
     }
   }
 
-  const itemCls = "flex items-center gap-2 rounded px-3 py-2 text-sm hover:bg-border/40";
+  const itemCls =
+    "flex items-center gap-2 rounded px-3 py-2 text-sm hover:bg-border/40";
   const dot = (ok: boolean) => (
-    <span className={`inline-block h-2 w-2 rounded-full ${ok ? "bg-green-500" : "bg-zinc-300"}`} />
+    <span
+      className={`inline-block h-2 w-2 rounded-full ${ok ? "bg-green-500" : "bg-zinc-300"}`}
+    />
   );
 
   return (
@@ -55,11 +60,19 @@ export default async function Sidebar() {
         </nav>
 
         <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
-          <div className="mb-2 text-xs font-medium text-muted-foreground">Connected:</div>
+          <div className="mb-2 text-xs font-medium text-muted-foreground">
+            Connected:
+          </div>
           <div className="space-y-1 text-sm">
-            <div className="flex items-center gap-2">{dot(connected.gmail)} Gmail</div>
-            <div className="flex items-center gap-2">{dot(connected.calendar)} Calendar</div>
-            <div className="flex items-center gap-2">{dot(connected.drive)} Google Drive</div>
+            <div className="flex items-center gap-2">
+              {dot(connected.gmail)} Gmail
+            </div>
+            <div className="flex items-center gap-2">
+              {dot(connected.calendar)} Calendar
+            </div>
+            <div className="flex items-center gap-2">
+              {dot(connected.drive)} Google Drive
+            </div>
           </div>
         </div>
       </div>

@@ -6,7 +6,11 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function PersonDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function PersonDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) {
@@ -27,7 +31,7 @@ export default async function PersonDetail({ params }: { params: Promise<{ id: s
   }
   const briefs = await prisma.brief.findMany({
     where: { people: { some: { personId: person.id } }, meeting: { userId } },
-    orderBy: { generatedAt: 'desc' },
+    orderBy: { generatedAt: "desc" },
     include: { meeting: true },
     take: 20,
   });
@@ -37,27 +41,46 @@ export default async function PersonDetail({ params }: { params: Promise<{ id: s
       <div className="flex gap-6">
         <Sidebar />
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold">{person.name || person.email || 'Person'}</h1>
+          <h1 className="text-2xl font-semibold">
+            {person.name || person.email || "Person"}
+          </h1>
           {(person.title || person.org) && (
-            <div className="mb-4 text-sm text-muted-foreground">{[person.title, person.org].filter(Boolean).join(' • ')}</div>
+            <div className="mb-4 text-sm text-muted-foreground">
+              {[person.title, person.org].filter(Boolean).join(" • ")}
+            </div>
           )}
 
           <div className="space-y-4">
             {briefs.map((b) => (
-              <div key={b.id} className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <div
+                key={b.id}
+                className="rounded-lg border border-border bg-card p-4 shadow-sm"
+              >
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="font-medium">{b.meeting?.title || 'Brief'}</div>
+                    <div className="font-medium">
+                      {b.meeting?.title || "Brief"}
+                    </div>
                     {b.meeting?.startsAt && (
-                      <div className="text-xs text-muted-foreground" suppressHydrationWarning>
-                        {new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(b.meeting.startsAt)}
+                      <div
+                        className="text-xs text-muted-foreground"
+                        suppressHydrationWarning
+                      >
+                        {new Intl.DateTimeFormat("en-US", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }).format(b.meeting.startsAt)}
                       </div>
                     )}
                   </div>
-                  <Link className="text-sm underline" href={`/briefs/${b.id}`}>Open</Link>
+                  <Link className="text-sm underline" href={`/briefs/${b.id}`}>
+                    Open
+                  </Link>
                 </div>
                 <div className="mt-2 text-sm text-muted-foreground">
-                  {typeof b.content === 'object' && (b.content as any)?.summary ? (b.content as any).summary : '(No summary)'}
+                  {typeof b.content === "object" && (b.content as any)?.summary
+                    ? (b.content as any).summary
+                    : "(No summary)"}
                 </div>
               </div>
             ))}
@@ -67,4 +90,3 @@ export default async function PersonDetail({ params }: { params: Promise<{ id: s
     </main>
   );
 }
-

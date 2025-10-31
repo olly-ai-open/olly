@@ -1,8 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import Link from "next/link";
 import BriefActions from "@/components/brief-actions";
-import ActionItemAssignees from "@/components/action-item-assignees";
 import BackButton from "@/components/back-button";
 import ActionItemRow from "@/components/action-item-row";
 
@@ -10,21 +8,31 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function BriefDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function BriefDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-10">
         <h1 className="mb-4 text-2xl font-semibold">Brief</h1>
-        <p className="text-sm text-muted-foreground">Sign in to view this brief.</p>
+        <p className="text-sm text-muted-foreground">
+          Sign in to view this brief.
+        </p>
       </div>
     );
   }
 
   const brief = await prisma.brief.findUnique({
     where: { id },
-    include: { meeting: true, actionItems: { include: { assignees: { include: { person: true } } } }, people: { include: { person: true } } },
+    include: {
+      meeting: true,
+      actionItems: { include: { assignees: { include: { person: true } } } },
+      people: { include: { person: true } },
+    },
   });
   if (!brief || brief.meeting?.userId !== session.user.id) {
     return (
@@ -35,27 +43,57 @@ export default async function BriefDetail({ params }: { params: Promise<{ id: st
     );
   }
   const when = brief.meeting?.startsAt
-    ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(brief.meeting.startsAt)
+    ? new Intl.DateTimeFormat("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(brief.meeting.startsAt)
     : "";
   const content: any = brief.content as any;
-  const contentObj: any | null = typeof content === "object" && content ? content : null;
-  const text = !contentObj ? (typeof content === "string" ? content : String(content ?? "")) : "";
-  const sources: string[] = Array.isArray(brief.sources) ? (brief.sources as any[]) : [];
+  const contentObj: any | null =
+    typeof content === "object" && content ? content : null;
+  const text = !contentObj
+    ? typeof content === "string"
+      ? content
+      : String(content ?? "")
+    : "";
+  const sources: string[] = Array.isArray(brief.sources)
+    ? (brief.sources as any[])
+    : [];
 
-  function parseSource(s: string): { title: string; url?: string; provider?: string; meta?: string } {
+  function parseSource(s: string): {
+    title: string;
+    url?: string;
+    provider?: string;
+    meta?: string;
+  } {
     // Accept formats like: "Drive: Title -> URL" or Gmail URL strings
     const driveMatch = s.match(/^\s*(\w+):\s*(.*?)\s*->\s*(https?:\/\/\S+)/i);
-    if (driveMatch) return { provider: driveMatch[1], title: driveMatch[2], url: driveMatch[3] };
+    if (driveMatch)
+      return {
+        provider: driveMatch[1],
+        title: driveMatch[2],
+        url: driveMatch[3],
+      };
     const urlMatch = s.match(/https?:\/\/\S+/);
-    return { title: s.replace(urlMatch?.[0] ?? "", "").trim() || "Link", url: urlMatch?.[0] };
+    return {
+      title: s.replace(urlMatch?.[0] ?? "", "").trim() || "Link",
+      url: urlMatch?.[0],
+    };
   }
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-10">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">{brief.meeting?.title || "Brief"}</h1>
-          <div className="text-sm text-muted-foreground" suppressHydrationWarning>{when}</div>
+          <h1 className="text-2xl font-semibold">
+            {brief.meeting?.title || "Brief"}
+          </h1>
+          <div
+            className="text-sm text-muted-foreground"
+            suppressHydrationWarning
+          >
+            {when}
+          </div>
         </div>
       </div>
 
@@ -66,43 +104,63 @@ export default async function BriefDetail({ params }: { params: Promise<{ id: st
             <>
               {contentObj.summary && (
                 <div className="mb-4">
-                  <div className="mb-1 text-sm font-medium text-muted-foreground">Summary</div>
-                  <div className="text-sm whitespace-pre-wrap">{contentObj.summary}</div>
+                  <div className="mb-1 text-sm font-medium text-muted-foreground">
+                    Summary
+                  </div>
+                  <div className="text-sm whitespace-pre-wrap">
+                    {contentObj.summary}
+                  </div>
                 </div>
               )}
-              {Array.isArray(contentObj.key_points) && contentObj.key_points.length > 0 && (
-                <div className="mb-4">
-                  <div className="mb-1 text-sm font-medium text-muted-foreground">Key Context</div>
-                  <ul className="list-disc space-y-1 pl-5 text-sm">
-                    {contentObj.key_points.map((p: string, i: number) => (
-                      <li key={i}>{p}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {Array.isArray(contentObj.suggested_actions) && contentObj.suggested_actions.length > 0 && (
-                <div className="mb-4">
-                  <div className="mb-1 text-sm font-medium text-muted-foreground">Suggested Actions</div>
-                  <ul className="list-disc space-y-1 pl-5 text-sm">
-                    {contentObj.suggested_actions.map((p: string, i: number) => (
-                      <li key={i}>{p}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {Array.isArray(contentObj.risks) && contentObj.risks.length > 0 && (
-                <div>
-                  <div className="mb-1 text-sm font-medium text-muted-foreground">Risks & Concerns</div>
-                  <ul className="list-disc space-y-1 pl-5 text-sm">
-                    {contentObj.risks.map((p: string, i: number) => (
-                      <li key={i}>{p}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {!contentObj.summary && !contentObj.key_points?.length && !contentObj.suggested_actions?.length && !contentObj.risks?.length && (
-                <div className="text-sm whitespace-pre-wrap">(no content)</div>
-              )}
+              {Array.isArray(contentObj.key_points) &&
+                contentObj.key_points.length > 0 && (
+                  <div className="mb-4">
+                    <div className="mb-1 text-sm font-medium text-muted-foreground">
+                      Key Context
+                    </div>
+                    <ul className="list-disc space-y-1 pl-5 text-sm">
+                      {contentObj.key_points.map((p: string, i: number) => (
+                        <li key={i}>{p}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              {Array.isArray(contentObj.suggested_actions) &&
+                contentObj.suggested_actions.length > 0 && (
+                  <div className="mb-4">
+                    <div className="mb-1 text-sm font-medium text-muted-foreground">
+                      Suggested Actions
+                    </div>
+                    <ul className="list-disc space-y-1 pl-5 text-sm">
+                      {contentObj.suggested_actions.map(
+                        (p: string, i: number) => (
+                          <li key={i}>{p}</li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+                )}
+              {Array.isArray(contentObj.risks) &&
+                contentObj.risks.length > 0 && (
+                  <div>
+                    <div className="mb-1 text-sm font-medium text-muted-foreground">
+                      Risks & Concerns
+                    </div>
+                    <ul className="list-disc space-y-1 pl-5 text-sm">
+                      {contentObj.risks.map((p: string, i: number) => (
+                        <li key={i}>{p}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              {!contentObj.summary &&
+                !contentObj.key_points?.length &&
+                !contentObj.suggested_actions?.length &&
+                !contentObj.risks?.length && (
+                  <div className="text-sm whitespace-pre-wrap">
+                    (no content)
+                  </div>
+                )}
             </>
           ) : (
             <div className="whitespace-pre-wrap text-sm">{text}</div>
@@ -117,13 +175,26 @@ export default async function BriefDetail({ params }: { params: Promise<{ id: st
               {sources.slice(0, 10).map((s, i) => {
                 const p = parseSource(s);
                 return (
-                  <li key={i} className="flex items-center justify-between rounded-md bg-muted px-3 py-2">
+                  <li
+                    key={i}
+                    className="flex items-center justify-between rounded-md bg-muted px-3 py-2"
+                  >
                     <div>
                       <div className="font-medium">{p.title}</div>
-                      {p.provider && <div className="text-xs text-muted-foreground">{p.provider}</div>}
+                      {p.provider && (
+                        <div className="text-xs text-muted-foreground">
+                          {p.provider}
+                        </div>
+                      )}
                     </div>
                     {p.url && (
-                      <a className="rounded-md border border-border px-3 py-1 text-sm hover:bg-border/30" href={p.url} target="_blank">Open</a>
+                      <a
+                        className="rounded-md border border-border px-3 py-1 text-sm hover:bg-border/30"
+                        href={p.url}
+                        target="_blank"
+                      >
+                        Open
+                      </a>
                     )}
                   </li>
                 );
@@ -138,19 +209,39 @@ export default async function BriefDetail({ params }: { params: Promise<{ id: st
             <div className="mb-2 text-sm font-medium">Action Items</div>
             <ul className="space-y-1 text-sm">
               {brief.actionItems.map((ai) => {
-                const assigned = (ai.assignees || []).map((a) => a.person).filter(Boolean) as any[];
-                const options = (brief.people || []).map((bp) => bp.person).filter(Boolean) as any[];
+                const assigned = (ai.assignees || [])
+                  .map((a) => a.person)
+                  .filter(Boolean) as any[];
+                const options = (brief.people || [])
+                  .map((bp) => bp.person)
+                  .filter(Boolean) as any[];
                 return (
                   <li key={ai.id}>
                     <ActionItemRow
                       id={ai.id}
                       title={ai.title}
-                      completedAt={ai.completedAt ? new Date(ai.completedAt as any).toISOString() : null}
+                      completedAt={
+                        ai.completedAt
+                          ? new Date(ai.completedAt as any).toISOString()
+                          : null
+                      }
                       status={ai.status}
-                      dueAt={ai.dueAt ? new Date(ai.dueAt as any).toISOString() : null}
+                      dueAt={
+                        ai.dueAt
+                          ? new Date(ai.dueAt as any).toISOString()
+                          : null
+                      }
                       briefId={brief.id}
-                      assigned={assigned.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
-                      options={options.map((p) => ({ id: p.id, name: p.name, email: p.email }))}
+                      assigned={assigned.map((p) => ({
+                        id: p.id,
+                        name: p.name,
+                        email: p.email,
+                      }))}
+                      options={options.map((p) => ({
+                        id: p.id,
+                        name: p.name,
+                        email: p.email,
+                      }))}
                     />
                   </li>
                 );
@@ -162,8 +253,12 @@ export default async function BriefDetail({ params }: { params: Promise<{ id: st
         {/* Olly's Take */}
         {contentObj?.summary && (
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <div className="mb-1 text-sm font-medium text-muted-foreground">🐙 Olly's Take:</div>
-            <div className="text-sm whitespace-pre-wrap">{contentObj.summary}</div>
+            <div className="mb-1 text-sm font-medium text-muted-foreground">
+              🐙 Olly&apos;s Take:
+            </div>
+            <div className="text-sm whitespace-pre-wrap">
+              {contentObj.summary}
+            </div>
           </div>
         )}
 
@@ -182,7 +277,9 @@ export default async function BriefDetail({ params }: { params: Promise<{ id: st
         </div>
       ) : null}
 
-      <div className="mt-6"><BackButton /></div>
+      <div className="mt-6">
+        <BackButton />
+      </div>
     </div>
   );
 }

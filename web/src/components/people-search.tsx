@@ -2,7 +2,11 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-export default function PeopleSearch({ initialQuery }: { initialQuery?: string }) {
+export default function PeopleSearch({
+  initialQuery,
+}: {
+  initialQuery?: string;
+}) {
   const [value, setValue] = useState(initialQuery || "");
   const [loading, setLoading] = useState(false);
   const router = useRouter();

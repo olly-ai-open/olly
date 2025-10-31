@@ -16,7 +16,9 @@ export default function ActionItemAssignees({
   const [adding, setAdding] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
-  const remaining = options.filter((p) => !assignees.some((a) => a.id === p.id));
+  const remaining = options.filter(
+    (p) => !assignees.some((a) => a.id === p.id),
+  );
 
   async function add(personId: string) {
     if (!personId) return;
@@ -55,12 +57,24 @@ export default function ActionItemAssignees({
     <div className="mt-2 space-y-2">
       <div className="flex flex-wrap gap-2">
         {assignees.map((a) => (
-          <span key={a.id} className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2 py-0.5 text-xs text-primary">
+          <span
+            key={a.id}
+            className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2 py-0.5 text-xs text-primary"
+          >
             <span>{a.name || a.email || "Unknown"}</span>
-            <button onClick={() => remove(a.id)} className="ml-1 text-xs" title="Remove" disabled={busy}>×</button>
+            <button
+              onClick={() => remove(a.id)}
+              className="ml-1 text-xs"
+              title="Remove"
+              disabled={busy}
+            >
+              ×
+            </button>
           </span>
         ))}
-        {!assignees.length && <span className="text-xs text-muted-foreground">No assignees</span>}
+        {!assignees.length && (
+          <span className="text-xs text-muted-foreground">No assignees</span>
+        )}
       </div>
       {remaining.length > 0 && (
         <div className="flex items-center gap-2">
@@ -90,4 +104,3 @@ export default function ActionItemAssignees({
     </div>
   );
 }
-

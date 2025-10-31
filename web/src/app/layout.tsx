@@ -29,16 +29,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+      >
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('theme');var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');var d=(t==='dark')||((t==='system'||!t)&&m&&m.matches);var r=document.documentElement;d?r.classList.add('dark'):r.classList.remove('dark');}catch(e){}})();`}
         </Script>
         <header className="border-b border-border bg-card/70 backdrop-blur">
           <div className="container mx-auto grid grid-cols-2 items-center px-4 py-3">
-            <Link href="/" className="font-semibold text-lg text-primary">Olly</Link>
+            <Link href="/" className="font-semibold text-lg text-primary">
+              Olly
+            </Link>
             <div className="flex items-center justify-self-end gap-3">
               <ThemeToggle />
-              <Suspense fallback={<div className="h-5 w-24 rounded bg-border" />}> 
+              <Suspense
+                fallback={<div className="h-5 w-24 rounded bg-border" />}
+              >
                 <NavAuth />
               </Suspense>
             </div>
