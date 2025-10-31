@@ -12,11 +12,11 @@ export async function upsertPersonsForEmails(
   const existing = await prisma.person.findMany({
     where: { userId, email: { in: uniq } },
   });
-  const existingMap = new Map(existing.map((p) => [p.email || "", p]));
-  const toCreate = uniq.filter((e) => !existingMap.has(e));
+  const existingMap = new Map(existing.map((p: any) => [p.email || "", p]));
+  const toCreate = uniq.filter((e: string) => !existingMap.has(e));
   if (toCreate.length) {
     await prisma.person.createMany({
-      data: toCreate.map((email) => ({ userId, email })),
+      data: toCreate.map((email: string) => ({ userId, email })),
     });
   }
   const final = await prisma.person.findMany({

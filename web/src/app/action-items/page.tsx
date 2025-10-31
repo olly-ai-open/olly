@@ -49,7 +49,7 @@ export default async function ActionItemsPage({
   const weekEnd = new Date(
     now.getTime() + (7 - now.getDay()) * 24 * 60 * 60 * 1000,
   );
-  const filtered = items.filter((it) => {
+  const filtered = items.filter((it: any) => {
     const done = !!it.completedAt;
     const due = it.dueAt ? new Date(it.dueAt) : null;
     switch (filter) {
@@ -81,7 +81,7 @@ export default async function ActionItemsPage({
         <div className="flex-1">
           <h1 className="mb-4 text-2xl font-semibold">Action Items</h1>
           <div className="mb-4 flex items-center gap-2">
-            {tabs.map((t) => (
+            {tabs.map((t: { key: string; label: string }) => (
               <Link
                 key={t.key}
                 href={
@@ -97,12 +97,12 @@ export default async function ActionItemsPage({
           </div>
 
           <div className="space-y-3">
-            {filtered.map((ai) => {
+            {filtered.map((ai: any) => {
               const options = (ai.brief?.people || [])
-                .map((bp) => bp.person)
+                .map((bp: any) => bp.person)
                 .filter(Boolean) as any[];
               const assigned = (ai.assignees || [])
-                .map((a) => a.person)
+                .map((a: any) => a.person)
                 .filter(Boolean) as any[];
               return (
                 <ActionItemRow
@@ -119,12 +119,12 @@ export default async function ActionItemsPage({
                     ai.dueAt ? new Date(ai.dueAt as any).toISOString() : null
                   }
                   briefId={ai.briefId || null}
-                  assigned={assigned.map((p) => ({
+                  assigned={assigned.map((p: any) => ({
                     id: p.id,
                     name: p.name,
                     email: p.email,
                   }))}
-                  options={options.map((p) => ({
+                  options={options.map((p: any) => ({
                     id: p.id,
                     name: p.name,
                     email: p.email,

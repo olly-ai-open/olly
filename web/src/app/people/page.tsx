@@ -64,7 +64,7 @@ export default async function PeoplePage({
   // Enrich cards with next meeting, cadence, and last topic
   const now = new Date();
   const enrich = await Promise.all(
-    people.map(async (p) => {
+    people.map(async (p: any) => {
       // Next meeting
       const nextMp = await prisma.meetingParticipant
         .findFirst({
@@ -118,7 +118,14 @@ export default async function PeoplePage({
             <PeopleSearch initialQuery={q} />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {enrich.map(({ p, nextStartsAt, cadence, lastTopic }) => (
+            {enrich.map((
+              {
+                p,
+                nextStartsAt,
+                cadence,
+                lastTopic,
+              }: { p: any; nextStartsAt: Date | null; cadence: string; lastTopic: string | null },
+            ) => (
               <Link
                 key={p.id}
                 href={`/people/${p.id}`}

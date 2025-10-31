@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         (a) => a.email,
       ),
     );
-    const personIds = personRows.map((p) => p.id);
+    const personIds = personRows.map((p: any) => p.id);
     await linkMeetingParticipants(meeting.id, personIds);
     await linkBriefParticipants(saved.id, personIds);
 

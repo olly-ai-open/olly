@@ -208,12 +208,12 @@ export default async function BriefDetail({
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <div className="mb-2 text-sm font-medium">Action Items</div>
             <ul className="space-y-1 text-sm">
-              {brief.actionItems.map((ai) => {
+              {brief.actionItems.map((ai: any) => {
                 const assigned = (ai.assignees || [])
-                  .map((a) => a.person)
+                  .map((a: any) => a.person)
                   .filter(Boolean) as any[];
                 const options = (brief.people || [])
-                  .map((bp) => bp.person)
+                  .map((bp: any) => bp.person)
                   .filter(Boolean) as any[];
                 return (
                   <li key={ai.id}>
@@ -232,12 +232,12 @@ export default async function BriefDetail({
                           : null
                       }
                       briefId={brief.id}
-                      assigned={assigned.map((p) => ({
+                      assigned={assigned.map((p: any) => ({
                         id: p.id,
                         name: p.name,
                         email: p.email,
                       }))}
-                      options={options.map((p) => ({
+                      options={options.map((p: any) => ({
                         id: p.id,
                         name: p.name,
                         email: p.email,

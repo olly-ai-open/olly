@@ -54,7 +54,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
               },
             });
             const map = new Map<string, (typeof rows)[number]>(
-              rows.map((r) => [r.externalId, r]),
+              rows.map((r: any) => [r.externalId, r]),
             );
             return map;
           } catch {

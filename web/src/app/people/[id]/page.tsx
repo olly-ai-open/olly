@@ -51,7 +51,7 @@ export default async function PersonDetail({
           )}
 
           <div className="space-y-4">
-            {briefs.map((b) => (
+            {briefs.map((b: any) => (
               <div
                 key={b.id}
                 className="rounded-lg border border-border bg-card p-4 shadow-sm"

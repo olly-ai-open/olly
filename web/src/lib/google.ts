@@ -47,13 +47,15 @@ export async function getUserGoogleAuth(userId: string) {
     where: { userId, provider: "google" },
   });
   if (!accounts.length) return null;
-  const withAccess = accounts.filter((a) => !!a.access_token);
+  const withAccess = accounts.filter((a: any) => !!a.access_token);
   const byExpiry = (a?: number | null) => (a ? a : 0);
   const account =
     withAccess
-      .sort((a, b) => byExpiry(a.expires_at) - byExpiry(b.expires_at))
+      .sort(
+        (a: any, b: any) => byExpiry(a.expires_at) - byExpiry(b.expires_at),
+      )
       .pop() ||
-    accounts.find((a) => !!a.refresh_token) ||
+    accounts.find((a: any) => !!a.refresh_token) ||
     accounts[0];
 
   const oAuth2Client = getOAuthClient();

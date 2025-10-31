@@ -23,7 +23,7 @@ export default async function BriefsList() {
     );
   return (
     <ul className="divide-y divide-border rounded-lg border border-border bg-card shadow-sm">
-      {briefs.map((b) => {
+      {briefs.map((b: any) => {
         const when = b.meeting?.startsAt
           ? format(b.meeting.startsAt, "PPpp")
           : "";
