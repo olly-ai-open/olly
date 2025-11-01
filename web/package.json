@@ -14,7 +14,6 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "precommit": "lint-staged",
-    "prepare": "cd .. && husky web/.husky",
     "typecheck": "tsc --noEmit",
     "typecheck:watch": "tsc -w --noEmit"
   },
@@ -34,6 +33,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@prisma/nextjs-monorepo-workaround-plugin": "^6.18.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
     "@types/react": "^19",
