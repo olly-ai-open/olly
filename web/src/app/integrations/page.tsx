@@ -130,7 +130,7 @@ export default async function IntegrationsPage() {
                     <form action="/api/auth/google-disconnect" method="post">
                       <button
                         type="submit"
-                        className="text-xs text-red-600 hover:text-red-700 underline"
+                        className="bg-background rounded-md border border-border px-3 py-1 text-sm hover:bg-accent cursor-pointer"
                       >
                         Disconnect Workspace
                       </button>
