@@ -31,6 +31,7 @@ model User {
   jobs          Job[]
   cached        CachedArtifact[]
   people        Person[]
+  driveFolders  DriveFolder[]
 }
 
 model Account {
@@ -227,4 +228,21 @@ model ActionItemAssignee {
   person     Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@id([actionItemId, personId])
+}
+
+// Google Drive folder permissions
+model DriveFolder {
+  id         String   @id @default(cuid())
+  userId     String
+  folderId   String   // Google Drive folder ID
+  folderName String   // Display name of the folder
+  parentId   String?  // Parent folder ID (for nested folders)
+  path       String?  // Full path for display (e.g., "My Folder/Subfolder")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, folderId])
+  @@index([userId])
 }

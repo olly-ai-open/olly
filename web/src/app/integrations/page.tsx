@@ -4,6 +4,8 @@ import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import Sidebar from "@/components/sidebar";
 import LoginHero from "@/components/login-hero";
+import DriveFolderManager from "@/components/drive-folder-manager";
+import Script from "next/script";
 
 export default async function IntegrationsPage() {
   noStore();
@@ -20,114 +22,126 @@ export default async function IntegrationsPage() {
   const health = await checkGoogleHealth(session.user.id);
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <div className="flex gap-6">
-        <Sidebar />
-        <div className="flex-1">
-          <h1 className="mb-4 text-2xl font-semibold">Integrations</h1>
+    <>
+      {/* Load Google Picker API */}
+      <Script
+        src="https://apis.google.com/js/api.js"
+        strategy="afterInteractive"
+      />
 
-          {/* Google Account Status Card */}
-          <div className="rounded-lg border border-border bg-card p-4 shadow-sm mb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium">Google Account</div>
-                <div className="text-sm text-muted-foreground">
-                  Basic authentication for sign-in
+      <main className="container mx-auto px-4 py-8">
+        <div className="flex gap-6">
+          <Sidebar />
+          <div className="flex-1">
+            <h1 className="mb-4 text-2xl font-semibold">Integrations</h1>
+
+            {/* Google Account Status Card */}
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Google Account</div>
+                  <div className="text-sm text-muted-foreground">
+                    Basic authentication for sign-in
+                  </div>
                 </div>
-              </div>
-              <div className="text-sm">
-                {health.connected ? (
-                  <span className="text-green-600">✓ Connected</span>
-                ) : (
-                  <span className="text-gray-500">Not Connected</span>
-                )}
+                <div className="text-sm">
+                  {health.connected ? (
+                    <span className="text-green-600">✓ Connected</span>
+                  ) : (
+                    <span className="text-gray-500">Not Connected</span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Google Workspace Advanced Features Card */}
-          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium">Google Workspace</div>
-                <div className="text-sm text-muted-foreground">
-                  Calendar, Drive, and Gmail access for brief generation
+            {/* Google Workspace Advanced Features Card */}
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Google Workspace</div>
+                  <div className="text-sm text-muted-foreground">
+                    Calendar, Drive, and Gmail access for brief generation
+                  </div>
+                </div>
+                <div className="text-sm">
+                  {health.hasAdvancedScopes ? (
+                    <span className="text-green-600">✓ Connected</span>
+                  ) : (
+                    <span className="text-amber-600">Not Connected</span>
+                  )}
                 </div>
               </div>
-              <div className="text-sm">
+
+              {!health.hasAdvancedScopes && (
+                <div className="mt-3">
+                  <div className="text-sm text-muted-foreground mb-3">
+                    {health.connected
+                      ? "Connect Google Workspace to enable meeting briefs and calendar integration"
+                      : "Please sign in first to enable Google Workspace integration"}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center gap-4">
                 {health.hasAdvancedScopes ? (
-                  <span className="text-green-600">✓ Connected</span>
+                  <div className="space-y-3 w-full">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-muted-foreground">
+                        ✓ Calendar access enabled
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        ✓ Gmail access enabled
+                      </span>
+                    </div>
+
+                    {/* Drive Folder Manager */}
+                    <div className="pt-3 border-t border-border">
+                      <DriveFolderManager userId={session.user.id} />
+                    </div>
+                  </div>
+                ) : health.connected ? (
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    href="/api/auth/google-connect"
+                  >
+                    Connect Google Workspace
+                  </Link>
                 ) : (
-                  <span className="text-amber-600">Not Connected</span>
+                  <span className="text-sm text-muted-foreground">
+                    Sign in to connect Google Workspace
+                  </span>
                 )}
               </div>
-            </div>
 
-            {!health.hasAdvancedScopes && (
-              <div className="mt-3">
-                <div className="text-sm text-muted-foreground mb-3">
-                  {health.connected
-                    ? "Connect Google Workspace to enable meeting briefs and calendar integration"
-                    : "Please sign in first to enable Google Workspace integration"}
+              {health.hasAdvancedScopes && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground">
+                      To fully revoke access, go to your{" "}
+                      <a
+                        href="https://myaccount.google.com/permissions"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                      >
+                        Google Account permissions
+                      </a>
+                    </div>
+                    <form action="/api/auth/google-disconnect" method="post">
+                      <button
+                        type="submit"
+                        className="text-xs text-red-600 hover:text-red-700 underline"
+                      >
+                        Disconnect Workspace
+                      </button>
+                    </form>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            <div className="mt-4 flex items-center gap-4">
-              {health.hasAdvancedScopes ? (
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-muted-foreground">
-                    ✓ Calendar access enabled
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    ✓ Drive access enabled
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    ✓ Gmail access enabled
-                  </span>
-                </div>
-              ) : health.connected ? (
-                <Link
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                  href="/api/auth/google-connect"
-                >
-                  Connect Google Workspace
-                </Link>
-              ) : (
-                <span className="text-sm text-muted-foreground">
-                  Sign in to connect Google Workspace
-                </span>
               )}
             </div>
-
-            {health.hasAdvancedScopes && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">
-                    To fully revoke access, go to your{" "}
-                    <a
-                      href="https://myaccount.google.com/permissions"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline"
-                    >
-                      Google Account permissions
-                    </a>
-                  </div>
-                  <form action="/api/auth/google-disconnect" method="post">
-                    <button
-                      type="submit"
-                      className="text-xs text-red-600 hover:text-red-700 underline"
-                    >
-                      Disconnect Workspace
-                    </button>
-                  </form>
-                </div>
-              </div>
-            )}
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

@@ -106,6 +106,7 @@ export async function checkGoogleHealth(userId: string) {
     return (
       scopes.includes("calendar.readonly") ||
       scopes.includes("drive.readonly") ||
+      scopes.includes("drive.file") ||
       scopes.includes("gmail.readonly")
     );
   });
@@ -280,13 +281,23 @@ export async function searchDriveSnippetsWithToken(
   token: string,
   query: string,
   maxResults = 5,
+  folderIds?: string[],
 ) {
-  const q = `name contains '${query.replace(/'/g, "\\'")}' and trashed = false`;
+  let q = `name contains '${query.replace(/'/g, "\\'")}' and trashed = false`;
+
+  // If specific folders are provided, limit search to those folders
+  if (folderIds && folderIds.length > 0) {
+    const folderQueries = folderIds
+      .map((id) => `'${id}' in parents`)
+      .join(" or ");
+    q += ` and (${folderQueries})`;
+  }
+
   const url = new URL("https://www.googleapis.com/drive/v3/files");
   url.searchParams.set("q", q);
   url.searchParams.set(
     "fields",
-    "files(id,name,mimeType,webViewLink,owners/displayName,modifiedTime)",
+    "files(id,name,mimeType,webViewLink,owners/displayName,modifiedTime,parents)",
   );
   url.searchParams.set("pageSize", String(maxResults));
   url.searchParams.set("orderBy", "modifiedTime desc");
@@ -402,21 +413,21 @@ export async function searchDriveSnippets(
   maxResults = 5,
 ) {
   const token = await getValidAccessToken(userId);
-  const q = `name contains '${query.replace(/'/g, "\\'")}' and trashed = false`;
-  const url = new URL("https://www.googleapis.com/drive/v3/files");
-  url.searchParams.set("q", q);
-  url.searchParams.set(
-    "fields",
-    "files(id,name,mimeType,webViewLink,owners/displayName,modifiedTime)",
-  );
-  url.searchParams.set("pageSize", String(maxResults));
-  url.searchParams.set("orderBy", "modifiedTime desc");
-  const resp = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
+
+  // Get user's allowed Drive folders
+  const allowedFolders = await prisma.driveFolder.findMany({
+    where: { userId },
+    select: { folderId: true },
   });
-  if (!resp.ok) throw new Error(`drive_search_failed: ${resp.status}`);
-  const data: any = await resp.json();
-  return data.files || [];
+
+  const folderIds = allowedFolders.map((f) => f.folderId);
+
+  // If no folders are selected, return empty results
+  if (folderIds.length === 0) {
+    return [];
+  }
+
+  return searchDriveSnippetsWithToken(token, query, maxResults, folderIds);
 }
 
 export async function searchGmailSnippets(

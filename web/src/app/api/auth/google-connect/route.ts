@@ -15,7 +15,8 @@ export async function GET() {
   // Advanced scopes for calendar, drive, and gmail
   const scopes = [
     "https://www.googleapis.com/auth/calendar.readonly",
-    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.readonly", // Needed for Google Picker to browse all folders
+    "https://www.googleapis.com/auth/drive.file", // Needed to maintain access to selected folders
     "https://www.googleapis.com/auth/gmail.readonly",
   ];
 
