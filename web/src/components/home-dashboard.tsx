@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   getAccessTokenFromAccount,
   listEventsByDayWithToken,
+  checkGoogleHealth,
 } from "@/lib/google";
 import { extractKeyBullets } from "@/lib/briefs";
 import { unstable_noStore as noStore } from "next/cache";
@@ -25,6 +26,9 @@ export default async function HomeDashboard({ day }: { day?: string }) {
   const session = await auth();
   const userId = session?.user?.id ?? null;
   const targetDay = day || new Date().toISOString().slice(0, 10);
+
+  // Check if user has advanced Google scopes
+  const googleHealth = userId ? await checkGoogleHealth(userId) : null;
   const meetings = userId
     ? await (async () => {
         try {
@@ -33,6 +37,14 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           });
           if (!account)
             return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
+
+          // Check if user has calendar scope
+          const hasCalendarScope = account.scope?.includes("calendar.readonly");
+          if (!hasCalendarScope) {
+            // User only has basic auth, no calendar access
+            return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
+          }
+
           const token = await getAccessTokenFromAccount(account);
           return listEventsByDayWithToken(token, targetDay);
         } catch {
@@ -136,6 +148,30 @@ export default async function HomeDashboard({ day }: { day?: string }) {
             })()}
           </div>
         </div>
+
+        {/* Show a notice if user doesn't have advanced scopes */}
+        {userId && googleHealth && !googleHealth.hasAdvancedScopes && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start gap-3">
+              <span className="text-amber-600">⚠️</span>
+              <div className="flex-1">
+                <div className="font-medium text-amber-900">
+                  Connect Google Workspace to see your meetings
+                </div>
+                <div className="mt-1 text-sm text-amber-700">
+                  You&apos;re signed in, but we need additional permissions to
+                  access your calendar, drive, and email for meeting briefs.
+                </div>
+                <Link
+                  href="/integrations"
+                  className="mt-3 inline-flex items-center gap-2 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+                >
+                  Connect Google Workspace →
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-6">
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">

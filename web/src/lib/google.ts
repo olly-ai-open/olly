@@ -1,11 +1,15 @@
 import { google } from "googleapis";
 import { prisma } from "@/lib/prisma";
 
-export function getOAuthClient() {
+export function getOAuthClient(redirectUri?: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID!;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
-  const redirectUri = `${process.env.NEXTAUTH_URL?.replace(/\/$/, "")}/api/auth/callback/google`;
-  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const defaultRedirectUri = `${process.env.NEXTAUTH_URL?.replace(/\/$/, "")}/api/auth/callback/google`;
+  return new google.auth.OAuth2(
+    clientId,
+    clientSecret,
+    redirectUri || defaultRedirectUri,
+  );
 }
 
 export type GoogleAccountLike = {
@@ -51,9 +55,7 @@ export async function getUserGoogleAuth(userId: string) {
   const byExpiry = (a?: number | null) => (a ? a : 0);
   const account =
     withAccess
-      .sort(
-        (a: any, b: any) => byExpiry(a.expires_at) - byExpiry(b.expires_at),
-      )
+      .sort((a: any, b: any) => byExpiry(a.expires_at) - byExpiry(b.expires_at))
       .pop() ||
     accounts.find((a: any) => !!a.refresh_token) ||
     accounts[0];
@@ -92,7 +94,31 @@ export async function checkGoogleHealth(userId: string) {
     where: { userId, provider: "google" },
   });
   if (!accounts.length)
-    return { connected: false, reason: "no_account" } as const;
+    return {
+      connected: false,
+      reason: "no_account",
+      hasAdvancedScopes: false,
+    } as const;
+
+  // Check if user has advanced scopes
+  const hasAdvancedScopes = accounts.some((a) => {
+    const scopes = a.scope || "";
+    return (
+      scopes.includes("calendar.readonly") ||
+      scopes.includes("drive.readonly") ||
+      scopes.includes("gmail.readonly")
+    );
+  });
+
+  // If they don't have advanced scopes, return basic connection status
+  if (!hasAdvancedScopes) {
+    return {
+      connected: true,
+      hasAdvancedScopes: false,
+      reason: "basic_auth_only",
+    } as const;
+  }
+
   try {
     const token = await getValidAccessToken(userId);
     const resp = await fetch(
@@ -105,7 +131,7 @@ export async function checkGoogleHealth(userId: string) {
       const body = await resp.text();
       throw new Error(`calendar_health_failed: ${resp.status} ${body}`);
     }
-    return { connected: true } as const;
+    return { connected: true, hasAdvancedScopes: true } as const;
   } catch (err: any) {
     const a = accounts[0];
     const hasAccess = !!a?.access_token;
@@ -115,6 +141,7 @@ export async function checkGoogleHealth(userId: string) {
       : null;
     return {
       connected: false,
+      hasAdvancedScopes,
       reason: err?.message || "unknown_error",
       tokenInfo: { hasAccess, hasRefresh, expiresAt: exp },
     } as const;
