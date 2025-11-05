@@ -40,15 +40,15 @@ model Account {
   type               String
   provider           String
   providerAccountId  String
-  refresh_token      String? @db.Text
-  access_token       String? @db.Text
+  refresh_token      String? @db.Text /// @encrypted
+  access_token       String? @db.Text /// @encrypted
   expires_at         Int?
   token_type         String?
   scope              String?
-  id_token           String? @db.Text
+  id_token           String? @db.Text /// @encrypted
   session_state      String?
-  oauth_token_secret String? @db.Text
-  oauth_token        String? @db.Text
+  oauth_token_secret String? @db.Text /// @encrypted
+  oauth_token        String? @db.Text /// @encrypted
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

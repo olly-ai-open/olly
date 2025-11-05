@@ -28,11 +28,13 @@
     "next-auth": "^5.0.0-beta.30",
     "openai": "^6.7.0",
     "prisma": "^6.18.0",
+    "prisma-field-encryption": "^1.6.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@47ng/cloak": "^1.2.0",
     "@prisma/nextjs-monorepo-workaround-plugin": "^6.18.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
