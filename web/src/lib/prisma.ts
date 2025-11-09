@@ -3,10 +3,7 @@ import { fieldEncryptionExtension } from "prisma-field-encryption";
 
 const createPrismaClient = () =>
   new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   }).$extends(
     fieldEncryptionExtension({
       encryptionKey: process.env.PRISMA_FIELD_ENCRYPTION_KEY!,

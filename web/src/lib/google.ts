@@ -283,7 +283,10 @@ export async function searchDriveSnippetsWithToken(
   maxResults = 5,
   folderIds?: string[],
 ) {
-  let q = `name contains '${query.replace(/'/g, "\\'")}' and trashed = false`;
+  const escapedQuery = query.replace(/'/g, "\\'");
+
+  // Search both file names AND full text content
+  let q = `(name contains '${escapedQuery}' or fullText contains '${escapedQuery}') and trashed = false`;
 
   // If specific folders are provided, limit search to those folders
   if (folderIds && folderIds.length > 0) {
@@ -414,20 +417,33 @@ export async function searchDriveSnippets(
 ) {
   const token = await getValidAccessToken(userId);
 
-  // Get user's allowed Drive folders
-  const allowedFolders = await prisma.driveFolder.findMany({
-    where: { userId },
-    select: { folderId: true },
+  // Check user's Drive access preference
+  const integration = await prisma.integration.findFirst({
+    where: { userId, provider: "google_workspace" },
+    select: { meta: true },
   });
 
-  const folderIds = allowedFolders.map((f) => f.folderId);
+  const driveAccess = (integration?.meta as any)?.driveAccess || "folders";
 
-  // If no folders are selected, return empty results
-  if (folderIds.length === 0) {
-    return [];
+  if (driveAccess === "full") {
+    // Search entire Google Drive
+    return searchDriveSnippetsWithToken(token, query, maxResults);
+  } else {
+    // Search only selected folders (existing behavior)
+    const allowedFolders = await prisma.driveFolder.findMany({
+      where: { userId },
+      select: { folderId: true },
+    });
+
+    const folderIds = allowedFolders.map((f) => f.folderId);
+
+    // If no folders are selected, return empty results
+    if (folderIds.length === 0) {
+      return [];
+    }
+
+    return searchDriveSnippetsWithToken(token, query, maxResults, folderIds);
   }
-
-  return searchDriveSnippetsWithToken(token, query, maxResults, folderIds);
 }
 
 export async function searchGmailSnippets(

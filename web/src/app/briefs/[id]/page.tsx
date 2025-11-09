@@ -200,8 +200,6 @@ export default async function BriefDetail({
           </div>
         )}
 
-        {/* Olly's Take: omitted under new format (content.brief_markdown covers it) */}
-
         {/* Actions */}
         <BriefActions
           briefId={brief.id}
@@ -209,17 +207,6 @@ export default async function BriefDetail({
           isAdmin={user?.isAdmin ?? false}
         />
       </div>
-
-      {sources?.length ? (
-        <div className="mt-4">
-          <div className="mb-2 text-sm font-medium">Sources</div>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-            {sources.slice(0, 10).map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
 
       <div className="mt-6">
         <BackButton />
