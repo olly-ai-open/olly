@@ -2,6 +2,14 @@ export function extractKeyBullets(content: any, maxItems = 3): string[] {
   if (!content) return [];
   // If structured JSON
   if (typeof content === "object") {
+    if (typeof (content as any).brief_markdown === "string") {
+      const md = (content as any).brief_markdown as string;
+      const fromMd = md
+        .split(/\r?\n/)
+        .filter((l: string) => /^\s*([-•*]|\d+\.)/.test(l))
+        .map((l: string) => l.replace(/^\s*(?:\d+\.|[-•*])\s*/, ""));
+      if (fromMd.length) return fromMd.slice(0, maxItems);
+    }
     const possible = (content.key_points ||
       content.keyPoints ||
       content.context ||

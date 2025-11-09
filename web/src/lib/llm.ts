@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { MEETING_BRIEF_PROMPT } from "@/lib/prompts/meetingBriefPrompt";
 
 export function getOpenAI() {
   const key = process.env.OPENAI_API_KEY;
@@ -7,13 +8,13 @@ export function getOpenAI() {
 }
 
 type BriefJSON = {
-  title?: string;
-  summary?: string;
-  key_points?: string[];
-  suggested_actions?: string[];
-  risks?: string[];
-  agenda?: string[];
-  text?: string;
+  brief_markdown: string;
+  action_items: Array<{
+    description: string;
+    assignee?: string | null;
+    due_date?: string | null;
+    priority?: "high" | "medium" | "low" | string | null;
+  }>;
 };
 
 function safeParseBriefJSON(s: string): BriefJSON | null {
@@ -60,27 +61,30 @@ export async function generateBriefFromContext(input: {
   if (!openai) {
     return {
       content: {
-        title: input.meeting.title,
-        summary: "[Stub] OpenAI key not set. This is a placeholder brief.",
-        agenda: [],
-        key_points: [],
-        suggested_actions: [],
-        risks: [],
+        brief_markdown: `# Meeting Brief\n\n_No OpenAI key configured. Placeholder brief for:_ ${input.meeting.title}`,
+        action_items: [],
       } satisfies BriefJSON,
       confidence,
       sources,
     };
   }
 
-  const system = `You generate concise meeting briefs from user-provided context.\n- Use only the provided context.\n- If context is insufficient, say so clearly.\n- Be factual and avoid speculation.\n- Return ONLY a single JSON object, with no markdown or commentary.`;
-  const user = `Meeting: ${input.meeting.title}\nStart: ${input.meeting.start ?? "unknown"}\nAttendees: ${(
-    input.meeting.attendees || []
-  )
-    .map((a) => a.email)
-    .filter(Boolean)
-    .join(
-      ", ",
-    )}\nDescription: ${input.meeting.description ?? ""}\n\nContext:\nDrive files:\n${input.drive.map((f) => `- ${f.name ?? "(untitled)"} (${f.mimeType ?? "?"}) ${f.webViewLink ?? ""}`).join("\n")}\n\nGmail snippets:\n${input.gmail.map((g) => `- ${g.snippet ?? "(no snippet)"}`).join("\n")}\n\nRespond with a MINIFIED JSON object using this schema:\n{\n  "title": string,                // optional; meeting title if helpful\n  "summary": string,              // 2-5 sentences\n  "key_points": string[],         // 3-8 concise bullets\n  "suggested_actions": string[],  // 2-6 actionable bullets\n  "risks": string[]               // 0-5 bullets, may be empty\n}\nNo code fences. No extra keys.`;
+  const system = `${MEETING_BRIEF_PROMPT}\n\nStrict output format:\n- Return ONLY a single MINIFIED JSON object with these keys:\n{\n  \"brief_markdown\": string, // full report as markdown in the format above (<= 1 page)\n  \"action_items\": [         // separate, structured list for backend creation\n    {\n      \"description\": string,\n      \"assignee\"?: string,   // email or full name if available\n      \"due_date\"?: string,   // ISO if known, else empty\n      \"priority\"?: \"high\"|\"medium\"|\"low\"\n    }\n  ]\n}\n- No code fences. No commentary outside the JSON.`;
+  const user = `Meeting: ${input.meeting.title}\nDate/Time: ${input.meeting.start ?? "unknown"}\nParticipants: ${
+    (input.meeting.attendees || [])
+      .map((a) => a.email)
+      .filter(Boolean)
+      .join(", ") || "unknown"
+  }\nDescription: ${input.meeting.description ?? ""}\n\nContext:\nDrive files:\n${input.drive
+    .map(
+      (f) =>
+        `- ${f.name ?? "(untitled)"} (${f.mimeType ?? "?"}) ${
+          f.webViewLink ?? ""
+        }`,
+    )
+    .join("\n")}\n\nGmail snippets:\n${input.gmail
+    .map((g) => `- ${g.snippet ?? "(no snippet)"}`)
+    .join("\n")}\n\nReturn ONLY the JSON object with the keys described above.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -93,7 +97,10 @@ export async function generateBriefFromContext(input: {
 
   const raw = completion.choices[0]?.message?.content ?? "";
   const parsed = safeParseBriefJSON(raw);
-  const content: BriefJSON = parsed ?? { text: raw };
+  const content: BriefJSON = parsed ?? {
+    brief_markdown: raw,
+    action_items: [],
+  };
 
   return {
     content,

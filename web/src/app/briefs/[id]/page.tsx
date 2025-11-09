@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import BriefActions from "@/components/brief-actions";
 import BackButton from "@/components/back-button";
 import ActionItemRow from "@/components/action-item-row";
+import MarkdownView from "@/components/markdown-view";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -98,70 +99,13 @@ export default async function BriefDetail({
       </div>
 
       <div className="space-y-6">
-        {/* Key sections */}
+        {/* Report (markdown displayed as preformatted text) */}
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          {contentObj ? (
-            <>
-              {contentObj.summary && (
-                <div className="mb-4">
-                  <div className="mb-1 text-sm font-medium text-muted-foreground">
-                    Summary
-                  </div>
-                  <div className="text-sm whitespace-pre-wrap">
-                    {contentObj.summary}
-                  </div>
-                </div>
-              )}
-              {Array.isArray(contentObj.key_points) &&
-                contentObj.key_points.length > 0 && (
-                  <div className="mb-4">
-                    <div className="mb-1 text-sm font-medium text-muted-foreground">
-                      Key Context
-                    </div>
-                    <ul className="list-disc space-y-1 pl-5 text-sm">
-                      {contentObj.key_points.map((p: string, i: number) => (
-                        <li key={i}>{p}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              {Array.isArray(contentObj.suggested_actions) &&
-                contentObj.suggested_actions.length > 0 && (
-                  <div className="mb-4">
-                    <div className="mb-1 text-sm font-medium text-muted-foreground">
-                      Suggested Actions
-                    </div>
-                    <ul className="list-disc space-y-1 pl-5 text-sm">
-                      {contentObj.suggested_actions.map(
-                        (p: string, i: number) => (
-                          <li key={i}>{p}</li>
-                        ),
-                      )}
-                    </ul>
-                  </div>
-                )}
-              {Array.isArray(contentObj.risks) &&
-                contentObj.risks.length > 0 && (
-                  <div>
-                    <div className="mb-1 text-sm font-medium text-muted-foreground">
-                      Risks & Concerns
-                    </div>
-                    <ul className="list-disc space-y-1 pl-5 text-sm">
-                      {contentObj.risks.map((p: string, i: number) => (
-                        <li key={i}>{p}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              {!contentObj.summary &&
-                !contentObj.key_points?.length &&
-                !contentObj.suggested_actions?.length &&
-                !contentObj.risks?.length && (
-                  <div className="text-sm whitespace-pre-wrap">
-                    (no content)
-                  </div>
-                )}
-            </>
+          {contentObj?.brief_markdown ? (
+            <MarkdownView
+              markdown={contentObj.brief_markdown}
+              className="prose prose-sm max-w-none"
+            />
           ) : (
             <div className="whitespace-pre-wrap text-sm">{text}</div>
           )}
@@ -250,17 +194,7 @@ export default async function BriefDetail({
           </div>
         )}
 
-        {/* Olly's Take */}
-        {contentObj?.summary && (
-          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <div className="mb-1 text-sm font-medium text-muted-foreground">
-              🐙 Olly&apos;s Take:
-            </div>
-            <div className="text-sm whitespace-pre-wrap">
-              {contentObj.summary}
-            </div>
-          </div>
-        )}
+        {/* Olly's Take: omitted under new format (content.brief_markdown covers it) */}
 
         {/* Actions */}
         <BriefActions briefId={brief.id} readAt={brief.readAt ?? null} />

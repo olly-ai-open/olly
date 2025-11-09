@@ -112,20 +112,30 @@ export async function POST(req: Request) {
     await linkMeetingParticipants(meeting.id, personIds);
     await linkBriefParticipants(saved.id, personIds);
 
-    // Create ActionItems from structured suggested_actions if present
+    // Create ActionItems from structured response
     const content: any = saved.content as any;
-    const actions: string[] = Array.isArray(content?.suggested_actions)
-      ? content.suggested_actions
-      : [];
-    if (actions.length) {
-      await prisma.actionItem.createMany({
-        data: actions.slice(0, 20).map((title) => ({
-          userId,
-          title,
-          briefId: saved.id,
-          status: "open",
-        })),
-      });
+    const items: any[] = Array.isArray(content?.action_items)
+      ? content.action_items
+      : Array.isArray(content?.suggested_actions)
+        ? (content.suggested_actions as string[]).map((s) => ({
+            description: s,
+          }))
+        : [];
+    if (items.length) {
+      const toCreate = items.slice(0, 20).map((it) => ({
+        userId,
+        title:
+          String(it?.description ?? it?.title ?? "").slice(0, 280) ||
+          "Untitled",
+        briefId: saved.id,
+        status: "open",
+        priority: typeof it?.priority === "string" ? it.priority : undefined,
+        dueAt:
+          it?.due_date && !isNaN(Date.parse(it.due_date))
+            ? new Date(it.due_date as string)
+            : undefined,
+      }));
+      await prisma.actionItem.createMany({ data: toCreate });
     }
 
     // Revalidate dashboard; detail page is a fresh navigation
