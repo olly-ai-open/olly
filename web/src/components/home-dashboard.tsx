@@ -9,6 +9,7 @@ import { extractKeyBullets } from "@/lib/briefs";
 import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import NextLocal from "@/components/next-local";
+import GenerateBriefButton from "@/components/generate-brief-button";
 
 function formatMinutesHuman(mins: number) {
   if (!mins || mins < 0) return "0m";
@@ -220,24 +221,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                                 </a>
                               </>
                             ) : (
-                              <form action="/api/briefs/generate" method="post">
-                                <input
-                                  type="hidden"
-                                  name="eventId"
-                                  value={m.id}
-                                />
-                                <input
-                                  type="hidden"
-                                  name="redirect"
-                                  value="1"
-                                />
-                                <button
-                                  className="bg-background rounded-md border border-border px-3 py-1 text-sm hover:bg-accent"
-                                  type="submit"
-                                >
-                                  Generate brief
-                                </button>
-                              </form>
+                              <GenerateBriefButton eventId={m.id} />
                             )}
                           </div>
                         </div>

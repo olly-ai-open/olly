@@ -1,16 +1,21 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function BriefActions({
   briefId,
   readAt,
+  isAdmin = false,
 }: {
   briefId: string;
   readAt: string | Date | null;
+  isAdmin?: boolean;
 }) {
   const [isRead, setIsRead] = useState(!!readAt);
   const [sending, setSending] = useState(false);
   const [thumb, setThumb] = useState<"up" | "down" | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter();
 
   async function markRead() {
     try {
@@ -33,6 +38,36 @@ export default function BriefActions({
     } catch {}
   }
 
+  async function deleteBrief() {
+    if (
+      !confirm(
+        "Are you sure you want to delete this brief? This action cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/briefs/${briefId}/delete`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Navigate back to home after successful deletion
+        router.push("/");
+      } else {
+        const error = await response.json();
+        alert(`Failed to delete brief: ${error.error}`);
+        setIsDeleting(false);
+      }
+    } catch (error) {
+      console.error("Error deleting brief:", error);
+      alert("Failed to delete brief. Please try again.");
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-3">
       <button
@@ -42,6 +77,41 @@ export default function BriefActions({
       >
         {isRead ? "✓ Read" : "✓ Mark as Read"}
       </button>
+
+      {isAdmin && (
+        <button
+          disabled={isDeleting}
+          onClick={deleteBrief}
+          className="rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+        >
+          {isDeleting ? (
+            <>
+              <svg
+                className="w-4 h-4 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeDasharray="31.416"
+                  strokeDashoffset="31.416"
+                  className="animate-spin"
+                />
+              </svg>
+              Deleting...
+            </>
+          ) : (
+            "Delete Brief"
+          )}
+        </button>
+      )}
+
       <div className="ml-auto flex items-center gap-2">
         <button
           aria-label="Thumbs up"

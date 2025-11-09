@@ -22,6 +22,7 @@ model User {
   emailVerified DateTime?
   image         String?
   preferences   Json?
+  isAdmin       Boolean   @default(false)
 
   accounts      Account[]
   sessions      Session[]

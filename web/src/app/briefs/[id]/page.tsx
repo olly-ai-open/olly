@@ -27,6 +27,12 @@ export default async function BriefDetail({
     );
   }
 
+  // Get user admin status
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { isAdmin: true },
+  });
+
   const brief = await prisma.brief.findUnique({
     where: { id },
     include: {
@@ -197,7 +203,11 @@ export default async function BriefDetail({
         {/* Olly's Take: omitted under new format (content.brief_markdown covers it) */}
 
         {/* Actions */}
-        <BriefActions briefId={brief.id} readAt={brief.readAt ?? null} />
+        <BriefActions
+          briefId={brief.id}
+          readAt={brief.readAt ?? null}
+          isAdmin={user?.isAdmin ?? false}
+        />
       </div>
 
       {sources?.length ? (
