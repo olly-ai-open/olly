@@ -89,7 +89,8 @@ export default function GoogleDrivePicker({
     const picker = new window.google.picker.PickerBuilder()
       .addView(
         new window.google.picker.DocsView(window.google.picker.ViewId.FOLDERS)
-          .setIncludeFolders(true)
+          .setParent("root")
+          .setIncludeFolders(false)
           .setSelectFolderEnabled(true),
       )
       .setOAuthToken(accessToken)
