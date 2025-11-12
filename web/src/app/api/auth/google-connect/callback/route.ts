@@ -39,14 +39,6 @@ export async function GET(request: NextRequest) {
       redirect_uri: redirectUri,
     });
 
-    console.log("Received tokens:", {
-      hasAccessToken: !!tokens.access_token,
-      hasRefreshToken: !!tokens.refresh_token,
-      hasIdToken: !!tokens.id_token,
-      scope: tokens.scope,
-      expiryDate: tokens.expiry_date,
-    });
-
     // Get user info to get the Google account ID
     oAuth2Client.setCredentials(tokens);
 

@@ -22,10 +22,15 @@ export type GoogleAccountLike = {
 };
 
 export async function getAccessTokenFromAccount(
-  account: GoogleAccountLike,
+  account: GoogleAccountLike & { id?: string; userId?: string },
 ): Promise<string> {
   const oAuth2Client = getOAuthClient();
   const expiresAt = account.expires_at ? account.expires_at * 1000 : undefined;
+
+  // Check if token is expired
+  const now = Date.now();
+  const isExpired = expiresAt ? now >= expiresAt : false;
+
   oAuth2Client.setCredentials({
     access_token: account.access_token || undefined,
     refresh_token: account.refresh_token || undefined,
@@ -34,16 +39,76 @@ export async function getAccessTokenFromAccount(
     token_type: (account.token_type ?? undefined) as any,
     id_token: account.id_token || undefined,
   });
-  let token =
-    (await oAuth2Client.getAccessToken())?.token ||
-    oAuth2Client.credentials.access_token ||
-    undefined;
-  if (!token && oAuth2Client.credentials.refresh_token) {
-    const rt = await oAuth2Client.refreshAccessToken();
-    token = rt.credentials.access_token || undefined;
+
+  try {
+    // If token is expired or we don't have an access token, try to refresh
+    if (isExpired || !account.access_token) {
+      if (!account.refresh_token) {
+        throw new Error("REAUTH_REQUIRED");
+      }
+
+      console.log("Token expired or missing, refreshing...");
+
+      try {
+        const { credentials } = await oAuth2Client.refreshAccessToken();
+
+        // Update the database with new tokens if we have account id
+        if (account.id && credentials.access_token) {
+          const newExpiresAt = credentials.expiry_date
+            ? Math.floor(credentials.expiry_date / 1000)
+            : null;
+
+          await prisma.account.update({
+            where: { id: account.id },
+            data: {
+              access_token: credentials.access_token,
+              expires_at: newExpiresAt,
+              token_type: credentials.token_type || account.token_type,
+              scope: credentials.scope || account.scope,
+              id_token: credentials.id_token || account.id_token,
+            },
+          });
+          console.log("Updated account with new access token");
+        }
+
+        return credentials.access_token!;
+      } catch (refreshError: any) {
+        // Check if this is an invalid_grant error (expired refresh token)
+        if (
+          refreshError?.response?.data?.error === "invalid_grant" ||
+          refreshError?.message?.includes("invalid_grant") ||
+          refreshError?.code === 400
+        ) {
+          console.error(
+            "Refresh token is invalid or expired - re-authentication required",
+          );
+          // Mark the account as needing re-authentication
+          if (account.id) {
+            // Clear the invalid tokens
+            await prisma.account.update({
+              where: { id: account.id },
+              data: {
+                access_token: null,
+                refresh_token: null,
+                expires_at: null,
+              },
+            });
+          }
+          throw new Error("REAUTH_REQUIRED");
+        }
+        throw refreshError;
+      }
+    }
+
+    // Token is still valid, use it
+    return account.access_token!;
+  } catch (error: any) {
+    if (error.message === "REAUTH_REQUIRED") {
+      throw error;
+    }
+    console.error("Failed to get access token:", error);
+    throw error;
   }
-  if (!token) throw new Error("no_access_token");
-  return token;
 }
 
 export async function getUserGoogleAuth(userId: string) {
@@ -74,19 +139,15 @@ export async function getUserGoogleAuth(userId: string) {
 }
 
 async function getValidAccessToken(userId: string): Promise<string> {
-  const auth = await getUserGoogleAuth(userId);
-  if (!auth) throw new Error("no_auth_client");
-  let token =
-    (await auth.getAccessToken())?.token ||
-    auth.credentials.access_token ||
-    undefined;
-  if (!token && auth.credentials.refresh_token) {
-    const rt = await auth.refreshAccessToken();
-    token = rt.credentials.access_token || undefined;
-    auth.setCredentials(rt.credentials);
-  }
-  if (!token) throw new Error("no_access_token");
-  return token;
+  // Get the account directly to use our updated getAccessTokenFromAccount function
+  const account = await prisma.account.findFirst({
+    where: { userId, provider: "google" },
+    orderBy: { expires_at: "desc" },
+  });
+
+  if (!account) throw new Error("no_auth_account");
+
+  return await getAccessTokenFromAccount(account);
 }
 
 export async function checkGoogleHealth(userId: string) {
