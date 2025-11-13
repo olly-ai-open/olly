@@ -4,7 +4,7 @@ import {
   getAccessTokenFromAccount,
   getEventDetailsWithToken,
   searchDriveSnippets,
-  searchGmailSnippets,
+  searchGmailMessages,
 } from "@/lib/google";
 import { generateBriefFromContext } from "@/lib/llm";
 import { upsertMeetingFromEvent } from "@/lib/meetings";
@@ -15,17 +15,69 @@ import {
   linkMeetingParticipants,
   upsertPersonsForEmails,
 } from "@/lib/people";
+import { S3DebugStorage, type DebugDataStructure } from "@/lib/s3-debug";
 
 const MAX_PARTICIPANTS = 10;
-const DEBUG = false;
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+
+  // Initialize debug data structure
+  const debugData: DebugDataStructure = {
+    version: "1.0",
+    summary: {
+      briefId: "",
+      userId: "",
+      timestamp: new Date().toISOString(),
+      totalDuration: 0,
+      apiCalls: 0,
+      success: false,
+    },
+    timeline: [],
+    searchResults: {
+      drive: {
+        queries: [],
+        totalFound: 0,
+        included: 0,
+        results: [],
+        errors: [],
+      },
+      gmail: {
+        queries: [],
+        totalFound: 0,
+        included: 0,
+        results: [],
+        errors: [],
+      },
+    },
+    llmContext: {
+      systemPrompt: "",
+      userPrompt: "",
+      model: "",
+      temperature: 0,
+      response: "",
+    },
+  };
+
+  const addTimelineEntry = (action: string, details?: any) => {
+    debugData.timeline.push({
+      timestamp: Date.now() - startTime,
+      action,
+      ...details,
+    });
+  };
+
+  addTimelineEntry("START", { details: "Brief generation initiated" });
+
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json(
       { ok: false, error: "unauthorized" },
       { status: 401 },
     );
+
+  debugData.summary.userId = session.user.id;
+
   let eventId: string | undefined;
   let wantsRedirect = false;
   const contentType = req.headers.get("content-type") || "";
@@ -43,6 +95,8 @@ export async function POST(req: Request) {
       { ok: false, error: "missing eventId" },
       { status: 400 },
     );
+
+  addTimelineEntry("EVENT_LOADED", { details: `Event ID: ${eventId}` });
 
   try {
     const account = await prisma.account.findFirst({
@@ -67,34 +121,6 @@ export async function POST(req: Request) {
       .filter(Boolean) as string[];
 
     // Check user's Drive access preference
-    const integration = await prisma.integration.findFirst({
-      where: { userId, provider: "google_workspace" },
-      select: { meta: true },
-    });
-
-    const driveAccess = (integration?.meta as any)?.driveAccess || "folders";
-
-    if (DEBUG) {
-      console.log(`Meeting: "${event.title}"`);
-      console.log(`Attendees: [${attendees.join(", ")}]`);
-      console.log(`Drive access mode: ${driveAccess}`);
-    }
-
-    if (driveAccess === "folders") {
-      const allowedFolders = await prisma.driveFolder.findMany({
-        where: { userId },
-        select: { folderId: true, folderName: true },
-      });
-      if (DEBUG) {
-        console.log(`Available Drive folders: ${allowedFolders.length}`);
-        if (allowedFolders.length > 0) {
-          console.log(
-            `Folder names: [${allowedFolders.map((f) => f.folderName).join(", ")}]`,
-          );
-        }
-      }
-    }
-
     // For Drive: search based on access mode
     let drive: any[] = [];
     const driveQueries = [
@@ -104,21 +130,43 @@ export async function POST(req: Request) {
       ...(event.title?.split(/\s+/).filter((word) => word.length > 3) || []),
     ].filter(Boolean);
 
-    if (DEBUG) {
-      console.log(`Drive search queries: [${driveQueries.join(", ")}]`);
-    }
-
     // Try each query until we get results
     for (const query of driveQueries) {
-      drive = await searchDriveSnippets(userId, query);
-      if (DEBUG) {
-        console.log(`Drive query "${query}": ${drive.length} results`);
+      const driveStartTime = Date.now();
+      try {
+        drive = await searchDriveSnippets(userId, query);
+
+        addTimelineEntry("DRIVE_SEARCH", {
+          query,
+          resultCount: drive.length,
+          duration: Date.now() - driveStartTime,
+        });
+
+        debugData.searchResults.drive.queries.push(query);
+        if (drive.length > 0) {
+          debugData.searchResults.drive.results.push(...drive);
+          debugData.searchResults.drive.totalFound += drive.length;
+          debugData.searchResults.drive.included += drive.length;
+        }
+      } catch (driveError: any) {
+        const errorMsg = `Drive search failed for "${query}": ${driveError?.message || "Unknown error"}`;
+        if (!debugData.searchResults.drive.errors) {
+          debugData.searchResults.drive.errors = [];
+        }
+        debugData.searchResults.drive.errors.push(errorMsg);
+
+        addTimelineEntry("DRIVE_SEARCH_ERROR", {
+          query,
+          error: driveError?.message,
+          duration: Date.now() - driveStartTime,
+        });
       }
-      if (drive.length > 0) break;
     }
 
+    debugData.summary.apiCalls += driveQueries.length;
+
     // For Gmail: search for emails BETWEEN meeting participants
-    let gmail: any[] = [];
+    let allGmail: any[] = [];
     if (attendees.length > 0) {
       const gmailQueries = [];
 
@@ -161,37 +209,50 @@ export async function POST(req: Request) {
         gmailQueries.push(`"${titleQ}" newer_than:30d`);
       }
 
-      if (DEBUG) {
-        console.log(
-          `Gmail search queries (between participants): [${gmailQueries.join("; ")}]`,
-        );
-      }
-
       // Try each query until we get results
       for (const query of gmailQueries) {
-        gmail = await searchGmailSnippets(userId, query);
-        if (DEBUG) {
-          console.log(`Gmail query "${query}": ${gmail.length} results`);
+        const gmailStartTime = Date.now();
+        let gmail: any[] = [];
+        try {
+          gmail = await searchGmailMessages(userId, query);
+
+          addTimelineEntry("GMAIL_SEARCH", {
+            query,
+            resultCount: gmail.length,
+            duration: Date.now() - gmailStartTime,
+          });
+
+          debugData.searchResults.gmail.queries.push(query);
+          if (gmail.length > 0) {
+            debugData.searchResults.gmail.results.push(...gmail);
+            debugData.searchResults.gmail.totalFound += gmail.length;
+            debugData.searchResults.gmail.included += gmail.length;
+
+            allGmail = allGmail.concat(...gmail);
+          }
+        } catch (gmailError: any) {
+          const errorMsg = `Gmail search failed for "${query}": ${gmailError?.message || "Unknown error"}`;
+          if (!debugData.searchResults.gmail.errors) {
+            debugData.searchResults.gmail.errors = [];
+          }
+          debugData.searchResults.gmail.errors.push(errorMsg);
+
+          addTimelineEntry("GMAIL_SEARCH_ERROR", {
+            query,
+            error: gmailError?.message,
+            duration: Date.now() - gmailStartTime,
+          });
         }
-        if (gmail.length > 0) break;
       }
-    } else {
-      if (DEBUG) {
-        console.log("No attendees found - trying title-only Gmail search");
-      }
-      if (titleQ) {
-        gmail = await searchGmailSnippets(userId, `"${titleQ}" newer_than:30d`);
-        if (DEBUG) {
-          console.log(`Gmail title search: ${gmail.length} results`);
-        }
-      }
+      debugData.summary.apiCalls += gmailQueries.length;
     }
 
-    if (DEBUG) {
-      console.log(
-        `Final results - Drive: ${drive.length}, Gmail: ${gmail.length}`,
-      );
-    }
+    const llmStartTime = Date.now();
+    addTimelineEntry("LLM_GENERATION_START", {
+      details: "Generating brief from context",
+      driveResults: drive.length,
+      gmailResults: allGmail.length,
+    });
 
     const brief = await generateBriefFromContext({
       meeting: {
@@ -201,7 +262,14 @@ export async function POST(req: Request) {
         description: event.description,
       },
       drive,
-      gmail,
+      gmail: allGmail,
+    });
+
+    // Store the actual LLM context from the generation
+    debugData.llmContext = brief.llmContext;
+
+    addTimelineEntry("LLM_GENERATION_COMPLETE", {
+      duration: Date.now() - llmStartTime,
     });
 
     const saved = await prisma.brief.create({
@@ -212,6 +280,9 @@ export async function POST(req: Request) {
         sources: brief.sources as any,
       },
     });
+
+    debugData.summary.briefId = saved.id;
+    addTimelineEntry("BRIEF_SAVED", { briefId: saved.id });
 
     // People: upsert Person rows for attendees, and link to meeting/brief
     const personRows = await upsertPersonsForEmails(
@@ -250,6 +321,48 @@ export async function POST(req: Request) {
       await prisma.actionItem.createMany({ data: toCreate });
     }
 
+    // Mark success and calculate final duration
+    debugData.summary.success = true;
+    debugData.summary.totalDuration = Date.now() - startTime;
+    addTimelineEntry("COMPLETE", {
+      details: "Brief generation completed successfully",
+      totalDuration: debugData.summary.totalDuration,
+    });
+
+    // Upload debug data to S3 if enabled
+    if (S3DebugStorage.isEnabled()) {
+      try {
+        const s3Storage = new S3DebugStorage();
+        const uploadResult = await s3Storage.uploadDebugData(
+          saved.id,
+          session.user.id,
+          debugData,
+        );
+
+        if (uploadResult.success && uploadResult.s3Key) {
+          // Update brief with debug metadata
+          await prisma.brief.update({
+            where: { id: saved.id },
+            data: {
+              debugS3Key: uploadResult.s3Key,
+              debugCapturedAt: new Date(),
+              debugMetadata: {
+                totalDuration: debugData.summary.totalDuration,
+                apiCalls: debugData.summary.apiCalls,
+                driveResults: debugData.searchResults.drive.totalFound,
+                gmailResults: debugData.searchResults.gmail.totalFound,
+                timelineEvents: debugData.timeline.length,
+              },
+            },
+          });
+          console.log(`Debug data saved to S3 for brief ${saved.id}`);
+        }
+      } catch (s3Error) {
+        console.error("Failed to save debug data to S3:", s3Error);
+        // Don't fail the request if debug upload fails
+      }
+    }
+
     // Revalidate dashboard; detail page is a fresh navigation
     try {
       revalidatePath("/");
@@ -262,6 +375,29 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ ok: true, brief: saved });
   } catch (err: any) {
+    // Capture error in debug data
+    debugData.summary.success = false;
+    debugData.summary.error = err?.message || "unknown error";
+    debugData.summary.totalDuration = Date.now() - startTime;
+    addTimelineEntry("ERROR", {
+      error: err?.message || "unknown error",
+      stack: err?.stack,
+    });
+
+    // Try to save debug data even on error (if we have a briefId)
+    if (S3DebugStorage.isEnabled() && debugData.summary.briefId) {
+      try {
+        const s3Storage = new S3DebugStorage();
+        await s3Storage.uploadDebugData(
+          debugData.summary.briefId,
+          session.user.id,
+          debugData,
+        );
+      } catch (s3Error) {
+        console.error("Failed to save error debug data to S3:", s3Error);
+      }
+    }
+
     return NextResponse.json(
       { ok: false, error: err?.message || "failed" },
       { status: 500 },

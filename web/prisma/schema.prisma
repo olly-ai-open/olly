@@ -118,6 +118,11 @@ model Brief {
   generatedAt DateTime @default(now())
   feedback    Json?
   readAt      DateTime?
+  
+  // Debug data fields
+  debugS3Key       String?
+  debugCapturedAt  DateTime?
+  debugMetadata    Json?
 
   meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   people  BriefParticipant[]

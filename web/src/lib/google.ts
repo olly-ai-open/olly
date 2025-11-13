@@ -373,7 +373,7 @@ export async function searchDriveSnippetsWithToken(
   return data.files || [];
 }
 
-export async function searchGmailSnippetsWithToken(
+export async function searchGmailMessagesWithToken(
   token: string,
   query: string,
   maxResults = 5,
@@ -381,7 +381,8 @@ export async function searchGmailSnippetsWithToken(
   const base = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
   const url = new URL(base);
   url.searchParams.set("q", query);
-  url.searchParams.set("maxResults", String(maxResults));
+  // Fetch more messages initially to account for thread deduplication
+  url.searchParams.set("maxResults", String(maxResults * 2));
   const listResp = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -389,19 +390,95 @@ export async function searchGmailSnippetsWithToken(
   const list: any = await listResp.json();
   const ids: string[] = (list.messages || []).map((m: any) => m.id);
   const messages: any[] = [];
+
+  // Thread deduplication map: threadId -> most recent message
+  const threadMap = new Map<string, any>();
+
   for (const id of ids) {
     const mr = await fetch(`${base}/${id}?format=full`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!mr.ok) continue;
     const md = await mr.json();
-    messages.push({
+
+    // Extract email headers
+    const headers = md.payload?.headers || [];
+    const getHeader = (name: string) =>
+      headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())
+        ?.value || "";
+
+    // Extract email body
+    let body = "";
+    const extractBody = (part: any): string => {
+      if (part.mimeType === "text/plain" && part.body?.data) {
+        return Buffer.from(part.body.data, "base64").toString("utf-8");
+      }
+      if (part.mimeType === "text/html" && part.body?.data) {
+        // For HTML, we could strip tags, but let's keep some HTML for context
+        const htmlContent = Buffer.from(part.body.data, "base64").toString(
+          "utf-8",
+        );
+        // Simple HTML to text conversion (remove tags but keep content)
+        return htmlContent
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+      if (part.parts) {
+        // Multi-part message, recursively extract
+        for (const subPart of part.parts) {
+          const extracted = extractBody(subPart);
+          if (extracted) return extracted;
+        }
+      }
+      return "";
+    };
+
+    if (md.payload) {
+      body = extractBody(md.payload);
+    }
+
+    // Fallback to snippet if no body extracted
+    if (!body && md.snippet) {
+      body = md.snippet;
+    }
+
+    const message = {
       id: md.id,
+      threadId: md.threadId,
       snippet: md.snippet,
+      body: body || md.snippet || "",
+      subject: getHeader("Subject"),
+      from: getHeader("From"),
+      to: getHeader("To"),
+      date: getHeader("Date"),
       internalDate: md.internalDate,
-    });
+      isThreadRepresentative: false,
+      threadMessageCount: 1,
+    };
+
+    // Thread deduplication logic
+    const existingThread = threadMap.get(md.threadId);
+    if (!existingThread || md.internalDate > existingThread.internalDate) {
+      // This is either the first message in this thread or a more recent one
+      if (existingThread) {
+        // Update thread message count
+        message.threadMessageCount = existingThread.threadMessageCount + 1;
+      }
+      message.isThreadRepresentative = true;
+      threadMap.set(md.threadId, message);
+    } else {
+      // Update the thread message count for the existing representative
+      existingThread.threadMessageCount += 1;
+    }
   }
-  return messages;
+
+  // Convert map to array and limit to requested maxResults
+  const deduplicatedMessages = Array.from(threadMap.values())
+    .sort((a, b) => b.internalDate - a.internalDate) // Sort by most recent first
+    .slice(0, maxResults);
+
+  return deduplicatedMessages;
 }
 
 export async function listUpcomingMeetings(
@@ -471,13 +548,7 @@ export async function getEventDetails(userId: string, eventId: string) {
   };
 }
 
-export async function searchDriveSnippets(
-  userId: string,
-  query: string,
-  maxResults = 5,
-) {
-  const token = await getValidAccessToken(userId);
-
+async function getUserDriveFolders(userId: string): Promise<string[] | null> {
   // Check user's Drive access preference
   const integration = await prisma.integration.findFirst({
     where: { userId, provider: "google_workspace" },
@@ -487,54 +558,44 @@ export async function searchDriveSnippets(
   const driveAccess = (integration?.meta as any)?.driveAccess || "folders";
 
   if (driveAccess === "full") {
-    // Search entire Google Drive
-    return searchDriveSnippetsWithToken(token, query, maxResults);
+    // null means search entire Google Drive
+    return null;
   } else {
-    // Search only selected folders (existing behavior)
+    // Return array of allowed folder IDs
     const allowedFolders = await prisma.driveFolder.findMany({
       where: { userId },
       select: { folderId: true },
     });
 
-    const folderIds = allowedFolders.map((f) => f.folderId);
-
-    // If no folders are selected, return empty results
-    if (folderIds.length === 0) {
-      return [];
-    }
-
-    return searchDriveSnippetsWithToken(token, query, maxResults, folderIds);
+    return allowedFolders.map((f) => f.folderId);
   }
 }
 
-export async function searchGmailSnippets(
+export async function searchDriveSnippets(
   userId: string,
   query: string,
   maxResults = 5,
 ) {
   const token = await getValidAccessToken(userId);
-  const base = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
-  const url = new URL(base);
-  url.searchParams.set("q", query);
-  url.searchParams.set("maxResults", String(maxResults));
-  const listResp = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!listResp.ok) throw new Error(`gmail_list_failed: ${listResp.status}`);
-  const list: any = await listResp.json();
-  const ids: string[] = (list.messages || []).map((m: any) => m.id);
-  const messages: any[] = [];
-  for (const id of ids) {
-    const mr = await fetch(`${base}/${id}?format=full`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!mr.ok) continue;
-    const md = await mr.json();
-    messages.push({
-      id: md.id,
-      snippet: md.snippet,
-      internalDate: md.internalDate,
-    });
+  const folderIds = await getUserDriveFolders(userId);
+
+  if (folderIds === null) {
+    // Search entire Google Drive
+    return searchDriveSnippetsWithToken(token, query, maxResults);
+  } else if (folderIds.length === 0) {
+    // No folders selected, return empty results
+    return [];
+  } else {
+    // Search only selected folders
+    return searchDriveSnippetsWithToken(token, query, maxResults, folderIds);
   }
-  return messages;
+}
+
+export async function searchGmailMessages(
+  userId: string,
+  query: string,
+  maxResults = 5,
+) {
+  const token = await getValidAccessToken(userId);
+  return searchGmailMessagesWithToken(token, query, maxResults);
 }

@@ -45,7 +45,14 @@ export async function generateBriefFromContext(input: {
     webViewLink?: string | null;
     mimeType?: string | null;
   }[];
-  gmail: { id?: string | null; snippet?: string | null }[];
+  gmail: {
+    id?: string | null;
+    snippet?: string | null;
+    body?: string | null;
+    subject?: string | null;
+    from?: string | null;
+    to?: string | null;
+  }[];
 }) {
   const openai = getOpenAI();
   const sources: string[] = [];
@@ -59,13 +66,21 @@ export async function generateBriefFromContext(input: {
     sources.length >= 3 ? "high" : sources.length > 0 ? "medium" : "low";
 
   if (!openai) {
+    const placeholderContent = `# Meeting Brief\n\n_No OpenAI key configured. Placeholder brief for:_ ${input.meeting.title}`;
     return {
       content: {
-        brief_markdown: `# Meeting Brief\n\n_No OpenAI key configured. Placeholder brief for:_ ${input.meeting.title}`,
+        brief_markdown: placeholderContent,
         action_items: [],
       } satisfies BriefJSON,
       confidence,
       sources,
+      llmContext: {
+        systemPrompt: "No OpenAI key configured",
+        userPrompt: `Placeholder request for: ${input.meeting.title}`,
+        response: placeholderContent,
+        model: "none",
+        temperature: 0,
+      },
     };
   }
 
@@ -82,9 +97,16 @@ export async function generateBriefFromContext(input: {
           f.webViewLink ?? ""
         }`,
     )
-    .join("\n")}\n\nGmail snippets:\n${input.gmail
-    .map((g) => `- ${g.snippet ?? "(no snippet)"}`)
-    .join("\n")}\n\nReturn ONLY the JSON object with the keys described above.`;
+    .join("\n")}\n\nGmail emails:\n${input.gmail
+    .map((g) => {
+      const subject = g.subject ? `Subject: ${g.subject}` : "";
+      const from = g.from ? `From: ${g.from}` : "";
+      const body = g.body || g.snippet || "(no content)";
+      return `- ${subject}\n  ${from}\n  Content: ${body}`;
+    })
+    .join(
+      "\n\n",
+    )}\n\nReturn ONLY the JSON object with the keys described above.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -106,5 +128,13 @@ export async function generateBriefFromContext(input: {
     content,
     confidence,
     sources,
+    // Return the actual prompts used for debugging
+    llmContext: {
+      systemPrompt: system,
+      userPrompt: user,
+      response: raw,
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+    },
   };
 }
