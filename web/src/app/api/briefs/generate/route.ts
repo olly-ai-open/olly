@@ -120,18 +120,77 @@ export async function POST(req: Request) {
       .map((a) => a.email)
       .filter(Boolean) as string[];
 
-    // Check user's Drive access preference
-    // For Drive: search based on access mode
+    // For Drive: smart search strategy
     let drive: any[] = [];
-    const driveQueries = [
-      titleQ,
-      event.title,
-      // Try searching for keywords from the title
-      ...(event.title?.split(/\s+/).filter((word) => word.length > 3) || []),
-    ].filter(Boolean);
+    const driveQueries = [];
+
+    // Strategy 1: Search for the full meeting title if it's specific enough
+    if (
+      event.title &&
+      event.title.length > 8 &&
+      !event.title.match(/^(meeting|call|sync|standup|weekly|daily|monthly)$/i)
+    ) {
+      driveQueries.push(event.title);
+    }
+
+    // Strategy 2: Search for meaningful multi-word phrases from title
+    if (event.title) {
+      const meaningfulPhrases = [];
+      const words = event.title.split(/[\s\-\/]+/).filter((w) => w.length > 2);
+
+      // Look for multi-word phrases that might be project/product names
+      for (let i = 0; i < words.length - 1; i++) {
+        const phrase = words.slice(i, i + 2).join(" ");
+        // Skip generic phrases
+        if (
+          !phrase.match(
+            /^(weekly|daily|monthly|meeting|call|sync|standup|check|in)\s/i,
+          ) &&
+          !phrase.match(
+            /\s(weekly|daily|monthly|meeting|call|sync|standup|check|in)$/i,
+          )
+        ) {
+          meaningfulPhrases.push(phrase);
+        }
+      }
+      driveQueries.push(...meaningfulPhrases);
+    }
+
+    // Strategy 3: Search for attendee email domains (company/project names)
+    const attendeeDomains = new Set(
+      attendees
+        .map((email) => email.split("@")[0]) // Get username part
+        .filter(
+          (username) =>
+            username.length > 3 &&
+            !username.match(/^(admin|info|support|noreply)$/i),
+        )
+        .slice(0, 3), // Limit to first 3 unique usernames
+    );
+    driveQueries.push(...Array.from(attendeeDomains));
+
+    // Strategy 4: If it's a recurring meeting, search for the base name without frequency indicators
+    if (event.title) {
+      const baseTitle = event.title
+        .replace(
+          /\s*-\s*(weekly|daily|monthly|biweekly|standup|sync|meeting|call)\s*/gi,
+          "",
+        )
+        .replace(
+          /\s*(weekly|daily|monthly|biweekly|standup|sync|meeting|call)\s*/gi,
+          "",
+        )
+        .trim();
+      if (baseTitle && baseTitle !== event.title && baseTitle.length > 5) {
+        driveQueries.push(baseTitle);
+      }
+    }
+
+    // Remove duplicates and empty queries
+    const uniqueDriveQueries = [...new Set(driveQueries.filter(Boolean))];
 
     // Try each query until we get results
-    for (const query of driveQueries) {
+    for (const query of uniqueDriveQueries) {
       const driveStartTime = Date.now();
       try {
         drive = await searchDriveSnippets(userId, query);
@@ -163,7 +222,7 @@ export async function POST(req: Request) {
       }
     }
 
-    debugData.summary.apiCalls += driveQueries.length;
+    debugData.summary.apiCalls += uniqueDriveQueries.length;
 
     // For Gmail: search for emails BETWEEN meeting participants
     let allGmail: any[] = [];

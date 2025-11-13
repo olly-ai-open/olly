@@ -338,6 +338,45 @@ export async function getEventDetailsWithToken(token: string, eventId: string) {
   };
 }
 
+async function extractDriveFileContent(
+  token: string,
+  fileId: string,
+  mimeType: string,
+): Promise<string | null> {
+  try {
+    // Google Docs
+    if (mimeType === "application/vnd.google-apps.document") {
+      const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`;
+      const resp = await fetch(exportUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) return null;
+      return await resp.text();
+    }
+
+    // TODO: Google Sheets
+    if (mimeType === "application/vnd.google-apps.spreadsheet") {
+      return null;
+    }
+
+    // TODO: PDFs
+    if (mimeType === "application/pdf") {
+      return null;
+    }
+
+    // TODO: Google Slides
+    if (mimeType === "application/vnd.google-apps.presentation") {
+      return null;
+    }
+
+    // For other file types, return null
+    return null;
+  } catch (error) {
+    console.error(`Failed to extract content for file ${fileId}:`, error);
+    return null;
+  }
+}
+
 export async function searchDriveSnippetsWithToken(
   token: string,
   query: string,
@@ -370,7 +409,24 @@ export async function searchDriveSnippetsWithToken(
   });
   if (!resp.ok) throw new Error(`drive_search_failed: ${resp.status}`);
   const data: any = await resp.json();
-  return data.files || [];
+  const files = data.files || [];
+
+  // Extract content for supported file types
+  const filesWithContent = await Promise.all(
+    files.map(async (file: any) => {
+      const content = await extractDriveFileContent(
+        token,
+        file.id,
+        file.mimeType,
+      );
+      return {
+        ...file,
+        content: content || undefined,
+      };
+    }),
+  );
+
+  return filesWithContent;
 }
 
 export async function searchGmailMessagesWithToken(

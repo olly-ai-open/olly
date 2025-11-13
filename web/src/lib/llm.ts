@@ -44,6 +44,7 @@ export async function generateBriefFromContext(input: {
     name?: string | null;
     webViewLink?: string | null;
     mimeType?: string | null;
+    content?: string | null;
   }[];
   gmail: {
     id?: string | null;
@@ -91,12 +92,16 @@ export async function generateBriefFromContext(input: {
       .filter(Boolean)
       .join(", ") || "unknown"
   }\nDescription: ${input.meeting.description ?? ""}\n\nContext:\nDrive files:\n${input.drive
-    .map(
-      (f) =>
-        `- ${f.name ?? "(untitled)"} (${f.mimeType ?? "?"}) ${
-          f.webViewLink ?? ""
-        }`,
-    )
+    .map((f) => {
+      let fileInfo = `- ${f.name ?? "(untitled)"} (${f.mimeType ?? "?"})`;
+      if (f.content) {
+        fileInfo += `\n  Content excerpt: ${f.content}`;
+      }
+      if (f.webViewLink) {
+        fileInfo += `\n  Link: ${f.webViewLink}`;
+      }
+      return fileInfo;
+    })
     .join("\n")}\n\nGmail emails:\n${input.gmail
     .map((g) => {
       const subject = g.subject ? `Subject: ${g.subject}` : "";
@@ -109,12 +114,12 @@ export async function generateBriefFromContext(input: {
     )}\n\nReturn ONLY the JSON object with the keys described above.`;
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
-    temperature: 0.2,
+    temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
   });
 
   const raw = completion.choices[0]?.message?.content ?? "";
@@ -133,8 +138,8 @@ export async function generateBriefFromContext(input: {
       systemPrompt: system,
       userPrompt: user,
       response: raw,
-      model: "gpt-4o-mini",
-      temperature: 0.2,
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
     },
   };
 }

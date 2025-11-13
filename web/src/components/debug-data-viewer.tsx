@@ -206,14 +206,26 @@ export default function DebugDataViewer({
                       <div className="font-medium text-sm">
                         {result.name || result.title}
                       </div>
-                      {result.snippet && (
+                      <div className="text-xs text-muted-foreground">
+                        Type: {result.mimeType || "unknown"}
+                      </div>
+                      {result.content && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <div className="font-medium">Content:</div>
+                          <div className="max-h-20 overflow-y-auto bg-background border border-border p-2 rounded mt-1">
+                            {result.content.slice(0, 300)}
+                            {result.content.length > 300 && "..."}
+                          </div>
+                        </div>
+                      )}
+                      {result.snippet && !result.content && (
                         <div className="text-xs text-muted-foreground mt-1">
                           {result.snippet}
                         </div>
                       )}
-                      {result.url && (
+                      {(result.url || result.webViewLink) && (
                         <a
-                          href={result.url}
+                          href={result.url || result.webViewLink}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-primary hover:underline mt-1 inline-block"
