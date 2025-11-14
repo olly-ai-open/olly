@@ -10,6 +10,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import NextLocal from "@/components/next-local";
 import GenerateBriefButton from "@/components/generate-brief-button";
+import ClientDateTime from "@/components/client-date-time";
 
 function formatMinutesHuman(mins: number) {
   if (!mins || mins < 0) return "0m";
@@ -187,12 +188,6 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                 <ul className="divide-y divide-border">
                   {meetings.map((m) => {
                     const start = m.start ? new Date(m.start) : null;
-                    const startStr = start
-                      ? new Intl.DateTimeFormat("en-US", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        }).format(start)
-                      : "TBD";
                     // Optional preview from latest brief
                     const meetingRow = byExternalId.get(m.id);
                     const latest = meetingRow?.briefs?.[0];
@@ -203,11 +198,8 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="font-medium">{m.title}</div>
-                            <div
-                              className="text-sm text-muted-foreground"
-                              suppressHydrationWarning
-                            >
-                              {startStr}
+                            <div className="text-sm text-muted-foreground">
+                              <ClientDateTime date={start} />
                             </div>
                           </div>
                           <div className="flex items-center gap-2">

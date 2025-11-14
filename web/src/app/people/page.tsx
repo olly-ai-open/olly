@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import Sidebar from "@/components/sidebar";
 import Link from "next/link";
 import PeopleSearch from "@/components/people-search";
+import ClientDateTime from "@/components/client-date-time";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -118,62 +119,68 @@ export default async function PeoplePage({
             <PeopleSearch initialQuery={q} />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {enrich.map((
-              {
+            {enrich.map(
+              ({
                 p,
                 nextStartsAt,
                 cadence,
                 lastTopic,
-              }: { p: any; nextStartsAt: Date | null; cadence: string; lastTopic: string | null },
-            ) => (
-              <Link
-                key={p.id}
-                href={`/people/${p.id}`}
-                className="rounded-lg border border-border bg-card p-4 shadow-sm hover:bg-border/20"
-              >
-                <div className="text-lg font-medium">
-                  {p.name || p.email || "Unknown"}
-                </div>
-                {p.title || p.org ? (
-                  <div className="text-sm text-muted-foreground">
-                    {[p.title, p.org].filter(Boolean).join(" • ")}
+              }: {
+                p: any;
+                nextStartsAt: Date | null;
+                cadence: string;
+                lastTopic: string | null;
+              }) => (
+                <Link
+                  key={p.id}
+                  href={`/people/${p.id}`}
+                  className="rounded-lg border border-border bg-card p-4 shadow-sm hover:bg-border/20"
+                >
+                  <div className="text-lg font-medium">
+                    {p.name || p.email || "Unknown"}
                   </div>
-                ) : null}
-                <div className="mt-3 space-y-1 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <span>📅</span>
-                    <span suppressHydrationWarning>
-                      {nextStartsAt
-                        ? `Next: ${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(nextStartsAt)}`
-                        : "Next: —"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <span>🕑</span>
-                    <span>Meets: {cadence}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-primary">
-                    <span>✓</span>
-                    <span>
-                      {openCountsByPerson[p.id] || 0} open action items
-                    </span>
-                  </div>
-                  {lastTopic && (
-                    <div className="border-t border-border pt-2 text-xs text-muted-foreground">
-                      Last topic: {lastTopic}
+                  {p.title || p.org ? (
+                    <div className="text-sm text-muted-foreground">
+                      {[p.title, p.org].filter(Boolean).join(" • ")}
                     </div>
-                  )}
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="rounded-md border border-border px-3 py-1 text-sm">
-                    ✉️ Email
-                  </span>
-                  <span className="rounded-md border border-border px-3 py-1 text-sm">
-                    📆 Schedule
-                  </span>
-                </div>
-              </Link>
-            ))}
+                  ) : null}
+                  <div className="mt-3 space-y-1 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <span>📅</span>
+                      <ClientDateTime
+                        date={nextStartsAt}
+                        fallback="Next: —"
+                        format={{ dateStyle: "medium", timeStyle: "short" }}
+                        prefix="Next: "
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <span>🕑</span>
+                      <span>Meets: {cadence}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-primary">
+                      <span>✓</span>
+                      <span>
+                        {openCountsByPerson[p.id] || 0} open action items
+                      </span>
+                    </div>
+                    {lastTopic && (
+                      <div className="border-t border-border pt-2 text-xs text-muted-foreground">
+                        Last topic: {lastTopic}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="rounded-md border border-border px-3 py-1 text-sm">
+                      ✉️ Email
+                    </span>
+                    <span className="rounded-md border border-border px-3 py-1 text-sm">
+                      📆 Schedule
+                    </span>
+                  </div>
+                </Link>
+              ),
+            )}
           </div>
         </div>
       </div>
