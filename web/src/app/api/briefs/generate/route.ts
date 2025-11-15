@@ -241,43 +241,74 @@ export async function POST(req: Request) {
       const gmailQueries = [];
       const gmailTimeframe = `newer_than:${searchTimeframeDays}d`;
 
-      // Build queries for emails between participants
-      if (attendees.length >= 2) {
-        // For each participant, find emails they sent TO other participants
-        for (const fromEmail of attendees.slice(0, 3)) {
-          const otherAttendees = attendees.filter(
-            (email) => email !== fromEmail,
-          );
-          if (otherAttendees.length > 0) {
-            const toQuery = otherAttendees
-              .slice(0, 3)
-              .map((email) => `to:${email}`)
-              .join(" OR ");
-            gmailQueries.push(
-              `from:${fromEmail} (${toQuery}) ${gmailTimeframe}`,
-            );
+      // Get current user's email to exclude from content searches
+      // First try to get from User model, then from session
+      const userRecord = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true },
+      });
+      const currentUserEmail =
+        userRecord?.email?.toLowerCase() || session.user.email?.toLowerCase();
 
-            // Also try with subject if available
-            if (titleQ) {
-              gmailQueries.push(
-                `from:${fromEmail} (${toQuery}) subject:"${titleQ}" ${gmailTimeframe}`,
-              );
-            }
-          }
+      // Filter out the current user from attendees for content searches
+      // If we can't identify the current user, be safe and only use attendees for direct email searches
+      const otherAttendees = currentUserEmail
+        ? attendees.filter((email) => email.toLowerCase() !== currentUserEmail)
+        : attendees;
+
+      // Extract participant names from email addresses for content searches (excluding self)
+      const participantNames = otherAttendees
+        .map((email) => {
+          // Extract name part before @ and clean it up
+          const localPart = email.split("@")[0];
+          // Convert common patterns like firstname.lastname or firstname_lastname to "firstname lastname"
+          return localPart
+            .replace(/[._-]/g, " ")
+            .split(" ")
+            .filter((part) => part.length > 1) // Filter out single letters
+            .join(" ")
+            .trim();
+        })
+        .filter((name) => name.length > 2); // Only keep meaningful names
+
+      // Build queries for emails between participants
+      if (otherAttendees.length > 0) {
+        // Strategy 1: Emails between you and other participants
+        // Search for emails you sent TO/CC others OR they sent TO/CC you
+        for (const otherEmail of otherAttendees.slice(0, 3)) {
+          // Emails from them or emails where they are recipients (to/cc)
+          gmailQueries.push(
+            `(from:${otherEmail} OR to:${otherEmail} OR cc:${otherEmail}) ${gmailTimeframe}`,
+          );
         }
 
-        // Fallback: emails containing multiple participant addresses in any field
-        const participantQuery = attendees
-          .slice(0, 3)
-          .map((email) => `"${email}"`)
-          .join(" AND ");
-        gmailQueries.push(`(${participantQuery}) ${gmailTimeframe}`);
-      } else {
-        // Single participant fallback (shouldn't happen in meetings, but just in case)
-        gmailQueries.push(`from:${attendees[0]} ${gmailTimeframe}`);
+        // Strategy 2: Emails containing multiple OTHER participant addresses (excluding self)
+        // Only useful when there are at least 2 other participants
+        if (otherAttendees.length >= 2) {
+          const participantEmailQuery = otherAttendees
+            .slice(0, 3)
+            .map((email) => `"${email}"`)
+            .join(" AND ");
+          gmailQueries.push(`(${participantEmailQuery}) ${gmailTimeframe}`);
+        }
+
+        // Strategy 3: Emails mentioning OTHER participants' names or email addresses in content (excluding self)
+        // Search for both their extracted names AND their email addresses in email body
+        if (otherAttendees.length >= 1) {
+          // Combine both names and email addresses for content search
+          const contentSearchTerms = [
+            ...participantNames.slice(0, 3).map((name) => `"${name}"`),
+            ...otherAttendees.slice(0, 3).map((email) => `"${email}"`),
+          ];
+
+          if (contentSearchTerms.length > 0) {
+            const contentQuery = contentSearchTerms.join(" OR ");
+            gmailQueries.push(`(${contentQuery}) ${gmailTimeframe}`);
+          }
+        }
       }
 
-      // Try broader search with title if nothing else works
+      // Strategy 4: Broader search with meeting title if available
       if (titleQ) {
         gmailQueries.push(`"${titleQ}" ${gmailTimeframe}`);
       }
