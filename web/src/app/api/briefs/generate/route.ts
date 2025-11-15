@@ -156,20 +156,7 @@ export async function POST(req: Request) {
       driveQueries.push(...meaningfulPhrases);
     }
 
-    // Strategy 3: Search for attendee email domains (company/project names)
-    const attendeeDomains = new Set(
-      attendees
-        .map((email) => email.split("@")[0]) // Get username part
-        .filter(
-          (username) =>
-            username.length > 3 &&
-            !username.match(/^(admin|info|support|noreply)$/i),
-        )
-        .slice(0, 3), // Limit to first 3 unique usernames
-    );
-    driveQueries.push(...Array.from(attendeeDomains));
-
-    // Strategy 4: If it's a recurring meeting, search for the base name without frequency indicators
+    // Strategy 3: If it's a recurring meeting, search for the base name without frequency indicators
     if (event.title) {
       const baseTitle = event.title
         .replace(
@@ -193,7 +180,8 @@ export async function POST(req: Request) {
     for (const query of uniqueDriveQueries) {
       const driveStartTime = Date.now();
       try {
-        drive = await searchDriveSnippets(userId, query);
+        const driveResult = await searchDriveSnippets(userId, query);
+        drive = driveResult.files;
 
         addTimelineEntry("DRIVE_SEARCH", {
           query,
@@ -201,7 +189,9 @@ export async function POST(req: Request) {
           duration: Date.now() - driveStartTime,
         });
 
-        debugData.searchResults.drive.queries.push(query);
+        // Store the actual API query (with time filter) in debug data, fall back to original query
+        const actualQuery = driveResult.actualQuery || query;
+        debugData.searchResults.drive.queries.push(actualQuery);
         if (drive.length > 0) {
           debugData.searchResults.drive.results.push(...drive);
           debugData.searchResults.drive.totalFound += drive.length;

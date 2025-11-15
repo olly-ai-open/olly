@@ -385,8 +385,14 @@ export async function searchDriveSnippetsWithToken(
 ) {
   const escapedQuery = query.replace(/'/g, "\\'");
 
-  // Search both file names AND full text content
-  let q = `(name contains '${escapedQuery}' or fullText contains '${escapedQuery}') and trashed = false`;
+  // Calculate date 30 days ago in RFC 3339 format for Drive API
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // Use simplified RFC 3339 format without milliseconds for Drive API
+  const dateFilter = thirtyDaysAgo.toISOString().split(".")[0] + "Z";
+
+  // Search both file names AND full text content, limited to last 30 days
+  let q = `(name contains '${escapedQuery}' or fullText contains '${escapedQuery}') and trashed = false and modifiedTime > '${dateFilter}'`;
 
   // If specific folders are provided, limit search to those folders
   if (folderIds && folderIds.length > 0) {
@@ -426,7 +432,7 @@ export async function searchDriveSnippetsWithToken(
     }),
   );
 
-  return filesWithContent;
+  return { files: filesWithContent, actualQuery: q };
 }
 
 export async function searchGmailMessagesWithToken(
@@ -631,7 +637,7 @@ export async function searchDriveSnippets(
   userId: string,
   query: string,
   maxResults = 5,
-) {
+): Promise<{ files: any[]; actualQuery?: string }> {
   const token = await getValidAccessToken(userId);
   const folderIds = await getUserDriveFolders(userId);
 
@@ -640,7 +646,7 @@ export async function searchDriveSnippets(
     return searchDriveSnippetsWithToken(token, query, maxResults);
   } else if (folderIds.length === 0) {
     // No folders selected, return empty results
-    return [];
+    return { files: [], actualQuery: undefined };
   } else {
     // Search only selected folders
     return searchDriveSnippetsWithToken(token, query, maxResults, folderIds);
