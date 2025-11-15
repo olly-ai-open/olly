@@ -198,7 +198,7 @@ export class S3DebugStorage {
 
       await s3Client.send(command);
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
