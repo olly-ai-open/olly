@@ -124,6 +124,117 @@ export async function POST(req: Request) {
       .map((a) => a.email)
       .filter(Boolean) as string[];
 
+    // Helper function to extract potential names from meeting title
+    const extractNamesFromTitle = (title: string): string[] => {
+      const patterns = [
+        // "Call Craig", "Meeting with John", "Coffee with Mike", etc.
+        /(?:call|meeting with|1:1 with?|coffee with|lunch with|sync with|chat with|interview with)\s+(\w+)/gi,
+        // "Craig call", "John sync", "Sarah meeting", etc.
+        /(\w+)\s+(?:1:1|1-1|sync|call|meeting|chat|interview)/gi,
+        // "John / Sarah" or "John - Sarah" format
+        /^(\w+)\s*[-\/]\s*(\w+)$/i,
+        // "1:1: John" or "Meeting: Sarah" format
+        /(?:1:1:|meeting:|call:|sync:)\s*(\w+)/gi,
+      ];
+
+      const potentialNames = new Set<string>();
+      const commonWords = new Set([
+        "the",
+        "with",
+        "and",
+        "team",
+        "weekly",
+        "daily",
+        "monthly",
+        "standup",
+        "all",
+        "staff",
+        "internal",
+        "external",
+      ]);
+
+      for (const pattern of patterns) {
+        let match;
+        // Use exec for global patterns to get all matches
+        if (pattern.global) {
+          while ((match = pattern.exec(title)) !== null) {
+            for (let i = 1; i < match.length; i++) {
+              if (match[i]) {
+                const name = match[i].trim();
+                if (name.length > 2 && !commonWords.has(name.toLowerCase())) {
+                  potentialNames.add(name);
+                }
+              }
+            }
+          }
+        } else {
+          // For non-global patterns, use match once
+          match = title.match(pattern);
+          if (match) {
+            for (let i = 1; i < match.length; i++) {
+              if (match[i]) {
+                const name = match[i].trim();
+                if (name.length > 2 && !commonWords.has(name.toLowerCase())) {
+                  potentialNames.add(name);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      return Array.from(potentialNames);
+    };
+
+    // If no attendees but we have a title, try to extract names and find people
+    let inferredAttendees: string[] = [];
+    if (attendees.length === 0 && event.title) {
+      const namesFromTitle = extractNamesFromTitle(event.title);
+
+      if (namesFromTitle.length > 0) {
+        // Look up these names in the Person database
+        const potentialPeople = await prisma.person.findMany({
+          where: {
+            userId,
+            OR: namesFromTitle.map((name) => ({
+              OR: [
+                { name: { contains: name, mode: "insensitive" as const } },
+                {
+                  email: {
+                    contains: name.toLowerCase(),
+                    mode: "insensitive" as const,
+                  },
+                },
+              ],
+            })),
+          },
+          select: { email: true, name: true },
+        });
+
+        // Collect found emails
+        inferredAttendees = potentialPeople
+          .map((p) => p.email)
+          .filter(Boolean) as string[];
+
+        // If we found people, add a note to the debug data
+        if (inferredAttendees.length > 0) {
+          addTimelineEntry("INFERRED_ATTENDEES", {
+            details: `Found ${inferredAttendees.length} people from title: ${namesFromTitle.join(", ")}`,
+            emails: inferredAttendees,
+          });
+        } else if (namesFromTitle.length > 0) {
+          // We found names but not in the database
+          addTimelineEntry("NAMES_NOT_FOUND", {
+            details: `Extracted names from title but not found in contacts: ${namesFromTitle.join(", ")} - will search for them in Gmail content`,
+          });
+        }
+      }
+    }
+
+    // Use inferred attendees if we don't have real attendees
+    const effectiveAttendees =
+      attendees.length > 0 ? attendees : inferredAttendees;
+
     // For Drive: smart search strategy with deduplication
     let drive: any[] = [];
     const driveQueries = [];
@@ -237,7 +348,13 @@ export async function POST(req: Request) {
 
     // For Gmail: search for emails BETWEEN meeting participants
     let allGmail: any[] = [];
-    if (attendees.length > 0) {
+    // Also collect names extracted from title for content searches (even if not found in contacts)
+    let extractedNames: string[] = [];
+    if (attendees.length === 0 && event.title) {
+      extractedNames = extractNamesFromTitle(event.title);
+    }
+
+    if (effectiveAttendees.length > 0 || extractedNames.length > 0) {
       const gmailQueries = [];
       const gmailTimeframe = `newer_than:${searchTimeframeDays}d`;
 
@@ -250,11 +367,13 @@ export async function POST(req: Request) {
       const currentUserEmail =
         userRecord?.email?.toLowerCase() || session.user.email?.toLowerCase();
 
-      // Filter out the current user from attendees for content searches
+      // Filter out the current user from effective attendees for content searches
       // If we can't identify the current user, be safe and only use attendees for direct email searches
       const otherAttendees = currentUserEmail
-        ? attendees.filter((email) => email.toLowerCase() !== currentUserEmail)
-        : attendees;
+        ? effectiveAttendees.filter(
+            (email) => email.toLowerCase() !== currentUserEmail,
+          )
+        : effectiveAttendees;
 
       // Extract participant names from email addresses for content searches (excluding self)
       const participantNames = otherAttendees
@@ -308,7 +427,27 @@ export async function POST(req: Request) {
         }
       }
 
-      // Strategy 4: Broader search with meeting title if available
+      // Strategy 4: Search for extracted names from solo meetings (even if not found in contacts)
+      if (extractedNames.length > 0 && currentUserEmail) {
+        // Search for emails containing the extracted names in content
+        for (const name of extractedNames.slice(0, 3)) {
+          // Exclude current user name from searches to avoid noise
+          const currentUserName = currentUserEmail
+            .split("@")[0]
+            .replace(/[._-]/g, " ");
+          if (name.toLowerCase() !== currentUserName.toLowerCase()) {
+            gmailQueries.push(`"${name}" ${gmailTimeframe}`);
+          }
+        }
+
+        // Log this for debugging
+        addTimelineEntry("EXTRACTED_NAME_SEARCH", {
+          details: `Searching for extracted names: ${extractedNames.join(", ")}`,
+          names: extractedNames,
+        });
+      }
+
+      // Strategy 5: Broader search with meeting title if available
       if (titleQ) {
         gmailQueries.push(`"${titleQ}" ${gmailTimeframe}`);
       }
