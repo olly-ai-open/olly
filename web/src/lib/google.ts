@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { prisma } from "@/lib/prisma";
+import { getUserSearchTimeframe } from "@/lib/settings";
 
 export function getOAuthClient(redirectUri?: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID!;
@@ -382,16 +383,17 @@ export async function searchDriveSnippetsWithToken(
   query: string,
   maxResults = 5,
   folderIds?: string[],
-) {
+  timeframeDays = 30,
+): Promise<{ files: any[]; actualQuery: string }> {
   const escapedQuery = query.replace(/'/g, "\\'");
 
-  // Calculate date 30 days ago in RFC 3339 format for Drive API
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // Calculate date based on user's timeframe setting
+  const timeframeAgo = new Date();
+  timeframeAgo.setDate(timeframeAgo.getDate() - timeframeDays);
   // Use simplified RFC 3339 format without milliseconds for Drive API
-  const dateFilter = thirtyDaysAgo.toISOString().split(".")[0] + "Z";
+  const dateFilter = timeframeAgo.toISOString().split(".")[0] + "Z";
 
-  // Search both file names AND full text content, limited to last 30 days
+  // Search both file names AND full text content, limited to user's timeframe
   let q = `(name contains '${escapedQuery}' or fullText contains '${escapedQuery}') and trashed = false and modifiedTime > '${dateFilter}'`;
 
   // If specific folders are provided, limit search to those folders
@@ -639,16 +641,29 @@ export async function searchDriveSnippets(
 ): Promise<{ files: any[]; actualQuery?: string }> {
   const token = await getValidAccessToken(userId);
   const folderIds = await getUserDriveFolders(userId);
+  const timeframeDays = await getUserSearchTimeframe(userId);
 
   if (folderIds === null) {
     // Search entire Google Drive
-    return searchDriveSnippetsWithToken(token, query, maxResults);
+    return searchDriveSnippetsWithToken(
+      token,
+      query,
+      maxResults,
+      undefined,
+      timeframeDays,
+    );
   } else if (folderIds.length === 0) {
     // No folders selected, return empty results
     return { files: [], actualQuery: undefined };
   } else {
     // Search only selected folders
-    return searchDriveSnippetsWithToken(token, query, maxResults, folderIds);
+    return searchDriveSnippetsWithToken(
+      token,
+      query,
+      maxResults,
+      folderIds,
+      timeframeDays,
+    );
   }
 }
 

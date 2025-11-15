@@ -16,6 +16,7 @@ import {
   upsertPersonsForEmails,
 } from "@/lib/people";
 import { S3DebugStorage, type DebugDataStructure } from "@/lib/s3-debug";
+import { getUserSearchTimeframe } from "@/lib/settings";
 
 const MAX_PARTICIPANTS = 10;
 
@@ -111,6 +112,9 @@ export async function POST(req: Request) {
     const event = await getEventDetailsWithToken(token, eventId);
     const userId = session.user.id;
     const meeting = await upsertMeetingFromEvent(userId, event);
+
+    // Get user's search timeframe setting
+    const searchTimeframeDays = await getUserSearchTimeframe(userId);
 
     const titleQ = event.title
       ?.split(/\s+/)
@@ -235,6 +239,7 @@ export async function POST(req: Request) {
     let allGmail: any[] = [];
     if (attendees.length > 0) {
       const gmailQueries = [];
+      const gmailTimeframe = `newer_than:${searchTimeframeDays}d`;
 
       // Build queries for emails between participants
       if (attendees.length >= 2) {
@@ -248,12 +253,14 @@ export async function POST(req: Request) {
               .slice(0, 3)
               .map((email) => `to:${email}`)
               .join(" OR ");
-            gmailQueries.push(`from:${fromEmail} (${toQuery}) newer_than:30d`);
+            gmailQueries.push(
+              `from:${fromEmail} (${toQuery}) ${gmailTimeframe}`,
+            );
 
             // Also try with subject if available
             if (titleQ) {
               gmailQueries.push(
-                `from:${fromEmail} (${toQuery}) subject:"${titleQ}" newer_than:30d`,
+                `from:${fromEmail} (${toQuery}) subject:"${titleQ}" ${gmailTimeframe}`,
               );
             }
           }
@@ -264,15 +271,15 @@ export async function POST(req: Request) {
           .slice(0, 3)
           .map((email) => `"${email}"`)
           .join(" AND ");
-        gmailQueries.push(`(${participantQuery}) newer_than:30d`);
+        gmailQueries.push(`(${participantQuery}) ${gmailTimeframe}`);
       } else {
         // Single participant fallback (shouldn't happen in meetings, but just in case)
-        gmailQueries.push(`from:${attendees[0]} newer_than:30d`);
+        gmailQueries.push(`from:${attendees[0]} ${gmailTimeframe}`);
       }
 
       // Try broader search with title if nothing else works
       if (titleQ) {
-        gmailQueries.push(`"${titleQ}" newer_than:30d`);
+        gmailQueries.push(`"${titleQ}" ${gmailTimeframe}`);
       }
 
       // Try each query until we get results

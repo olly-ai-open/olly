@@ -57,6 +57,10 @@ export default async function Sidebar() {
             <span>🔗</span>
             <span>Integrations</span>
           </NavLinkActive>
+          <NavLinkActive href="/settings" className={itemCls}>
+            <span>⚙️</span>
+            <span>Settings</span>
+          </NavLinkActive>
         </nav>
 
         <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
