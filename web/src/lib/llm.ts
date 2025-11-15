@@ -114,7 +114,7 @@ export async function generateBriefFromContext(input: {
     )}\n\nReturn ONLY the JSON object with the keys described above.`;
 
   const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    model: process.env.OPENAI_MODEL || "gpt-4.1",
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
@@ -138,7 +138,7 @@ export async function generateBriefFromContext(input: {
       systemPrompt: system,
       userPrompt: user,
       response: raw,
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      model: process.env.OPENAI_MODEL || "gpt-4.1",
       temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
     },
   };
