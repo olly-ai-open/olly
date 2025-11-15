@@ -451,7 +451,6 @@ export async function searchGmailMessagesWithToken(
   if (!listResp.ok) throw new Error(`gmail_list_failed: ${listResp.status}`);
   const list: any = await listResp.json();
   const ids: string[] = (list.messages || []).map((m: any) => m.id);
-  const messages: any[] = [];
 
   // Thread deduplication map: threadId -> most recent message
   const threadMap = new Map<string, any>();
