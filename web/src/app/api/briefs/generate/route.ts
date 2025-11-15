@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       .map((a) => a.email)
       .filter(Boolean) as string[];
 
-    // For Drive: smart search strategy
+    // For Drive: smart search strategy with deduplication
     let drive: any[] = [];
     const driveQueries = [];
 
@@ -176,26 +176,32 @@ export async function POST(req: Request) {
     // Remove duplicates and empty queries
     const uniqueDriveQueries = [...new Set(driveQueries.filter(Boolean))];
 
-    // Try each query until we get results
+    // Drive deduplication map: fileId -> file object
+    const driveMap = new Map<string, any>();
+
+    // Execute all Drive searches and collect results
     for (const query of uniqueDriveQueries) {
       const driveStartTime = Date.now();
       try {
         const driveResult = await searchDriveSnippets(userId, query);
-        drive = driveResult.files;
+        const files = driveResult.files;
 
         addTimelineEntry("DRIVE_SEARCH", {
           query,
-          resultCount: drive.length,
+          resultCount: files.length,
           duration: Date.now() - driveStartTime,
         });
 
         // Store the actual API query (with time filter) in debug data, fall back to original query
         const actualQuery = driveResult.actualQuery || query;
         debugData.searchResults.drive.queries.push(actualQuery);
-        if (drive.length > 0) {
-          debugData.searchResults.drive.results.push(...drive);
-          debugData.searchResults.drive.totalFound += drive.length;
-          debugData.searchResults.drive.included += drive.length;
+        debugData.searchResults.drive.totalFound += files.length;
+
+        // Add files to deduplication map
+        for (const file of files) {
+          if (!driveMap.has(file.id)) {
+            driveMap.set(file.id, file);
+          }
         }
       } catch (driveError: any) {
         const errorMsg = `Drive search failed for "${query}": ${driveError?.message || "Unknown error"}`;
@@ -211,6 +217,17 @@ export async function POST(req: Request) {
         });
       }
     }
+
+    // Convert deduplicated map to array and sort by modification time (most recent first)
+    drive = Array.from(driveMap.values()).sort((a, b) => {
+      const aTime = a.modifiedTime ? new Date(a.modifiedTime).getTime() : 0;
+      const bTime = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    // Update debug data with final deduplicated results
+    debugData.searchResults.drive.results = drive;
+    debugData.searchResults.drive.included = drive.length;
 
     debugData.summary.apiCalls += uniqueDriveQueries.length;
 
