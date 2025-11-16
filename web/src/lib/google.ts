@@ -519,6 +519,25 @@ export async function searchGmailMessagesWithToken(
 
   // Thread deduplication map: threadId -> most recent message
   const threadMap = new Map<string, any>();
+  const MAX_ATTACHMENTS_PER_MESSAGE = 2;
+  const MAX_ATTACHMENTS_TOTAL = 10;
+  const MAX_ATTACHMENT_BYTES = 256 * 1024;
+  let totalAttachmentsFetched = 0;
+
+  const collectAttachmentParts = (part: any, out: any[]) => {
+    if (!part) return;
+    if (part.filename && part.body?.attachmentId) {
+      out.push({
+        attachmentId: part.body.attachmentId as string,
+        filename: part.filename as string,
+        mimeType: part.mimeType as string,
+        size: typeof part.body.size === "number" ? part.body.size : null,
+      });
+    }
+    if (Array.isArray(part.parts)) {
+      for (const sub of part.parts) collectAttachmentParts(sub, out);
+    }
+  };
 
   for (const id of ids) {
     const mr = await fetch(`${base}/${id}?format=full`, {
@@ -569,6 +588,81 @@ export async function searchGmailMessagesWithToken(
       body = md.snippet;
     }
 
+    // Collect attachment metadata from the payload
+    const attachmentMetas: any[] = [];
+    if (md.payload) {
+      collectAttachmentParts(md.payload, attachmentMetas);
+    }
+
+    const attachments: {
+      id: string;
+      filename: string;
+      mimeType: string;
+      size: number | null;
+      textContent?: string;
+    }[] = [];
+
+    for (const meta of attachmentMetas.slice(0, MAX_ATTACHMENTS_PER_MESSAGE)) {
+      if (totalAttachmentsFetched >= MAX_ATTACHMENTS_TOTAL) {
+        break;
+      }
+      const attachmentId = meta.attachmentId as string;
+      const filename = (meta.filename as string) || "(attachment)";
+      const mimeType = (meta.mimeType as string) || "application/octet-stream";
+      const declaredSize =
+        typeof meta.size === "number" && !Number.isNaN(meta.size)
+          ? meta.size
+          : null;
+
+      let textContent: string | undefined;
+      let effectiveSize = declaredSize;
+
+      try {
+        // Skip download for very large attachments
+        if (declaredSize === null || declaredSize <= MAX_ATTACHMENT_BYTES) {
+          const ar = await fetch(`${base}/${id}/attachments/${attachmentId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (ar.ok) {
+            const attachmentBody: any = await ar.json();
+            if (attachmentBody?.data) {
+              const buf = Buffer.from(attachmentBody.data, "base64");
+              effectiveSize = buf.length;
+
+              const maxBytes = MAX_ATTACHMENT_BYTES;
+              const limited =
+                buf.length > maxBytes ? buf.subarray(0, maxBytes) : buf;
+
+              if (mimeType === "text/plain" || mimeType.startsWith("text/")) {
+                textContent = limited.toString("utf-8");
+              } else if (mimeType === "text/html") {
+                const html = limited.toString("utf-8");
+                textContent = html
+                  .replace(/<[^>]*>/g, " ")
+                  .replace(/\s+/g, " ")
+                  .trim();
+              }
+
+              if (textContent) {
+                textContent = textContent.trim().slice(0, 1000);
+              }
+            }
+          }
+        }
+      } catch {
+        // Best-effort: ignore attachment text failures
+      }
+
+      attachments.push({
+        id: attachmentId,
+        filename,
+        mimeType,
+        size: effectiveSize ?? declaredSize ?? null,
+        ...(textContent ? { textContent } : {}),
+      });
+      totalAttachmentsFetched += 1;
+    }
+
     const message = {
       id: md.id,
       threadId: md.threadId,
@@ -581,6 +675,7 @@ export async function searchGmailMessagesWithToken(
       internalDate: md.internalDate,
       isThreadRepresentative: false,
       threadMessageCount: 1,
+      attachments,
     };
 
     // Thread deduplication logic

@@ -74,6 +74,13 @@ export async function generateBriefFromContext(
       subject?: string | null;
       from?: string | null;
       to?: string | null;
+      attachments?: {
+        id?: string | null;
+        filename?: string | null;
+        mimeType?: string | null;
+        size?: number | null;
+        textContent?: string | null;
+      }[];
     }[];
   },
   opts?: { systemPromptOverride?: string },
@@ -85,11 +92,19 @@ export async function generateBriefFromContext(
   for (const m of input.gmail.slice(0, 5))
     if (m?.id) {
       const baseUrl = `https://mail.google.com/mail/u/0/#inbox/${m.id}`;
-      if (m.subject && m.subject.trim().length) {
-        sources.push(`Gmail: ${m.subject.trim()} -> ${baseUrl}`);
-      } else {
-        sources.push(`Gmail: Email thread -> ${baseUrl}`);
-      }
+      const subjectLabel =
+        m.subject && m.subject.trim().length
+          ? m.subject.trim()
+          : "Email thread";
+      sources.push(`Gmail: ${subjectLabel} -> ${baseUrl}`);
+
+      const attachments = Array.isArray(m.attachments) ? m.attachments : [];
+      attachments.slice(0, 3).forEach((att) => {
+        const name = (att.filename || "(attachment)").trim();
+        sources.push(
+          `Attachment: ${name} (from "${subjectLabel}") -> ${baseUrl}`,
+        );
+      });
     }
 
   const confidence =
@@ -155,7 +170,26 @@ export async function generateBriefFromContext(
       const subject = g.subject ? `Subject: ${g.subject}` : "";
       const from = g.from ? `From: ${g.from}` : "";
       const body = g.body || g.snippet || "(no content)";
-      return `- ${subject}\n  ${from}\n  Content: ${body}`;
+      const attachments = Array.isArray(g.attachments) ? g.attachments : [];
+      const attachmentsBlock = attachments.length
+        ? `\n  Attachments:\n${attachments
+            .slice(0, 3)
+            .map((a) => {
+              const label = a.filename || "(attachment)";
+              const sizeLabel =
+                typeof a.size === "number" && a.size > 0
+                  ? `, ~${Math.round(a.size / 1024)} KB`
+                  : "";
+              const metaLine = `  - ${label} (${a.mimeType || "unknown"}${sizeLabel})`;
+              const excerpt =
+                a.textContent && a.textContent.trim().length
+                  ? `\n    Excerpt: ${a.textContent.trim()}`
+                  : "";
+              return `${metaLine}${excerpt}`;
+            })
+            .join("\n")}`
+        : "";
+      return `- ${subject}\n  ${from}\n  Content: ${body}${attachmentsBlock}`;
     })
     .join(
       "\n\n",
