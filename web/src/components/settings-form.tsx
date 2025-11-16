@@ -140,7 +140,7 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                 htmlFor="searchStrategy"
                 className="block text-sm font-medium text-foreground mb-2"
               >
-                Query strategy for generating briefs (admin only)
+                Query strategy for generating briefs
               </label>
               <select
                 id="searchStrategy"
@@ -166,7 +166,7 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
               </select>
               <p className="mt-1 text-xs text-muted-foreground">
                 Controls how Olly searches Gmail and Drive before generating a
-                brief. Non-admins use the strategy chosen here.
+                brief.
               </p>
             </div>
           )}
