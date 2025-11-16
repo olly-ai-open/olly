@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Sidebar from "@/components/sidebar";
 import Link from "next/link";
+import PersonEditor from "@/components/person-editor";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -41,14 +42,28 @@ export default async function PersonDetail({
       <div className="flex gap-6">
         <Sidebar />
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold">
-            {person.name || person.email || "Person"}
-          </h1>
-          {(person.title || person.org) && (
-            <div className="mb-4 text-sm text-muted-foreground">
-              {[person.title, person.org].filter(Boolean).join(" • ")}
-            </div>
-          )}
+          <div className="mb-4">
+            <h1 className="text-2xl font-semibold">
+              {person.name || person.email || "Person"}
+            </h1>
+            {(person.title || person.org) && (
+              <div className="text-sm text-muted-foreground">
+                {[person.title, person.org].filter(Boolean).join(" • ")}
+              </div>
+            )}
+          </div>
+
+          <div className="mb-6 rounded-lg border border-border bg-card p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-medium text-foreground">
+              Edit details
+            </h2>
+            <PersonEditor
+              personId={person.id}
+              initialName={person.name}
+              initialTitle={person.title}
+              initialOrg={person.org}
+            />
+          </div>
 
           <div className="space-y-4">
             {briefs.map((b: any) => (

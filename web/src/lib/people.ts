@@ -1,5 +1,20 @@
 import { prisma } from "@/lib/prisma";
 
+export function deriveNameFromEmail(email: string): string | null {
+  const [local] = email.split("@");
+  if (!local) return null;
+  const parts = local
+    .replace(/[._-]+/g, " ")
+    .split(" ")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0 && p.length <= 64);
+  if (!parts.length) return null;
+  const name = parts
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(" ");
+  return name || null;
+}
+
 export async function upsertPersonsForEmails(
   userId: string,
   emails: (string | null | undefined)[],
@@ -16,7 +31,11 @@ export async function upsertPersonsForEmails(
   const toCreate = uniq.filter((e: string) => !existingMap.has(e));
   if (toCreate.length) {
     await prisma.person.createMany({
-      data: toCreate.map((email: string) => ({ userId, email })),
+      data: toCreate.map((email: string) => ({
+        userId,
+        email,
+        name: deriveNameFromEmail(email),
+      })),
     });
   }
   const final = await prisma.person.findMany({
