@@ -21,6 +21,8 @@ export async function GET() {
           userId: session.user.id,
           searchTimeframeDays: 30,
           searchStrategy: null,
+          briefSystemPrompt: null,
+          queryPlannerSystemPrompt: null,
           emailNotifications: true,
         },
       });
@@ -45,7 +47,13 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const { searchTimeframeDays, emailNotifications, searchStrategy } = body;
+    const {
+      searchTimeframeDays,
+      emailNotifications,
+      searchStrategy,
+      briefSystemPrompt,
+      queryPlannerSystemPrompt,
+    } = body;
 
     // Validate searchTimeframeDays
     if (
@@ -71,8 +79,25 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Validate searchStrategy (admin-only)
+    // Validate admin-only fields (searchStrategy + prompt overrides)
     let nextSearchStrategy: string | undefined;
+    let nextBriefSystemPrompt: string | null | undefined;
+    let nextQueryPlannerSystemPrompt: string | null | undefined;
+    let adminUser: { isAdmin: boolean } | null = null;
+
+    const ensureAdmin = async () => {
+      if (!adminUser) {
+        adminUser = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { isAdmin: true },
+        });
+      }
+      if (!adminUser?.isAdmin) {
+        return false;
+      }
+      return true;
+    };
+
     if (searchStrategy !== undefined) {
       const allowed = ["LLM_ONLY", "HEURISTIC_ONLY", "LLM_AND_HEURISTIC"];
       if (!allowed.includes(searchStrategy)) {
@@ -85,12 +110,7 @@ export async function PUT(req: Request) {
         );
       }
 
-      // Only admins can change searchStrategy
-      const user = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { isAdmin: true },
-      });
-      if (!user?.isAdmin) {
+      if (!(await ensureAdmin())) {
         return NextResponse.json(
           { error: "forbidden: searchStrategy is admin-only" },
           { status: 403 },
@@ -98,6 +118,31 @@ export async function PUT(req: Request) {
       }
 
       nextSearchStrategy = searchStrategy;
+    }
+
+    if (
+      briefSystemPrompt !== undefined ||
+      queryPlannerSystemPrompt !== undefined
+    ) {
+      if (!(await ensureAdmin())) {
+        return NextResponse.json(
+          { error: "forbidden: prompt overrides are admin-only" },
+          { status: 403 },
+        );
+      }
+
+      if (briefSystemPrompt !== undefined) {
+        const v =
+          typeof briefSystemPrompt === "string" ? briefSystemPrompt.trim() : "";
+        nextBriefSystemPrompt = v.length ? v : null;
+      }
+      if (queryPlannerSystemPrompt !== undefined) {
+        const v =
+          typeof queryPlannerSystemPrompt === "string"
+            ? queryPlannerSystemPrompt.trim()
+            : "";
+        nextQueryPlannerSystemPrompt = v.length ? v : null;
+      }
     }
 
     const settings = await prisma.userSettings.upsert({
@@ -108,11 +153,19 @@ export async function PUT(req: Request) {
         ...(nextSearchStrategy !== undefined && {
           searchStrategy: nextSearchStrategy,
         }),
+        ...(nextBriefSystemPrompt !== undefined && {
+          briefSystemPrompt: nextBriefSystemPrompt,
+        }),
+        ...(nextQueryPlannerSystemPrompt !== undefined && {
+          queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt,
+        }),
       },
       create: {
         userId: session.user.id,
         searchTimeframeDays: searchTimeframeDays ?? 30,
         searchStrategy: nextSearchStrategy ?? null,
+        briefSystemPrompt: nextBriefSystemPrompt ?? null,
+        queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt ?? null,
         emailNotifications: emailNotifications ?? true,
       },
     });

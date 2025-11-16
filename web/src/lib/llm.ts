@@ -53,28 +53,31 @@ function safeParseSearchQueriesJSON(s: string): SearchQueriesJSON | null {
   return null;
 }
 
-export async function generateBriefFromContext(input: {
-  meeting: {
-    title: string;
-    start?: string | null;
-    attendees: { email?: string | null }[];
-    description?: string | null;
-  };
-  drive: {
-    name?: string | null;
-    webViewLink?: string | null;
-    mimeType?: string | null;
-    content?: string | null;
-  }[];
-  gmail: {
-    id?: string | null;
-    snippet?: string | null;
-    body?: string | null;
-    subject?: string | null;
-    from?: string | null;
-    to?: string | null;
-  }[];
-}) {
+export async function generateBriefFromContext(
+  input: {
+    meeting: {
+      title: string;
+      start?: string | null;
+      attendees: { email?: string | null }[];
+      description?: string | null;
+    };
+    drive: {
+      name?: string | null;
+      webViewLink?: string | null;
+      mimeType?: string | null;
+      content?: string | null;
+    }[];
+    gmail: {
+      id?: string | null;
+      snippet?: string | null;
+      body?: string | null;
+      subject?: string | null;
+      from?: string | null;
+      to?: string | null;
+    }[];
+  },
+  opts?: { systemPromptOverride?: string },
+) {
   const openai = getOpenAI();
   const sources: string[] = [];
   for (const f of input.drive.slice(0, 5))
@@ -105,7 +108,11 @@ export async function generateBriefFromContext(input: {
     };
   }
 
-  const system = `${MEETING_BRIEF_PROMPT}\n\nStrict output format:\n- Return ONLY a single MINIFIED JSON object with these keys:\n{\n  \"brief_markdown\": string, // full report as markdown in the format above (<= 1 page)\n  \"action_items\": [         // separate, structured list for backend creation\n    {\n      \"description\": string,\n      \"assignee\"?: string,   // email or full name if available\n      \"due_date\"?: string,   // ISO if known, else empty\n      \"priority\"?: \"high\"|\"medium\"|\"low\"\n    }\n  ]\n}\n- No code fences. No commentary outside the JSON.`;
+  const systemBase =
+    opts?.systemPromptOverride && opts.systemPromptOverride.trim().length
+      ? opts.systemPromptOverride
+      : MEETING_BRIEF_PROMPT;
+  const system = `${systemBase}\n\nStrict output format:\n- Return ONLY a single MINIFIED JSON object with these keys:\n{\n  \"brief_markdown\": string, // full report as markdown in the format above (<= 1 page)\n  \"action_items\": [         // separate, structured list for backend creation\n    {\n      \"description\": string,\n      \"assignee\"?: string,   // email or full name if available\n      \"due_date\"?: string,   // ISO if known, else empty\n      \"priority\"?: \"high\"|\"medium\"|\"low\"\n    }\n  ]\n}\n- No code fences. No commentary outside the JSON.`;
   const user = `Meeting: ${input.meeting.title}\nDate/Time: ${input.meeting.start ?? "unknown"}\nParticipants: ${
     (input.meeting.attendees || [])
       .map((a) => a.email)
@@ -164,14 +171,17 @@ export async function generateBriefFromContext(input: {
   };
 }
 
-export async function generateSearchQueriesForEvent(input: {
-  meeting: {
-    title: string;
-    start?: string | null;
-    attendees: { email?: string | null }[];
-    description?: string | null;
-  };
-}): Promise<{ driveQueries: string[]; gmailQueries: string[] }> {
+export async function generateSearchQueriesForEvent(
+  input: {
+    meeting: {
+      title: string;
+      start?: string | null;
+      attendees: { email?: string | null }[];
+      description?: string | null;
+    };
+  },
+  opts?: { systemPromptOverride?: string },
+): Promise<{ driveQueries: string[]; gmailQueries: string[] }> {
   const openai = getOpenAI();
   if (!openai) {
     return { driveQueries: [], gmailQueries: [] };
@@ -183,7 +193,7 @@ export async function generateSearchQueriesForEvent(input: {
       .filter(Boolean)
       .join(", ") || "unknown";
 
-  const system = [
+  const defaultSystem = [
     "You are an assistant that designs Google Workspace search queries for a single calendar meeting.",
     "Your goal is to suggest a small set of highly relevant search queries for:",
     "- Gmail (using Gmail search syntax like from:, to:, subject:, quoted phrases, etc.)",
@@ -201,6 +211,11 @@ export async function generateSearchQueriesForEvent(input: {
     '{ "drive_queries": string[], "gmail_queries": string[] }',
     "- No comments, no code fences, no additional keys.",
   ].join("\n");
+
+  const system =
+    opts?.systemPromptOverride && opts.systemPromptOverride.trim().length
+      ? opts.systemPromptOverride
+      : defaultSystem;
 
   const user = `Meeting:\n- Title: ${input.meeting.title}\n- Date/Time: ${input.meeting.start ?? "unknown"}\n- Participants: ${participantList}\n- Description: ${input.meeting.description ?? ""}\n\nReturn only the JSON object as described.`;
 

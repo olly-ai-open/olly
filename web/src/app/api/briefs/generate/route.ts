@@ -23,7 +23,7 @@ import {
   buildGmailHeuristicQueries,
 } from "@/lib/searchHeuristics";
 import { S3DebugStorage, type DebugDataStructure } from "@/lib/s3-debug";
-import { getUserSearchStrategy, getUserSearchTimeframe } from "@/lib/settings";
+import { getUserSearchStrategy, getUserSettings } from "@/lib/settings";
 
 const MAX_PARTICIPANTS = 10;
 
@@ -163,8 +163,12 @@ export async function POST(req: Request) {
     const meeting = await upsertMeetingFromEvent(userId, event);
     const workspaceSearch = new WorkspaceSearch(userId);
 
-    // Get user's search timeframe setting
-    const searchTimeframeDays = await getUserSearchTimeframe(userId);
+    // Get user settings (timeframe + prompt overrides)
+    const userSettings = await getUserSettings(userId);
+    const searchTimeframeDays = userSettings.searchTimeframeDays;
+    const briefSystemPromptOverride = userSettings.briefSystemPrompt ?? null;
+    const queryPlannerSystemPromptOverride =
+      userSettings.queryPlannerSystemPrompt ?? null;
 
     const titleQ = event.title
       ?.split(/\s+/)
@@ -209,14 +213,19 @@ export async function POST(req: Request) {
         strategy: searchStrategy,
       });
       try {
-        const planned = await generateSearchQueriesForEvent({
-          meeting: {
-            title: event.title,
-            start: event.start,
-            attendees: event.attendees || [],
-            description: event.description,
+        const planned = await generateSearchQueriesForEvent(
+          {
+            meeting: {
+              title: event.title,
+              start: event.start,
+              attendees: event.attendees || [],
+              description: event.description,
+            },
           },
-        });
+          {
+            systemPromptOverride: queryPlannerSystemPromptOverride ?? undefined,
+          },
+        );
         llmDriveQueries = planned.driveQueries;
         llmGmailQueries = planned.gmailQueries;
         addTimelineEntry("LLM_QUERY_PLANNER_COMPLETE", {
@@ -392,16 +401,21 @@ export async function POST(req: Request) {
       gmailResults: allGmail.length,
     });
 
-    const brief = await generateBriefFromContext({
-      meeting: {
-        title: event.title,
-        start: event.start,
-        attendees: event.attendees,
-        description: event.description,
+    const brief = await generateBriefFromContext(
+      {
+        meeting: {
+          title: event.title,
+          start: event.start,
+          attendees: event.attendees,
+          description: event.description,
+        },
+        drive,
+        gmail: allGmail,
       },
-      drive,
-      gmail: allGmail,
-    });
+      {
+        systemPromptOverride: briefSystemPromptOverride ?? undefined,
+      },
+    );
 
     // Store the actual LLM context from the generation
     debugData.llmContext = brief.llmContext;

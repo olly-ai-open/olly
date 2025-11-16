@@ -5,6 +5,8 @@ export interface UserSettings {
   userId: string;
   searchTimeframeDays: number;
   searchStrategy?: string | null;
+  briefSystemPrompt?: string | null;
+  queryPlannerSystemPrompt?: string | null;
   emailNotifications: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -24,6 +26,8 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
         userId,
         searchTimeframeDays: 30,
         searchStrategy: null,
+        briefSystemPrompt: null,
+        queryPlannerSystemPrompt: null,
         emailNotifications: true,
       },
     });

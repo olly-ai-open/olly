@@ -7,6 +7,8 @@ interface UserSettings {
   userId: string;
   searchTimeframeDays: number;
   searchStrategy?: "LLM_ONLY" | "HEURISTIC_ONLY" | "LLM_AND_HEURISTIC" | null;
+  briefSystemPrompt?: string | null;
+  queryPlannerSystemPrompt?: string | null;
   emailNotifications: boolean;
   createdAt: string;
   updatedAt: string;
@@ -58,6 +60,13 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
           // Only send searchStrategy if admin
           ...(isAdmin && settings.searchStrategy
             ? { searchStrategy: settings.searchStrategy }
+            : {}),
+          ...(isAdmin
+            ? {
+                briefSystemPrompt: settings.briefSystemPrompt ?? "",
+                queryPlannerSystemPrompt:
+                  settings.queryPlannerSystemPrompt ?? "",
+              }
             : {}),
           emailNotifications: settings.emailNotifications,
         }),
@@ -133,41 +142,107 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
               briefs
             </p>
           </div>
-
           {isAdmin && (
-            <div>
-              <label
-                htmlFor="searchStrategy"
-                className="block text-sm font-medium text-foreground mb-2"
-              >
-                Query strategy for generating briefs
-              </label>
-              <select
-                id="searchStrategy"
-                value={settings.searchStrategy ?? "HEURISTIC_ONLY"}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    searchStrategy: e.target
-                      .value as UserSettings["searchStrategy"],
-                  })
-                }
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="HEURISTIC_ONLY">
-                  Heuristic only (no LLM query planning)
-                </option>
-                <option value="LLM_ONLY">
-                  LLM only (use model-planned queries)
-                </option>
-                <option value="LLM_AND_HEURISTIC">
-                  LLM + heuristic (combine both)
-                </option>
-              </select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Controls how Olly searches Gmail and Drive before generating a
-                brief.
+            <div className="pt-4 border-t border-border">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">
+                Admin Settings
+              </h3>
+              <p className="mb-3 text-xs text-muted-foreground">
+                These settings control how Olly talks to the LLM when generating
+                briefs and planning queries. Changes only apply to your account
+                and can be cleared at any time.
               </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="searchStrategy"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Query strategy for generating briefs
+                  </label>
+                  <select
+                    id="searchStrategy"
+                    value={settings.searchStrategy ?? "HEURISTIC_ONLY"}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        searchStrategy: e.target
+                          .value as UserSettings["searchStrategy"],
+                      })
+                    }
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="HEURISTIC_ONLY">
+                      Heuristic only (no LLM query planning)
+                    </option>
+                    <option value="LLM_ONLY">
+                      LLM only (use model-planned queries)
+                    </option>
+                    <option value="LLM_AND_HEURISTIC">
+                      LLM + heuristic (combine both)
+                    </option>
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Controls how Olly searches Gmail and Drive before generating
+                    a brief.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="briefSystemPrompt"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Brief generation system prompt
+                  </label>
+                  <textarea
+                    id="briefSystemPrompt"
+                    value={settings.briefSystemPrompt ?? ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        briefSystemPrompt: e.target.value,
+                      })
+                    }
+                    rows={6}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Leave empty to use the default brief generation prompt."
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    If set, this replaces the default brief generation system
+                    prompt. The app will still enforce a strict JSON output
+                    format.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="queryPlannerSystemPrompt"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Query planner system prompt
+                  </label>
+                  <textarea
+                    id="queryPlannerSystemPrompt"
+                    value={settings.queryPlannerSystemPrompt ?? ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        queryPlannerSystemPrompt: e.target.value,
+                      })
+                    }
+                    rows={6}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Leave empty to use the default query planner prompt."
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Controls how Olly asks the LLM to design Gmail and Drive
+                    search queries. The app will still expect a JSON object with
+                    drive_queries and gmail_queries.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
