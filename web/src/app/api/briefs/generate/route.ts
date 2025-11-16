@@ -3,20 +3,27 @@ import { auth } from "@/lib/auth";
 import {
   getAccessTokenFromAccount,
   getEventDetailsWithToken,
-  searchDriveSnippets,
-  searchGmailMessages,
 } from "@/lib/google";
-import { generateBriefFromContext } from "@/lib/llm";
+import {
+  generateBriefFromContext,
+  generateSearchQueriesForEvent,
+} from "@/lib/llm";
 import { upsertMeetingFromEvent } from "@/lib/meetings";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import {
+  inferAttendeesFromTitle,
   linkBriefParticipants,
   linkMeetingParticipants,
   upsertPersonsForEmails,
 } from "@/lib/people";
+import { WorkspaceSearch } from "@/lib/workspaceSearch";
+import {
+  buildDriveHeuristicQueries,
+  buildGmailHeuristicQueries,
+} from "@/lib/searchHeuristics";
 import { S3DebugStorage, type DebugDataStructure } from "@/lib/s3-debug";
-import { getUserSearchTimeframe } from "@/lib/settings";
+import { getUserSearchStrategy, getUserSearchTimeframe } from "@/lib/settings";
 
 const MAX_PARTICIPANTS = 10;
 
@@ -79,13 +86,42 @@ export async function POST(req: Request) {
 
   debugData.summary.userId = session.user.id;
 
+  const QUERY_STRATEGY_LLM_ONLY = "LLM_ONLY" as const;
+  const QUERY_STRATEGY_HEURISTIC_ONLY = "HEURISTIC_ONLY" as const;
+  const QUERY_STRATEGY_LLM_AND_HEURISTIC = "LLM_AND_HEURISTIC" as const;
+  type QueryStrategy =
+    | typeof QUERY_STRATEGY_LLM_ONLY
+    | typeof QUERY_STRATEGY_HEURISTIC_ONLY
+    | typeof QUERY_STRATEGY_LLM_AND_HEURISTIC;
+
   let eventId: string | undefined;
   let wantsRedirect = false;
+  let searchStrategy: QueryStrategy = QUERY_STRATEGY_HEURISTIC_ONLY;
+  let searchStrategyFromBody: QueryStrategy | null = null;
   const contentType = req.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const body = await req.json().catch(() => ({}));
     eventId = body?.eventId as string | undefined;
     wantsRedirect = Boolean(body?.redirect);
+    if (typeof body?.searchStrategy === "string") {
+      const candidate = body.searchStrategy as string;
+      if (
+        candidate === QUERY_STRATEGY_LLM_ONLY ||
+        candidate === QUERY_STRATEGY_HEURISTIC_ONLY ||
+        candidate === QUERY_STRATEGY_LLM_AND_HEURISTIC
+      ) {
+        searchStrategyFromBody = candidate as QueryStrategy;
+      } else {
+        // Backwards-compatible aliases
+        if (candidate === "llm") {
+          searchStrategyFromBody = QUERY_STRATEGY_LLM_ONLY;
+        } else if (candidate === "llm+heuristic") {
+          searchStrategyFromBody = QUERY_STRATEGY_LLM_AND_HEURISTIC;
+        } else if (candidate === "heuristic") {
+          searchStrategyFromBody = QUERY_STRATEGY_HEURISTIC_ONLY;
+        }
+      }
+    }
   } else if (contentType.includes("application/x-www-form-urlencoded")) {
     const form = await req.formData();
     eventId = (form.get("eventId") as string) || undefined;
@@ -109,9 +145,23 @@ export async function POST(req: Request) {
         { status: 404 },
       );
     const token = await getAccessTokenFromAccount(account);
+
+    // Resolve search strategy: request override > user setting > default
+    const savedSearchStrategy = await getUserSearchStrategy(session.user.id);
+    if (searchStrategyFromBody) {
+      searchStrategy = searchStrategyFromBody;
+    } else if (savedSearchStrategy === "LLM_ONLY") {
+      searchStrategy = QUERY_STRATEGY_LLM_ONLY;
+    } else if (savedSearchStrategy === "LLM_AND_HEURISTIC") {
+      searchStrategy = QUERY_STRATEGY_LLM_AND_HEURISTIC;
+    } else {
+      searchStrategy = QUERY_STRATEGY_HEURISTIC_ONLY;
+    }
+
     const event = await getEventDetailsWithToken(token, eventId);
     const userId = session.user.id;
     const meeting = await upsertMeetingFromEvent(userId, event);
+    const workspaceSearch = new WorkspaceSearch(userId);
 
     // Get user's search timeframe setting
     const searchTimeframeDays = await getUserSearchTimeframe(userId);
@@ -124,110 +174,23 @@ export async function POST(req: Request) {
       .map((a) => a.email)
       .filter(Boolean) as string[];
 
-    // Helper function to extract potential names from meeting title
-    const extractNamesFromTitle = (title: string): string[] => {
-      const patterns = [
-        // "Call Craig", "Meeting with John", "Coffee with Mike", etc.
-        /(?:call|meeting with|1:1 with?|coffee with|lunch with|sync with|chat with|interview with)\s+(\w+)/gi,
-        // "Craig call", "John sync", "Sarah meeting", etc.
-        /(\w+)\s+(?:1:1|1-1|sync|call|meeting|chat|interview)/gi,
-        // "John / Sarah" or "John - Sarah" format
-        /^(\w+)\s*[-\/]\s*(\w+)$/i,
-        // "1:1: John" or "Meeting: Sarah" format
-        /(?:1:1:|meeting:|call:|sync:)\s*(\w+)/gi,
-      ];
-
-      const potentialNames = new Set<string>();
-      const commonWords = new Set([
-        "the",
-        "with",
-        "and",
-        "team",
-        "weekly",
-        "daily",
-        "monthly",
-        "standup",
-        "all",
-        "staff",
-        "internal",
-        "external",
-      ]);
-
-      for (const pattern of patterns) {
-        let match;
-        // Use exec for global patterns to get all matches
-        if (pattern.global) {
-          while ((match = pattern.exec(title)) !== null) {
-            for (let i = 1; i < match.length; i++) {
-              if (match[i]) {
-                const name = match[i].trim();
-                if (name.length > 2 && !commonWords.has(name.toLowerCase())) {
-                  potentialNames.add(name);
-                }
-              }
-            }
-          }
-        } else {
-          // For non-global patterns, use match once
-          match = title.match(pattern);
-          if (match) {
-            for (let i = 1; i < match.length; i++) {
-              if (match[i]) {
-                const name = match[i].trim();
-                if (name.length > 2 && !commonWords.has(name.toLowerCase())) {
-                  potentialNames.add(name);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      return Array.from(potentialNames);
-    };
-
     // If no attendees but we have a title, try to extract names and find people
     let inferredAttendees: string[] = [];
+    let extractedNames: string[] = [];
     if (attendees.length === 0 && event.title) {
-      const namesFromTitle = extractNamesFromTitle(event.title);
+      const inferred = await inferAttendeesFromTitle(userId, event.title);
+      inferredAttendees = inferred.inferredAttendees;
+      extractedNames = inferred.namesFromTitle;
 
-      if (namesFromTitle.length > 0) {
-        // Look up these names in the Person database
-        const potentialPeople = await prisma.person.findMany({
-          where: {
-            userId,
-            OR: namesFromTitle.map((name) => ({
-              OR: [
-                { name: { contains: name, mode: "insensitive" as const } },
-                {
-                  email: {
-                    contains: name.toLowerCase(),
-                    mode: "insensitive" as const,
-                  },
-                },
-              ],
-            })),
-          },
-          select: { email: true, name: true },
+      if (inferred.inferredAttendees.length > 0) {
+        addTimelineEntry("INFERRED_ATTENDEES", {
+          details: `Found ${inferred.inferredAttendees.length} people from title: ${inferred.namesFromTitle.join(", ")}`,
+          emails: inferred.inferredAttendees,
         });
-
-        // Collect found emails
-        inferredAttendees = potentialPeople
-          .map((p) => p.email)
-          .filter(Boolean) as string[];
-
-        // If we found people, add a note to the debug data
-        if (inferredAttendees.length > 0) {
-          addTimelineEntry("INFERRED_ATTENDEES", {
-            details: `Found ${inferredAttendees.length} people from title: ${namesFromTitle.join(", ")}`,
-            emails: inferredAttendees,
-          });
-        } else if (namesFromTitle.length > 0) {
-          // We found names but not in the database
-          addTimelineEntry("NAMES_NOT_FOUND", {
-            details: `Extracted names from title but not found in contacts: ${namesFromTitle.join(", ")} - will search for them in Gmail content`,
-          });
-        }
+      } else if (inferred.namesFromTitle.length > 0) {
+        addTimelineEntry("NAMES_NOT_FOUND", {
+          details: `Extracted names from title but not found in contacts: ${inferred.namesFromTitle.join(", ")} - will search for them in Gmail content`,
+        });
       }
     }
 
@@ -235,57 +198,52 @@ export async function POST(req: Request) {
     const effectiveAttendees =
       attendees.length > 0 ? attendees : inferredAttendees;
 
-    // For Drive: smart search strategy with deduplication
-    let drive: any[] = [];
-    const driveQueries = [];
-
-    // Strategy 1: Search for the full meeting title if it's specific enough
+    // Optional: use LLM to propose Drive/Gmail search queries for this event
+    let llmDriveQueries: string[] = [];
+    let llmGmailQueries: string[] = [];
     if (
-      event.title &&
-      event.title.length > 8 &&
-      !event.title.match(/^(meeting|call|sync|standup|weekly|daily|monthly)$/i)
+      searchStrategy === QUERY_STRATEGY_LLM_ONLY ||
+      searchStrategy === QUERY_STRATEGY_LLM_AND_HEURISTIC
     ) {
-      driveQueries.push(event.title);
+      addTimelineEntry("LLM_QUERY_PLANNER_START", {
+        strategy: searchStrategy,
+      });
+      try {
+        const planned = await generateSearchQueriesForEvent({
+          meeting: {
+            title: event.title,
+            start: event.start,
+            attendees: event.attendees || [],
+            description: event.description,
+          },
+        });
+        llmDriveQueries = planned.driveQueries;
+        llmGmailQueries = planned.gmailQueries;
+        addTimelineEntry("LLM_QUERY_PLANNER_COMPLETE", {
+          driveQueries: llmDriveQueries,
+          gmailQueries: llmGmailQueries,
+        });
+      } catch (plannerError: any) {
+        addTimelineEntry("LLM_QUERY_PLANNER_ERROR", {
+          error: plannerError?.message || "unknown_error",
+        });
+      }
     }
 
-    // Strategy 2: Search for meaningful multi-word phrases from title
-    if (event.title) {
-      const meaningfulPhrases = [];
-      const words = event.title.split(/[\s\-\/]+/).filter((w) => w.length > 2);
+    // For Drive: smart search strategy with deduplication (heuristic or LLM-driven)
+    let drive: any[] = [];
+    const driveQueries: string[] = [];
 
-      // Look for multi-word phrases that might be project/product names
-      for (let i = 0; i < words.length - 1; i++) {
-        const phrase = words.slice(i, i + 2).join(" ");
-        // Skip generic phrases
-        if (
-          !phrase.match(
-            /^(weekly|daily|monthly|meeting|call|sync|standup|check|in)\s/i,
-          ) &&
-          !phrase.match(
-            /\s(weekly|daily|monthly|meeting|call|sync|standup|check|in)$/i,
-          )
-        ) {
-          meaningfulPhrases.push(phrase);
-        }
-      }
-      driveQueries.push(...meaningfulPhrases);
+    // Prefer LLM-proposed queries when available
+    if (llmDriveQueries.length) {
+      driveQueries.push(...llmDriveQueries);
     }
 
-    // Strategy 3: If it's a recurring meeting, search for the base name without frequency indicators
-    if (event.title) {
-      const baseTitle = event.title
-        .replace(
-          /\s*-\s*(weekly|daily|monthly|biweekly|standup|sync|meeting|call)\s*/gi,
-          "",
-        )
-        .replace(
-          /\s*(weekly|daily|monthly|biweekly|standup|sync|meeting|call)\s*/gi,
-          "",
-        )
-        .trim();
-      if (baseTitle && baseTitle !== event.title && baseTitle.length > 5) {
-        driveQueries.push(baseTitle);
-      }
+    const shouldUseHeuristicsForDrive =
+      driveQueries.length === 0 || searchStrategy !== QUERY_STRATEGY_LLM_ONLY;
+
+    if (shouldUseHeuristicsForDrive) {
+      driveQueries.push(...buildDriveHeuristicQueries(event.title));
     }
 
     // Remove duplicates and empty queries
@@ -298,7 +256,7 @@ export async function POST(req: Request) {
     for (const query of uniqueDriveQueries) {
       const driveStartTime = Date.now();
       try {
-        const driveResult = await searchDriveSnippets(userId, query);
+        const driveResult = await workspaceSearch.searchDrive(query);
         const files = driveResult.files;
 
         addTimelineEntry("DRIVE_SEARCH", {
@@ -346,118 +304,55 @@ export async function POST(req: Request) {
 
     debugData.summary.apiCalls += uniqueDriveQueries.length;
 
-    // For Gmail: search for emails BETWEEN meeting participants
+    // For Gmail: search for emails BETWEEN meeting participants (heuristic or LLM-driven)
     let allGmail: any[] = [];
-    // Also collect names extracted from title for content searches (even if not found in contacts)
-    let extractedNames: string[] = [];
-    if (attendees.length === 0 && event.title) {
-      extractedNames = extractNamesFromTitle(event.title);
-    }
 
     if (effectiveAttendees.length > 0 || extractedNames.length > 0) {
-      const gmailQueries = [];
+      const gmailQueries: string[] = [];
       const gmailTimeframe = `newer_than:${searchTimeframeDays}d`;
 
-      // Get current user's email to exclude from content searches
-      // First try to get from User model, then from session
-      const userRecord = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true },
-      });
-      const currentUserEmail =
-        userRecord?.email?.toLowerCase() || session.user.email?.toLowerCase();
-
-      // Filter out the current user from effective attendees for content searches
-      // If we can't identify the current user, be safe and only use attendees for direct email searches
-      const otherAttendees = currentUserEmail
-        ? effectiveAttendees.filter(
-            (email) => email.toLowerCase() !== currentUserEmail,
-          )
-        : effectiveAttendees;
-
-      // Extract participant names from email addresses for content searches (excluding self)
-      const participantNames = otherAttendees
-        .map((email) => {
-          // Extract name part before @ and clean it up
-          const localPart = email.split("@")[0];
-          // Convert common patterns like firstname.lastname or firstname_lastname to "firstname lastname"
-          return localPart
-            .replace(/[._-]/g, " ")
-            .split(" ")
-            .filter((part) => part.length > 1) // Filter out single letters
-            .join(" ")
-            .trim();
-        })
-        .filter((name) => name.length > 2); // Only keep meaningful names
-
-      // Build queries for emails between participants
-      if (otherAttendees.length > 0) {
-        // Strategy 1: Emails between you and other participants
-        // Search for emails you sent TO/CC others OR they sent TO/CC you
-        for (const otherEmail of otherAttendees.slice(0, 3)) {
-          // Emails from them or emails where they are recipients (to/cc)
-          gmailQueries.push(
-            `(from:${otherEmail} OR to:${otherEmail} OR cc:${otherEmail}) ${gmailTimeframe}`,
-          );
-        }
-
-        // Strategy 2: Emails containing multiple OTHER participant addresses (excluding self)
-        // Only useful when there are at least 2 other participants
-        if (otherAttendees.length >= 2) {
-          const participantEmailQuery = otherAttendees
-            .slice(0, 3)
-            .map((email) => `"${email}"`)
-            .join(" AND ");
-          gmailQueries.push(`(${participantEmailQuery}) ${gmailTimeframe}`);
-        }
-
-        // Strategy 3: Emails mentioning OTHER participants' names or email addresses in content (excluding self)
-        // Search for both their extracted names AND their email addresses in email body
-        if (otherAttendees.length >= 1) {
-          // Combine both names and email addresses for content search
-          const contentSearchTerms = [
-            ...participantNames.slice(0, 3).map((name) => `"${name}"`),
-            ...otherAttendees.slice(0, 3).map((email) => `"${email}"`),
-          ];
-
-          if (contentSearchTerms.length > 0) {
-            const contentQuery = contentSearchTerms.join(" OR ");
-            gmailQueries.push(`(${contentQuery}) ${gmailTimeframe}`);
-          }
-        }
+      // Prefer LLM-proposed Gmail queries (we append timeframe here)
+      if (llmGmailQueries.length) {
+        gmailQueries.push(
+          ...llmGmailQueries.map((q) => `${q} ${gmailTimeframe}`.trim()),
+        );
       }
 
-      // Strategy 4: Search for extracted names from solo meetings (even if not found in contacts)
-      if (extractedNames.length > 0 && currentUserEmail) {
-        // Search for emails containing the extracted names in content
-        for (const name of extractedNames.slice(0, 3)) {
-          // Exclude current user name from searches to avoid noise
-          const currentUserName = currentUserEmail
-            .split("@")[0]
-            .replace(/[._-]/g, " ");
-          if (name.toLowerCase() !== currentUserName.toLowerCase()) {
-            gmailQueries.push(`"${name}" ${gmailTimeframe}`);
-          }
-        }
+      const shouldUseHeuristicsForGmail =
+        gmailQueries.length === 0 || searchStrategy !== QUERY_STRATEGY_LLM_ONLY;
 
-        // Log this for debugging
-        addTimelineEntry("EXTRACTED_NAME_SEARCH", {
-          details: `Searching for extracted names: ${extractedNames.join(", ")}`,
-          names: extractedNames,
+      if (shouldUseHeuristicsForGmail) {
+        const userRecord = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true },
         });
+        const currentUserEmail =
+          userRecord?.email?.toLowerCase() || session.user.email?.toLowerCase();
+
+        const { queries: heuristicQueries, usedExtractedNames } =
+          buildGmailHeuristicQueries({
+            effectiveAttendees,
+            extractedNames,
+            titleQ,
+            gmailTimeframe,
+            currentUserEmail,
+          });
+
+        gmailQueries.push(...heuristicQueries);
+
+        if (usedExtractedNames && extractedNames.length > 0) {
+          addTimelineEntry("EXTRACTED_NAME_SEARCH", {
+            details: `Searching for extracted names: ${extractedNames.join(", ")}`,
+            names: extractedNames,
+          });
+        }
       }
 
-      // Strategy 5: Broader search with meeting title if available
-      if (titleQ) {
-        gmailQueries.push(`"${titleQ}" ${gmailTimeframe}`);
-      }
-
-      // Try each query until we get results
+      // Try each query and collect results
       for (const query of gmailQueries) {
         const gmailStartTime = Date.now();
-        let gmail: any[] = [];
         try {
-          gmail = await searchGmailMessages(userId, query);
+          const gmail = await workspaceSearch.searchGmail(query);
 
           addTimelineEntry("GMAIL_SEARCH", {
             query,

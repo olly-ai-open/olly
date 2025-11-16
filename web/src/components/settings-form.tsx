@@ -6,12 +6,17 @@ interface UserSettings {
   id: string;
   userId: string;
   searchTimeframeDays: number;
+  searchStrategy?: "LLM_ONLY" | "HEURISTIC_ONLY" | "LLM_AND_HEURISTIC" | null;
   emailNotifications: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export default function SettingsForm() {
+interface SettingsFormProps {
+  isAdmin: boolean;
+}
+
+export default function SettingsForm({ isAdmin }: SettingsFormProps) {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,6 +55,10 @@ export default function SettingsForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           searchTimeframeDays: settings.searchTimeframeDays,
+          // Only send searchStrategy if admin
+          ...(isAdmin && settings.searchStrategy
+            ? { searchStrategy: settings.searchStrategy }
+            : {}),
           emailNotifications: settings.emailNotifications,
         }),
       });
@@ -124,6 +133,43 @@ export default function SettingsForm() {
               briefs
             </p>
           </div>
+
+          {isAdmin && (
+            <div>
+              <label
+                htmlFor="searchStrategy"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                Query strategy for generating briefs (admin only)
+              </label>
+              <select
+                id="searchStrategy"
+                value={settings.searchStrategy ?? "HEURISTIC_ONLY"}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    searchStrategy: e.target
+                      .value as UserSettings["searchStrategy"],
+                  })
+                }
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="HEURISTIC_ONLY">
+                  Heuristic only (no LLM query planning)
+                </option>
+                <option value="LLM_ONLY">
+                  LLM only (use model-planned queries)
+                </option>
+                <option value="LLM_AND_HEURISTIC">
+                  LLM + heuristic (combine both)
+                </option>
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Controls how Olly searches Gmail and Drive before generating a
+                brief. Non-admins use the strategy chosen here.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

@@ -20,6 +20,7 @@ export async function GET() {
         data: {
           userId: session.user.id,
           searchTimeframeDays: 30,
+          searchStrategy: null,
           emailNotifications: true,
         },
       });
@@ -44,7 +45,7 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json();
-    const { searchTimeframeDays, emailNotifications } = body;
+    const { searchTimeframeDays, emailNotifications, searchStrategy } = body;
 
     // Validate searchTimeframeDays
     if (
@@ -70,15 +71,48 @@ export async function PUT(req: Request) {
       );
     }
 
+    // Validate searchStrategy (admin-only)
+    let nextSearchStrategy: string | undefined;
+    if (searchStrategy !== undefined) {
+      const allowed = ["LLM_ONLY", "HEURISTIC_ONLY", "LLM_AND_HEURISTIC"];
+      if (!allowed.includes(searchStrategy)) {
+        return NextResponse.json(
+          {
+            error:
+              "searchStrategy must be one of LLM_ONLY, HEURISTIC_ONLY, LLM_AND_HEURISTIC",
+          },
+          { status: 400 },
+        );
+      }
+
+      // Only admins can change searchStrategy
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { isAdmin: true },
+      });
+      if (!user?.isAdmin) {
+        return NextResponse.json(
+          { error: "forbidden: searchStrategy is admin-only" },
+          { status: 403 },
+        );
+      }
+
+      nextSearchStrategy = searchStrategy;
+    }
+
     const settings = await prisma.userSettings.upsert({
       where: { userId: session.user.id },
       update: {
         ...(searchTimeframeDays !== undefined && { searchTimeframeDays }),
         ...(emailNotifications !== undefined && { emailNotifications }),
+        ...(nextSearchStrategy !== undefined && {
+          searchStrategy: nextSearchStrategy,
+        }),
       },
       create: {
         userId: session.user.id,
         searchTimeframeDays: searchTimeframeDays ?? 30,
+        searchStrategy: nextSearchStrategy ?? null,
         emailNotifications: emailNotifications ?? true,
       },
     });

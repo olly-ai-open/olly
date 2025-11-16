@@ -262,6 +262,7 @@ model UserSettings {
   
   // Search settings
   searchTimeframeDays Int @default(30) // How far back to search (1-180 days)
+  searchStrategy      String? // Optional: LLM_ONLY, HEURISTIC_ONLY, LLM_AND_HEURISTIC
   
   // Notification preferences
   emailNotifications Boolean @default(true)

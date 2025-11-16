@@ -33,6 +33,26 @@ function safeParseBriefJSON(s: string): BriefJSON | null {
   return null;
 }
 
+type SearchQueriesJSON = {
+  drive_queries?: string[];
+  gmail_queries?: string[];
+};
+
+function safeParseSearchQueriesJSON(s: string): SearchQueriesJSON | null {
+  try {
+    return JSON.parse(s) as SearchQueriesJSON;
+  } catch {}
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  if (first >= 0 && last > first) {
+    const sub = s.slice(first, last + 1);
+    try {
+      return JSON.parse(sub) as SearchQueriesJSON;
+    } catch {}
+  }
+  return null;
+}
+
 export async function generateBriefFromContext(input: {
   meeting: {
     title: string;
@@ -141,5 +161,69 @@ export async function generateBriefFromContext(input: {
       model: process.env.OPENAI_MODEL || "gpt-4.1",
       temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
     },
+  };
+}
+
+export async function generateSearchQueriesForEvent(input: {
+  meeting: {
+    title: string;
+    start?: string | null;
+    attendees: { email?: string | null }[];
+    description?: string | null;
+  };
+}): Promise<{ driveQueries: string[]; gmailQueries: string[] }> {
+  const openai = getOpenAI();
+  if (!openai) {
+    return { driveQueries: [], gmailQueries: [] };
+  }
+
+  const participantList =
+    (input.meeting.attendees || [])
+      .map((a) => a.email)
+      .filter(Boolean)
+      .join(", ") || "unknown";
+
+  const system = [
+    "You are an assistant that designs Google Workspace search queries for a single calendar meeting.",
+    "Your goal is to suggest a small set of highly relevant search queries for:",
+    "- Gmail (using Gmail search syntax like from:, to:, subject:, quoted phrases, etc.)",
+    "- Google Drive (short natural-language phrases to match file names or contents).",
+    "",
+    "Rules:",
+    "- Consider the meeting title, time, attendees, and description.",
+    "- For Drive, output short phrases (2–6 words) that should match project names, topics, or doc titles.",
+    "- For Gmail, output valid Gmail search queries (you can combine from:/to:/subject: and quoted phrases).",
+    "- DO NOT include time-window filters like newer_than:Xd; the backend will add those.",
+    "- DO NOT include advanced Drive query syntax; just the phrase to search for.",
+    "",
+    "Output format:",
+    "- Return ONLY a single MINIFIED JSON object with keys:",
+    '{ "drive_queries": string[], "gmail_queries": string[] }',
+    "- No comments, no code fences, no additional keys.",
+  ].join("\n");
+
+  const user = `Meeting:\n- Title: ${input.meeting.title}\n- Date/Time: ${input.meeting.start ?? "unknown"}\n- Participants: ${participantList}\n- Description: ${input.meeting.description ?? ""}\n\nReturn only the JSON object as described.`;
+
+  const completion = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-4.1",
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
+  });
+
+  const raw = completion.choices[0]?.message?.content ?? "";
+  const parsed = safeParseSearchQueriesJSON(raw);
+  const driveQueries = Array.isArray(parsed?.drive_queries)
+    ? parsed!.drive_queries.filter((q) => typeof q === "string" && q.trim())
+    : [];
+  const gmailQueries = Array.isArray(parsed?.gmail_queries)
+    ? parsed!.gmail_queries.filter((q) => typeof q === "string" && q.trim())
+    : [];
+
+  return {
+    driveQueries,
+    gmailQueries,
   };
 }
