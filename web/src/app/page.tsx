@@ -17,9 +17,14 @@ export default async function Home({
       <main className="container mx-auto px-4 py-8">
         <Suspense
           fallback={
-            <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="h-40 rounded-lg border border-border bg-card/60" />
-              <div className="h-40 rounded-lg border border-border bg-card/60" />
+            <div className="mt-8 flex items-center justify-center">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <span
+                  className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-border border-t-transparent"
+                  aria-hidden="true"
+                />
+                <span>Loading your day...</span>
+              </div>
             </div>
           }
         >
