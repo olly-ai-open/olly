@@ -107,13 +107,24 @@ export default async function HomeDashboard({ day }: { day?: string }) {
     : null;
 
   return (
-    <div className="flex gap-6 mt-2">
+    <div className="mt-2 flex gap-6">
       {/* Center column */}
       <div className="flex-1">
-        <div className="mb-4 flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground">
-          <span>📊 {meetingsToday} meetings today</span>
-          <span>• ✅ {briefsReady} briefs ready</span>
-          {nextISO ? <NextLocal iso={nextISO} /> : null}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card/80 px-4 py-3 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-foreground">Today</span>
+            <span>{meetingsToday} meetings</span>
+            <span className="hidden text-border md:inline">•</span>
+            <span>{briefsReady} briefs ready</span>
+          </div>
+          {nextISO ? (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="uppercase tracking-wide text-muted-foreground">
+                Next meeting
+              </span>
+              <NextLocal iso={nextISO} />
+            </div>
+          ) : null}
         </div>
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -135,18 +146,20 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                 <>
                   <Link
                     href={`/?date=${prev}`}
-                    className="rounded-md border border-border px-2 py-1 text-sm"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-sm hover:bg-border/40"
                   >
-                    ◀
+                    <span aria-hidden="true">‹</span>
+                    <span className="sr-only">Previous day</span>
                   </Link>
                   <div className="text-sm font-medium" suppressHydrationWarning>
                     {label}
                   </div>
                   <Link
                     href={`/?date=${next}`}
-                    className="rounded-md border border-border px-2 py-1 text-sm"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-sm hover:bg-border/40"
                   >
-                    ▶
+                    <span aria-hidden="true">›</span>
+                    <span className="sr-only">Next day</span>
                   </Link>
                 </>
               );
@@ -253,20 +266,28 @@ export default async function HomeDashboard({ day }: { day?: string }) {
       {/* Right column */}
       <aside className="hidden w-80 shrink-0 lg:block">
         <div className="sticky top-6 space-y-4">
-          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <div className="mb-2 text-sm font-medium">This Week</div>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span>Meetings:</span>
-                <span>{meetings.length}</span>
+          <div className="rounded-lg border border-border bg-card/80 p-4 shadow-sm">
+            <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              This week
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-baseline justify-between">
+                <span className="text-muted-foreground">Meetings</span>
+                <span className="font-medium text-foreground">
+                  {meetings.length}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span>Briefs delivered:</span>
-                <span>{briefsReady}</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-muted-foreground">Briefs delivered</span>
+                <span className="font-medium text-foreground">
+                  {briefsReady}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span>Time saved:</span>
-                <span>{timeSavedLabel}</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-muted-foreground">Time saved</span>
+                <span className="font-medium text-foreground">
+                  {timeSavedLabel}
+                </span>
               </div>
             </div>
           </div>
