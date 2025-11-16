@@ -1,11 +1,11 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { type BriefJSON } from "@/lib/llm";
 import {
   getAccessTokenFromAccount,
   listEventsByDayWithToken,
   checkGoogleHealth,
 } from "@/lib/google";
-import { extractKeyBullets } from "@/lib/briefs";
 import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import NextLocal from "@/components/next-local";
@@ -204,8 +204,8 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                     // Optional preview from latest brief
                     const meetingRow = byExternalId.get(m.id);
                     const latest = meetingRow?.briefs?.[0];
-                    const content: any = latest?.content as any;
-                    const bullets = extractKeyBullets(content, 3);
+                    const content = latest?.content as BriefJSON;
+                    const bullets = content?.key_context || [];
                     return (
                       <li key={m.id} className="py-3">
                         <div className="flex items-start justify-between gap-3">
@@ -240,7 +240,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                             </div>
                             <ul className="list-disc space-y-1 pl-5">
                               {bullets.map((b, i) => (
-                                <li key={i}>{b.replace(/^\s*[-•*]\s*/, "")}</li>
+                                <li key={i}>{b}</li>
                               ))}
                             </ul>
                           </div>

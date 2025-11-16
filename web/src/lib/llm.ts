@@ -7,7 +7,7 @@ export function getOpenAI() {
   return new OpenAI({ apiKey: key });
 }
 
-type BriefJSON = {
+export type BriefJSON = {
   brief_markdown: string;
   action_items: Array<{
     description: string;
@@ -15,13 +15,13 @@ type BriefJSON = {
     due_date?: string | null;
     priority?: "high" | "medium" | "low" | string | null;
   }>;
+  key_context: Array<string>;
 };
 
 function safeParseBriefJSON(s: string): BriefJSON | null {
   try {
     return JSON.parse(s) as BriefJSON;
   } catch {}
-  // Try to extract the first {...} block
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
   if (first >= 0 && last > first) {
@@ -101,6 +101,7 @@ export async function generateBriefFromContext(
       content: {
         brief_markdown: placeholderContent,
         action_items: [],
+        key_context: [],
       } satisfies BriefJSON,
       confidence,
       sources,
@@ -118,7 +119,21 @@ export async function generateBriefFromContext(
     opts?.systemPromptOverride && opts.systemPromptOverride.trim().length
       ? opts.systemPromptOverride
       : MEETING_BRIEF_PROMPT;
-  const system = `${systemBase}\n\nStrict output format:\n- Return ONLY a single MINIFIED JSON object with these keys:\n{\n  \"brief_markdown\": string, // full report as markdown in the format above (<= 1 page)\n  \"action_items\": [         // separate, structured list for backend creation\n    {\n      \"description\": string,\n      \"assignee\"?: string,   // email or full name if available\n      \"due_date\"?: string,   // ISO if known, else empty\n      \"priority\"?: \"high\"|\"medium\"|\"low\"\n    }\n  ]\n}\n- No code fences. No commentary outside the JSON.`;
+  const system = `${systemBase}\n\nStrict output format:
+    - Return ONLY a single MINIFIED JSON object with these keys:
+    {
+      \"brief_markdown\": string, // full report as markdown in the format above (<= 1 page)
+      \"action_items\": [         // separate, structured list for backend creation
+        {
+          \"description\": string,
+          \"assignee\"?: string,   // email or full name if available
+          \"due_date\"?: string,   // ISO if known, else empty
+          \"priority\"?: \"high\"|\"medium\"|\"low\"
+        }
+      ],
+      \"key_context\": string []   // a list of upto-3 key context points
+    }
+    - No code fences. No commentary outside the JSON.`;
   const user = `Meeting: ${input.meeting.title}\nDate/Time: ${input.meeting.start ?? "unknown"}\nParticipants: ${
     (input.meeting.attendees || [])
       .map((a) => a.email)
@@ -160,6 +175,7 @@ export async function generateBriefFromContext(
   const content: BriefJSON = parsed ?? {
     brief_markdown: raw,
     action_items: [],
+    key_context: [],
   };
 
   return {
