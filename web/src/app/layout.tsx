@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
 import { Suspense } from "react";
 import Script from "next/script";
-import NavAuth from "@/components/nav-auth";
-import ThemeToggle from "@/components/theme-toggle";
+import Header from "@/components/header";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,21 +33,18 @@ export default function RootLayout({
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('theme');var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');var d=(t==='dark')||((t==='system'||!t)&&m&&m.matches);var r=document.documentElement;d?r.classList.add('dark'):r.classList.remove('dark');}catch(e){}})();`}
         </Script>
-        <header className="border-b border-border bg-card/70 backdrop-blur">
-          <div className="container mx-auto grid grid-cols-2 items-center px-4 py-3">
-            <Link href="/" className="font-semibold text-lg text-primary">
-              Olly
-            </Link>
-            <div className="flex items-center justify-self-end gap-3">
-              <ThemeToggle />
-              <Suspense
-                fallback={<div className="h-5 w-24 rounded bg-border" />}
-              >
-                <NavAuth />
-              </Suspense>
-            </div>
-          </div>
-        </header>
+        <Suspense
+          fallback={
+            <header className="border-b border-border bg-card/70 backdrop-blur">
+              <div className="container mx-auto flex items-center justify-between px-4 py-3">
+                <div className="font-semibold text-lg text-primary">Olly</div>
+                <div className="h-8 w-20 rounded bg-border animate-pulse" />
+              </div>
+            </header>
+          }
+        >
+          <Header />
+        </Suspense>
         <div className="min-h-dvh">{children}</div>
       </body>
     </html>
