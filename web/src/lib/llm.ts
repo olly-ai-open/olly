@@ -83,8 +83,14 @@ export async function generateBriefFromContext(
   for (const f of input.drive.slice(0, 5))
     if (f?.webViewLink) sources.push(`Drive: ${f.name} -> ${f.webViewLink}`);
   for (const m of input.gmail.slice(0, 5))
-    if (m?.id)
-      sources.push(`Gmail: https://mail.google.com/mail/u/0/#inbox/${m.id}`);
+    if (m?.id) {
+      const baseUrl = `https://mail.google.com/mail/u/0/#inbox/${m.id}`;
+      if (m.subject && m.subject.trim().length) {
+        sources.push(`Gmail: ${m.subject.trim()} -> ${baseUrl}`);
+      } else {
+        sources.push(`Gmail: Email thread -> ${baseUrl}`);
+      }
+    }
 
   const confidence =
     sources.length >= 3 ? "high" : sources.length > 0 ? "medium" : "low";
