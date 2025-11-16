@@ -44,6 +44,7 @@ export async function PUT(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  const userId = session.user.id;
 
   try {
     const body = await req.json();
@@ -85,17 +86,14 @@ export async function PUT(req: Request) {
     let nextQueryPlannerSystemPrompt: string | null | undefined;
     let adminUser: { isAdmin: boolean } | null = null;
 
-    const ensureAdmin = async () => {
+    const ensureAdmin = async (uid: string) => {
       if (!adminUser) {
         adminUser = await prisma.user.findUnique({
-          where: { id: session.user.id },
+          where: { id: uid },
           select: { isAdmin: true },
         });
       }
-      if (!adminUser?.isAdmin) {
-        return false;
-      }
-      return true;
+      return !!adminUser?.isAdmin;
     };
 
     if (searchStrategy !== undefined) {
@@ -110,7 +108,7 @@ export async function PUT(req: Request) {
         );
       }
 
-      if (!(await ensureAdmin())) {
+      if (!(await ensureAdmin(userId))) {
         return NextResponse.json(
           { error: "forbidden: searchStrategy is admin-only" },
           { status: 403 },
@@ -124,7 +122,7 @@ export async function PUT(req: Request) {
       briefSystemPrompt !== undefined ||
       queryPlannerSystemPrompt !== undefined
     ) {
-      if (!(await ensureAdmin())) {
+      if (!(await ensureAdmin(userId))) {
         return NextResponse.json(
           { error: "forbidden: prompt overrides are admin-only" },
           { status: 403 },
