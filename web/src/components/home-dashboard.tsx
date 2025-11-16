@@ -22,12 +22,19 @@ function formatMinutesHuman(mins: number) {
   return parts.join(" ") || "0m";
 }
 
+function toLocalISODate(d: Date) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default async function HomeDashboard({ day }: { day?: string }) {
   // Ensure fresh data on each request/navigation (meetings/briefs update frequently)
   noStore();
   const session = await auth();
   const userId = session?.user?.id ?? null;
-  const targetDay = day || new Date().toISOString().slice(0, 10);
+  const targetDay = day || toLocalISODate(new Date());
 
   // Check if user has advanced Google scopes
   const googleHealth = userId ? await checkGoogleHealth(userId) : null;
@@ -80,16 +87,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
         })()
       : new Map<string, any>();
 
-  const meetingsToday = meetings.filter((m) => {
-    const d = m.start ? new Date(m.start) : null;
-    if (!d) return false;
-    const cmp = new Date(targetDay + "T00:00:00");
-    return (
-      d.getFullYear() === cmp.getFullYear() &&
-      d.getMonth() === cmp.getMonth() &&
-      d.getDate() === cmp.getDate()
-    );
-  }).length;
+  const meetingsToday = meetings.length;
   const briefsReady = Array.from(byExternalId.values()).filter(
     (r) => (r as any)?.briefs?.length,
   ).length;
@@ -129,18 +127,17 @@ export default async function HomeDashboard({ day }: { day?: string }) {
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {(() => {
-              const current = new Date(`${targetDay}T00:00:00Z`);
-              const prev = new Date(current.getTime() - 24 * 60 * 60 * 1000)
-                .toISOString()
-                .slice(0, 10);
-              const next = new Date(current.getTime() + 24 * 60 * 60 * 1000)
-                .toISOString()
-                .slice(0, 10);
+              const current = new Date(`${targetDay}T00:00:00`);
+              const prev = toLocalISODate(
+                new Date(current.getTime() - 24 * 60 * 60 * 1000),
+              );
+              const next = toLocalISODate(
+                new Date(current.getTime() + 24 * 60 * 60 * 1000),
+              );
               const label = new Intl.DateTimeFormat("en-US", {
                 weekday: "long",
                 month: "long",
                 day: "numeric",
-                timeZone: "UTC",
               }).format(current);
               return (
                 <>
