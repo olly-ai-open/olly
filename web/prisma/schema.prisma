@@ -265,6 +265,7 @@ model UserSettings {
   searchStrategy      String? // Optional: LLM_ONLY, HEURISTIC_ONLY, LLM_AND_HEURISTIC
   briefSystemPrompt   String? @db.Text // Optional override for brief generation system prompt
   queryPlannerSystemPrompt String? @db.Text // Optional override for query planner system prompt
+  timeZone            String? // Optional IANA timezone identifier (e.g. America/Los_Angeles)
   
   // Notification preferences
   emailNotifications Boolean @default(true)

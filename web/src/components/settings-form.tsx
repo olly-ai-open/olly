@@ -9,6 +9,7 @@ interface UserSettings {
   searchStrategy?: "LLM_ONLY" | "HEURISTIC_ONLY" | "LLM_AND_HEURISTIC" | null;
   briefSystemPrompt?: string | null;
   queryPlannerSystemPrompt?: string | null;
+  timeZone?: string | null;
   emailNotifications: boolean;
   createdAt: string;
   updatedAt: string;
@@ -23,6 +24,13 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [timeZones, setTimeZones] = useState<string[]>([
+    "UTC",
+    "America/Los_Angeles",
+    "America/Denver",
+    "America/Chicago",
+    "America/New_York",
+  ]);
 
   // Load settings on mount
   useEffect(() => {
@@ -42,6 +50,18 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
       }
     };
     loadSettings();
+
+    // Populate full timezone list when available in the browser
+    try {
+      if (typeof Intl !== "undefined" && "supportedValuesOf" in Intl) {
+        const all = (Intl as any).supportedValuesOf("timeZone") as string[];
+        if (Array.isArray(all) && all.length) {
+          setTimeZones(all);
+        }
+      }
+    } catch {
+      // Fallback to the small default list above
+    }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,6 +88,7 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                   settings.queryPlannerSystemPrompt ?? "",
               }
             : {}),
+          timeZone: settings.timeZone ?? "UTC",
           emailNotifications: settings.emailNotifications,
         }),
       });
@@ -140,6 +161,34 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
             <p className="mt-1 text-xs text-muted-foreground">
               This affects both Gmail and Google Drive searches when generating
               briefs
+            </p>
+          </div>
+          <div>
+            <label
+              htmlFor="timeZone"
+              className="mb-2 block text-sm font-medium text-foreground"
+            >
+              Time zone
+            </label>
+            <select
+              id="timeZone"
+              value={settings.timeZone ?? "UTC"}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  timeZone: e.target.value,
+                })
+              }
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {timeZones.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Defaults to <code>UTC</code> if you don&apos;t choose a region.
             </p>
           </div>
           {isAdmin && (

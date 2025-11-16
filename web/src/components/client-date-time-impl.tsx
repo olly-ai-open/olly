@@ -5,6 +5,7 @@ interface ClientDateTimeProps {
   fallback?: string;
   format?: Intl.DateTimeFormatOptions;
   prefix?: string;
+  timeZone?: string;
 }
 
 // This component only renders on the client
@@ -13,11 +14,16 @@ export default function ClientDateTimeImpl({
   fallback = "TBD",
   format = { dateStyle: "medium", timeStyle: "short" },
   prefix = "",
+  timeZone,
 }: ClientDateTimeProps) {
   if (!date) return <>{fallback}</>;
 
   const dateObj = typeof date === "string" ? new Date(date) : date;
-  const formatted = new Intl.DateTimeFormat("en-US", format).format(dateObj);
+  const opts: Intl.DateTimeFormatOptions = {
+    ...format,
+    ...(timeZone ? { timeZone } : {}),
+  };
+  const formatted = new Intl.DateTimeFormat("en-US", opts).format(dateObj);
 
   return (
     <span>

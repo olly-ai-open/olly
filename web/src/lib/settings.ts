@@ -7,6 +7,7 @@ export interface UserSettings {
   searchStrategy?: string | null;
   briefSystemPrompt?: string | null;
   queryPlannerSystemPrompt?: string | null;
+  timeZone?: string | null;
   emailNotifications: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -28,6 +29,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
         searchStrategy: null,
         briefSystemPrompt: null,
         queryPlannerSystemPrompt: null,
+        timeZone: null,
         emailNotifications: true,
       },
     });

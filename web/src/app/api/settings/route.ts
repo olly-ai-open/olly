@@ -54,6 +54,7 @@ export async function PUT(req: Request) {
       searchStrategy,
       briefSystemPrompt,
       queryPlannerSystemPrompt,
+      timeZone,
     } = body;
 
     // Validate searchTimeframeDays
@@ -143,6 +144,31 @@ export async function PUT(req: Request) {
       }
     }
 
+    // Validate timeZone (user-level)
+    if (timeZone !== undefined && timeZone !== null) {
+      if (typeof timeZone !== "string") {
+        return NextResponse.json(
+          { error: "timeZone must be a string or null" },
+          { status: 400 },
+        );
+      }
+      const trimmed = timeZone.trim();
+      if (trimmed) {
+        try {
+          // Validate that the timezone identifier is understood by Intl
+          new Intl.DateTimeFormat("en-US", { timeZone: trimmed });
+        } catch {
+          return NextResponse.json(
+            {
+              error:
+                "timeZone must be a valid IANA time zone (e.g. America/Los_Angeles)",
+            },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
     const settings = await prisma.userSettings.upsert({
       where: { userId: session.user.id },
       update: {
@@ -157,6 +183,9 @@ export async function PUT(req: Request) {
         ...(nextQueryPlannerSystemPrompt !== undefined && {
           queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt,
         }),
+        ...(timeZone !== undefined && {
+          timeZone: timeZone === null ? null : timeZone.trim() || null,
+        }),
       },
       create: {
         userId: session.user.id,
@@ -164,6 +193,10 @@ export async function PUT(req: Request) {
         searchStrategy: nextSearchStrategy ?? null,
         briefSystemPrompt: nextBriefSystemPrompt ?? null,
         queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt ?? null,
+        timeZone:
+          timeZone === undefined || timeZone === null
+            ? null
+            : timeZone.trim() || null,
         emailNotifications: emailNotifications ?? true,
       },
     });

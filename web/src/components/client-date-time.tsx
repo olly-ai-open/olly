@@ -7,6 +7,7 @@ interface ClientDateTimeProps {
   fallback?: string;
   format?: Intl.DateTimeFormatOptions;
   prefix?: string;
+  timeZone?: string;
 }
 
 // Dynamic import with no SSR - this component only renders on client

@@ -278,9 +278,72 @@ export async function listUpcomingMeetingsWithToken(
   }));
 }
 
-export async function listEventsByDayWithToken(token: string, dayISO: string) {
-  const start = new Date(`${dayISO}T00:00:00`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+function getUtcRangeForLocalDay(dayISO: string, timeZone?: string | null) {
+  if (!timeZone) {
+    const start = new Date(`${dayISO}T00:00:00`);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    return { start, end };
+  }
+
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+
+    const partsToObj = (d: Date) => {
+      const parts = formatter.formatToParts(d);
+      const obj: Record<string, string> = {};
+      for (const p of parts) {
+        if (p.type !== "literal") obj[p.type] = p.value;
+      }
+      return obj;
+    };
+
+    const [yearStr, monthStr, dayStr] = dayISO.split("-");
+    const targetLocalMs = Date.UTC(
+      Number(yearStr),
+      Number(monthStr) - 1,
+      Number(dayStr),
+      0,
+      0,
+      0,
+    );
+
+    const guessUtc = new Date(`${dayISO}T00:00:00Z`);
+    const currentParts = partsToObj(guessUtc);
+    const currentLocalMs = Date.UTC(
+      Number(currentParts.year),
+      Number(currentParts.month) - 1,
+      Number(currentParts.day),
+      Number(currentParts.hour),
+      Number(currentParts.minute),
+      Number(currentParts.second),
+    );
+
+    const diffMs = targetLocalMs - currentLocalMs;
+    const start = new Date(guessUtc.getTime() + diffMs);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    return { start, end };
+  } catch {
+    const fallbackStart = new Date(`${dayISO}T00:00:00`);
+    const fallbackEnd = new Date(fallbackStart.getTime() + 24 * 60 * 60 * 1000);
+    return { start: fallbackStart, end: fallbackEnd };
+  }
+}
+
+export async function listEventsByDayWithToken(
+  token: string,
+  dayISO: string,
+  timeZone?: string | null,
+) {
+  const { start, end } = getUtcRangeForLocalDay(dayISO, timeZone);
   const url = new URL(
     "https://www.googleapis.com/calendar/v3/calendars/primary/events",
   );

@@ -11,6 +11,7 @@ import Link from "next/link";
 import NextLocal from "@/components/next-local";
 import GenerateBriefButton from "@/components/generate-brief-button";
 import ClientDateTime from "@/components/client-date-time";
+import { getUserSettings } from "@/lib/settings";
 
 function formatMinutesHuman(mins: number) {
   if (!mins || mins < 0) return "0m";
@@ -34,7 +35,28 @@ export default async function HomeDashboard({ day }: { day?: string }) {
   noStore();
   const session = await auth();
   const userId = session?.user?.id ?? null;
-  const targetDay = day || toLocalISODate(new Date());
+  const userSettings = userId ? await getUserSettings(userId) : null;
+  const timeZone = userSettings?.timeZone || "UTC";
+
+  const now = new Date();
+  const targetDay =
+    day ||
+    (timeZone
+      ? (() => {
+          const fmt = new Intl.DateTimeFormat("en-US", {
+            timeZone,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          });
+          const parts = fmt.formatToParts(now);
+          const obj: Record<string, string> = {};
+          for (const p of parts) {
+            if (p.type !== "literal") obj[p.type] = p.value;
+          }
+          return `${obj.year}-${obj.month}-${obj.day}`;
+        })()
+      : toLocalISODate(now));
 
   // Check if user has advanced Google scopes
   const googleHealth = userId ? await checkGoogleHealth(userId) : null;
@@ -55,7 +77,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           }
 
           const token = await getAccessTokenFromAccount(account);
-          return listEventsByDayWithToken(token, targetDay);
+          return listEventsByDayWithToken(token, targetDay, timeZone);
         } catch (error: any) {
           if (error?.message === "REAUTH_REQUIRED") {
             console.log("Calendar access requires re-authentication");
@@ -117,10 +139,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           </div>
           {nextISO ? (
             <div className="flex items-center gap-2 text-xs">
-              <span className="uppercase tracking-wide text-muted-foreground">
-                Next meeting
-              </span>
-              <NextLocal iso={nextISO} />
+              <NextLocal iso={nextISO} timeZone={timeZone} />
             </div>
           ) : null}
         </div>
@@ -209,7 +228,10 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                           <div>
                             <div className="font-medium">{m.title}</div>
                             <div className="text-sm text-muted-foreground">
-                              <ClientDateTime date={start} />
+                              <ClientDateTime
+                                date={start}
+                                timeZone={timeZone}
+                              />
                             </div>
                           </div>
                           <div className="flex items-center gap-2">

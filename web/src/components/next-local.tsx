@@ -1,11 +1,19 @@
 "use client";
 
-export default function NextLocal({ iso }: { iso?: string | null }) {
+export default function NextLocal({
+  iso,
+  timeZone,
+}: {
+  iso?: string | null;
+  timeZone?: string | null;
+}) {
   if (!iso) return null;
   const d = new Date(iso);
-  const label = new Intl.DateTimeFormat("en-US", {
+  const opts: Intl.DateTimeFormatOptions = {
     hour: "2-digit",
     minute: "2-digit",
-  }).format(d);
-  return <span>• Next: {label}</span>;
+    ...(timeZone ? { timeZone } : {}),
+  };
+  const label = new Intl.DateTimeFormat("en-US", opts).format(d);
+  return <span>Next: {label}</span>;
 }
