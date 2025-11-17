@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import {
   getAccessTokenFromAccount,
   getEventDetailsWithToken,
+  getDriveFilesByIdsWithToken,
 } from "@/lib/google";
 import {
   generateBriefFromContext,
@@ -170,6 +171,31 @@ export async function POST(req: Request) {
     const queryPlannerSystemPromptOverride =
       userSettings.queryPlannerSystemPrompt ?? null;
 
+    // Calendar attachments (e.g., Drive files attached to the invite)
+    let driveAttachments: any[] = [];
+    try {
+      const rawAttachments = ((event as any)?.raw?.attachments || []) as any[];
+      const driveAttachmentIds = rawAttachments
+        .map((a: any) => a.fileId)
+        .filter(Boolean) as string[];
+      if (driveAttachmentIds.length) {
+        driveAttachments = await getDriveFilesByIdsWithToken(
+          token,
+          driveAttachmentIds,
+        );
+        if (driveAttachments.length) {
+          addTimelineEntry("CALENDAR_ATTACHMENTS", {
+            count: driveAttachments.length,
+            fileIds: driveAttachments.map((f: any) => f.id),
+          });
+        }
+      }
+    } catch (attachmentError: any) {
+      addTimelineEntry("CALENDAR_ATTACHMENTS_ERROR", {
+        error: attachmentError?.message || "unknown_error",
+      });
+    }
+
     const titleQ = event.title
       ?.split(/\s+/)
       .slice(0, MAX_PARTICIPANTS)
@@ -306,6 +332,22 @@ export async function POST(req: Request) {
       const bTime = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0;
       return bTime - aTime;
     });
+
+    // Merge in any Drive files attached directly to the calendar event
+    if (driveAttachments.length) {
+      const seenIds = new Set(
+        drive.map((f: any) => (f && typeof f.id === "string" ? f.id : "")),
+      );
+      const extra = driveAttachments.filter(
+        (f: any) => f && typeof f.id === "string" && !seenIds.has(f.id),
+      );
+      if (extra.length) {
+        drive = [...extra, ...drive];
+        debugData.searchResults.drive.results = drive;
+        debugData.searchResults.drive.included = drive.length;
+        debugData.searchResults.drive.totalFound += extra.length;
+      }
+    }
 
     // Update debug data with final deduplicated results
     debugData.searchResults.drive.results = drive;

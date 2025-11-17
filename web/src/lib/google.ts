@@ -441,6 +441,48 @@ async function extractDriveFileContent(
   }
 }
 
+export async function getDriveFilesByIdsWithToken(
+  token: string,
+  fileIds: string[],
+) {
+  const uniqueIds = Array.from(new Set(fileIds)).slice(0, 5);
+  const results: any[] = [];
+
+  for (const fileId of uniqueIds) {
+    try {
+      const url = new URL(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`,
+      );
+      url.searchParams.set(
+        "fields",
+        "id,name,mimeType,webViewLink,modifiedTime",
+      );
+      const resp = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) continue;
+      const meta: any = await resp.json();
+      const content = await extractDriveFileContent(
+        token,
+        meta.id as string,
+        (meta.mimeType as string) || "",
+      );
+      results.push({
+        id: meta.id as string,
+        name: (meta.name as string) || "(untitled)",
+        mimeType: (meta.mimeType as string) || null,
+        webViewLink: (meta.webViewLink as string) || null,
+        modifiedTime: meta.modifiedTime || null,
+        content: content || undefined,
+      });
+    } catch (error) {
+      console.error(`Failed to fetch Drive file ${fileId}:`, error);
+    }
+  }
+
+  return results;
+}
+
 export async function searchDriveSnippetsWithToken(
   token: string,
   query: string,
@@ -588,6 +630,7 @@ export async function searchGmailMessagesWithToken(
       body = md.snippet;
     }
 
+    console.log(md);
     // Collect attachment metadata from the payload
     const attachmentMetas: any[] = [];
     if (md.payload) {
