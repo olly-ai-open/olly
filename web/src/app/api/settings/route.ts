@@ -54,6 +54,7 @@ export async function PUT(req: Request) {
       searchStrategy,
       briefSystemPrompt,
       queryPlannerSystemPrompt,
+      morningBriefSystemPrompt,
       timeZone,
     } = body;
 
@@ -85,6 +86,7 @@ export async function PUT(req: Request) {
     let nextSearchStrategy: string | undefined;
     let nextBriefSystemPrompt: string | null | undefined;
     let nextQueryPlannerSystemPrompt: string | null | undefined;
+    let nextMorningBriefSystemPrompt: string | null | undefined;
     let adminUser: { isAdmin: boolean } | null = null;
 
     const ensureAdmin = async (uid: string) => {
@@ -121,7 +123,8 @@ export async function PUT(req: Request) {
 
     if (
       briefSystemPrompt !== undefined ||
-      queryPlannerSystemPrompt !== undefined
+      queryPlannerSystemPrompt !== undefined ||
+      morningBriefSystemPrompt !== undefined
     ) {
       if (!(await ensureAdmin(userId))) {
         return NextResponse.json(
@@ -141,6 +144,13 @@ export async function PUT(req: Request) {
             ? queryPlannerSystemPrompt.trim()
             : "";
         nextQueryPlannerSystemPrompt = v.length ? v : null;
+      }
+      if (morningBriefSystemPrompt !== undefined) {
+        const v =
+          typeof morningBriefSystemPrompt === "string"
+            ? morningBriefSystemPrompt.trim()
+            : "";
+        nextMorningBriefSystemPrompt = v.length ? v : null;
       }
     }
 
@@ -183,6 +193,9 @@ export async function PUT(req: Request) {
         ...(nextQueryPlannerSystemPrompt !== undefined && {
           queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt,
         }),
+        ...(nextMorningBriefSystemPrompt !== undefined && {
+          morningBriefSystemPrompt: nextMorningBriefSystemPrompt,
+        }),
         ...(timeZone !== undefined && {
           timeZone: timeZone === null ? null : timeZone.trim() || null,
         }),
@@ -193,6 +206,7 @@ export async function PUT(req: Request) {
         searchStrategy: nextSearchStrategy ?? null,
         briefSystemPrompt: nextBriefSystemPrompt ?? null,
         queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt ?? null,
+        morningBriefSystemPrompt: nextMorningBriefSystemPrompt ?? null,
         timeZone:
           timeZone === undefined || timeZone === null
             ? null

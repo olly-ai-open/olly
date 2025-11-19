@@ -9,6 +9,7 @@ interface UserSettings {
   searchStrategy?: "LLM_ONLY" | "HEURISTIC_ONLY" | "LLM_AND_HEURISTIC" | null;
   briefSystemPrompt?: string | null;
   queryPlannerSystemPrompt?: string | null;
+  morningBriefSystemPrompt?: string | null;
   timeZone?: string | null;
   emailNotifications: boolean;
   createdAt: string;
@@ -86,6 +87,8 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                 briefSystemPrompt: settings.briefSystemPrompt ?? "",
                 queryPlannerSystemPrompt:
                   settings.queryPlannerSystemPrompt ?? "",
+                morningBriefSystemPrompt:
+                  settings.morningBriefSystemPrompt ?? "",
               }
             : {}),
           timeZone: settings.timeZone ?? "UTC",
@@ -289,6 +292,33 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                     Controls how Olly asks the LLM to design Gmail and Drive
                     search queries. The app will still expect a JSON object with
                     drive_queries and gmail_queries.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="morningBriefSystemPrompt"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
+                    Morning brief system prompt
+                  </label>
+                  <textarea
+                    id="morningBriefSystemPrompt"
+                    value={settings.morningBriefSystemPrompt ?? ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        morningBriefSystemPrompt: e.target.value,
+                      })
+                    }
+                    rows={6}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Leave empty to use the default morning brief prompt."
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Controls how Olly summarizes the day&apos;s upcoming
+                    meetings and highlights relevant action items in the morning
+                    brief.
                   </p>
                 </div>
               </div>

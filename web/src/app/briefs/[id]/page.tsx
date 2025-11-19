@@ -63,9 +63,37 @@ export default async function BriefDetail({
       ? content
       : String(content ?? "")
     : "";
+  const goals: string[] = Array.isArray(contentObj?.goals)
+    ? (contentObj.goals as any[])
+        .map((g: any) => (typeof g === "string" ? g.trim() : ""))
+        .filter(Boolean)
+    : [];
   const sources: string[] = Array.isArray(brief.sources)
     ? (brief.sources as any[])
     : [];
+  const highlightedIds: string[] = Array.isArray(
+    contentObj?.highlighted_action_item_ids,
+  )
+    ? (contentObj.highlighted_action_item_ids as any[])
+        .filter((x: any) => typeof x === "string" && x.trim())
+        .map((x: string) => x.trim())
+    : [];
+  const isMorningBrief = brief.meeting?.type === "morning";
+
+  const highlightedActionItems =
+    isMorningBrief && highlightedIds.length
+      ? await prisma.actionItem.findMany({
+          where: { userId: session.user.id, id: { in: highlightedIds } },
+          include: {
+            assignees: { include: { person: true } },
+            brief: {
+              include: {
+                people: { include: { person: true } },
+              },
+            },
+          },
+        })
+      : [];
 
   function parseSource(s: string): {
     title: string;
@@ -117,6 +145,20 @@ export default async function BriefDetail({
           )}
         </div>
 
+        {/* Meeting Goals */}
+        {goals.length > 0 && (
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="mb-2 text-sm font-medium">
+              Goals for this meeting
+            </div>
+            <ul className="list-disc space-y-1 pl-5 text-sm">
+              {goals.map((g, i) => (
+                <li key={i}>{g}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Relevant Documents */}
         {sources?.length ? (
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -153,8 +195,53 @@ export default async function BriefDetail({
           </div>
         ) : null}
 
-        {/* Action Items */}
-        {Array.isArray(brief.actionItems) && brief.actionItems.length > 0 && (
+        {/* Morning Priorities / Action Items */}
+        {isMorningBrief && highlightedActionItems.length > 0 ? (
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            <div className="mb-2 text-sm font-medium">All Action Items</div>
+            <ul className="space-y-1 text-sm">
+              {highlightedActionItems.map((ai: any) => {
+                const assigned = (ai.assignees || [])
+                  .map((a: any) => a.person)
+                  .filter(Boolean) as any[];
+                const options =
+                  ai.brief?.people
+                    ?.map((bp: any) => bp.person)
+                    .filter(Boolean) ?? [];
+                return (
+                  <li key={ai.id}>
+                    <ActionItemRow
+                      id={ai.id}
+                      title={ai.title}
+                      completedAt={
+                        ai.completedAt
+                          ? new Date(ai.completedAt as any).toISOString()
+                          : null
+                      }
+                      status={ai.status}
+                      dueAt={
+                        ai.dueAt
+                          ? new Date(ai.dueAt as any).toISOString()
+                          : null
+                      }
+                      briefId={ai.briefId || null}
+                      assigned={assigned.map((p: any) => ({
+                        id: p.id,
+                        name: p.name,
+                        email: p.email,
+                      }))}
+                      options={options.map((p: any) => ({
+                        id: p.id,
+                        name: p.name,
+                        email: p.email,
+                      }))}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : Array.isArray(brief.actionItems) && brief.actionItems.length > 0 ? (
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <div className="mb-2 text-sm font-medium">Action Items</div>
             <ul className="space-y-1 text-sm">
@@ -198,7 +285,7 @@ export default async function BriefDetail({
               })}
             </ul>
           </div>
-        )}
+        ) : null}
 
         {/* Actions */}
         <BriefActions

@@ -80,11 +80,11 @@ export default function ActionItemRow({
           </div>
         </div>
       </div>
-      <ActionItemAssignees
+      {/* <ActionItemAssignees
         actionItemId={id}
         assigned={assigned}
         options={options}
-      />
+      /> */}
     </div>
   );
 }

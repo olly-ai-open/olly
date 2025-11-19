@@ -12,6 +12,7 @@ import NextLocal from "@/components/next-local";
 import GenerateBriefButton from "@/components/generate-brief-button";
 import ClientDateTime from "@/components/client-date-time";
 import { getUserSettings } from "@/lib/settings";
+import GenerateMorningBriefButton from "@/components/generate-morning-brief-button";
 
 function formatMinutesHuman(mins: number) {
   if (!mins || mins < 0) return "0m";
@@ -126,6 +127,18 @@ export default async function HomeDashboard({ day }: { day?: string }) {
     ? upcomingSorted[0].d!.toISOString()
     : null;
 
+  const morningExternalId = `morning:${targetDay}`;
+  const morningMeeting =
+    userId && googleHealth?.hasAdvancedScopes
+      ? await prisma.meeting.findFirst({
+          where: { userId, externalId: morningExternalId },
+          include: {
+            briefs: { orderBy: { generatedAt: "desc" }, take: 1 },
+          },
+        })
+      : null;
+  const morningBriefId = (morningMeeting as any)?.briefs?.[0]?.id ?? null;
+
   return (
     <div className="mt-2 flex gap-6">
       {/* Center column */}
@@ -137,11 +150,13 @@ export default async function HomeDashboard({ day }: { day?: string }) {
             <span className="hidden text-border md:inline">•</span>
             <span>{briefsReady} briefs ready</span>
           </div>
-          {nextISO ? (
-            <div className="flex items-center gap-2 text-xs">
-              <NextLocal iso={nextISO} timeZone={timeZone} />
-            </div>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {nextISO ? (
+              <div className="flex items-center gap-2 text-xs">
+                <NextLocal iso={nextISO} timeZone={timeZone} />
+              </div>
+            ) : null}
+          </div>
         </div>
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -180,6 +195,14 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                 </>
               );
             })()}
+          </div>
+          <div>
+            {userId && (
+              <GenerateMorningBriefButton
+                day={targetDay}
+                existingBriefId={morningBriefId}
+              />
+            )}
           </div>
         </div>
 

@@ -630,7 +630,6 @@ export async function searchGmailMessagesWithToken(
       body = md.snippet;
     }
 
-    console.log(md);
     // Collect attachment metadata from the payload
     const attachmentMetas: any[] = [];
     if (md.payload) {

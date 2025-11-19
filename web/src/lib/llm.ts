@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { MEETING_BRIEF_PROMPT } from "@/lib/prompts/meetingBriefPrompt";
+import { MORNING_BRIEF_PROMPT } from "@/lib/prompts/morningBriefPrompt";
 
 export function getOpenAI() {
   const key = process.env.OPENAI_API_KEY;
@@ -9,13 +10,15 @@ export function getOpenAI() {
 
 export type BriefJSON = {
   brief_markdown: string;
-  action_items: Array<{
+  goals?: string[];
+  // Legacy: kept for backwards compatibility but no longer used for new meeting briefs
+  action_items?: Array<{
     description: string;
     assignee?: string | null;
     due_date?: string | null;
     priority?: "high" | "medium" | "low" | string | null;
   }>;
-  key_context: Array<string>;
+  key_context?: Array<string>;
 };
 
 function safeParseBriefJSON(s: string): BriefJSON | null {
@@ -48,6 +51,26 @@ function safeParseSearchQueriesJSON(s: string): SearchQueriesJSON | null {
     const sub = s.slice(first, last + 1);
     try {
       return JSON.parse(sub) as SearchQueriesJSON;
+    } catch {}
+  }
+  return null;
+}
+
+type MorningBriefJSON = {
+  brief_markdown: string;
+  highlighted_action_item_ids?: string[];
+};
+
+function safeParseMorningBriefJSON(s: string): MorningBriefJSON | null {
+  try {
+    return JSON.parse(s) as MorningBriefJSON;
+  } catch {}
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  if (first >= 0 && last > first) {
+    const sub = s.slice(first, last + 1);
+    try {
+      return JSON.parse(sub) as MorningBriefJSON;
     } catch {}
   }
   return null;
@@ -115,6 +138,7 @@ export async function generateBriefFromContext(
     return {
       content: {
         brief_markdown: placeholderContent,
+        goals: [],
         action_items: [],
         key_context: [],
       } satisfies BriefJSON,
@@ -138,15 +162,10 @@ export async function generateBriefFromContext(
     - Return ONLY a single MINIFIED JSON object with these keys:
     {
       \"brief_markdown\": string, // full report as markdown in the format above (<= 1 page)
-      \"action_items\": [         // separate, structured list for backend creation
-        {
-          \"description\": string,
-          \"assignee\"?: string,   // email or full name if available
-          \"due_date\"?: string,   // ISO if known, else empty
-          \"priority\"?: \"high\"|\"medium\"|\"low\"
-        }
+      \"goals\": [                // optional, high-level meeting goals
+        string                   // short, non-assignable goal statements
       ],
-      \"key_context\": string []   // a list of upto-3 key context points
+      \"key_context\": string []   // a list of up to 3 key context points
     }
     - No code fences. No commentary outside the JSON.`;
   const user = `Meeting: ${input.meeting.title}\nDate/Time: ${input.meeting.start ?? "unknown"}\nParticipants: ${
@@ -208,7 +227,7 @@ export async function generateBriefFromContext(
   const parsed = safeParseBriefJSON(raw);
   const content: BriefJSON = parsed ?? {
     brief_markdown: raw,
-    action_items: [],
+    goals: [],
     key_context: [],
   };
 
@@ -296,5 +315,158 @@ export async function generateSearchQueriesForEvent(
   return {
     driveQueries,
     gmailQueries,
+  };
+}
+
+export async function generateMorningBrief(
+  input: {
+    day: string; // YYYY-MM-DD (local day)
+    timeZone: string;
+    meetings: {
+      id: string;
+      title: string;
+      start?: string | null;
+      goals?: string[];
+    }[];
+    actionItems: {
+      id: string;
+      title: string;
+      dueAt?: string | null;
+      status?: string | null;
+      relatedMeetings?: string[];
+      relatedPeople?: { name?: string | null; email?: string | null }[];
+    }[];
+  },
+  opts?: { systemPromptOverride?: string },
+): Promise<{
+  brief_markdown: string;
+  highlightedActionItemIds: string[];
+  llmContext: {
+    systemPrompt: string;
+    userPrompt: string;
+    response: string;
+    model: string;
+    temperature: number;
+  };
+}> {
+  const openai = getOpenAI();
+  if (!openai) {
+    const placeholder = `# Morning Brief\n\n_No OpenAI key configured. Placeholder morning brief for ${input.day} in ${input.timeZone}._`;
+    return {
+      brief_markdown: placeholder,
+      highlightedActionItemIds: [],
+      llmContext: {
+        systemPrompt: "No OpenAI key configured",
+        userPrompt: `Placeholder morning brief for: ${input.day}`,
+        response: placeholder,
+        model: "none",
+        temperature: 0,
+      },
+    };
+  }
+
+  const system =
+    opts?.systemPromptOverride && opts.systemPromptOverride.trim().length
+      ? opts.systemPromptOverride
+      : MORNING_BRIEF_PROMPT;
+
+  const meetingsBlock =
+    input.meetings.length === 0
+      ? "None"
+      : input.meetings
+          .map((m) => {
+            const goals =
+              Array.isArray(m.goals) && m.goals.length
+                ? `\n    Goals:\n${m.goals
+                    .slice(0, 5)
+                    .map((g) => `      - ${g}`)
+                    .join("\n")}`
+                : "";
+            return `- [${m.id}] ${m.title}${
+              m.start ? ` @ ${m.start}` : ""
+            }${goals}`;
+          })
+          .join("\n");
+
+  const actionItemsBlock =
+    input.actionItems.length === 0
+      ? "None"
+      : input.actionItems
+          .map((ai) => {
+            const relMeetings =
+              Array.isArray(ai.relatedMeetings) && ai.relatedMeetings.length
+                ? ` meetings: ${ai.relatedMeetings.join(", ")}`
+                : "";
+            const relPeople =
+              Array.isArray(ai.relatedPeople) && ai.relatedPeople.length
+                ? ` people: ${ai.relatedPeople
+                    .map((p) => p.name || p.email || "")
+                    .filter(Boolean)
+                    .join(", ")}`
+                : "";
+            const metaParts = [relMeetings, relPeople]
+              .map((s) => s.trim())
+              .filter(Boolean);
+            const meta =
+              metaParts.length || ai.dueAt || ai.status
+                ? ` (${[
+                    ai.dueAt ? `due: ${ai.dueAt}` : "",
+                    ai.status ? `status: ${ai.status}` : "",
+                    ...metaParts,
+                  ]
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                    .join("; ")})`
+                : "";
+            // Note: include the internal ID in a machine-readable way,
+            // but the prompt instructs the model not to surface these IDs
+            // in the human-facing brief_markdown.
+            return `- ${ai.title}${meta} (ID: ${ai.id})`;
+          })
+          .join("\n");
+
+  const user = [
+    `Day: ${input.day}`,
+    `Time zone: ${input.timeZone}`,
+    "",
+    "Meetings today:",
+    meetingsBlock,
+    "",
+    "Candidate action items:",
+    actionItemsBlock,
+  ].join("\n");
+
+  const completion = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-4.1",
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
+  });
+
+  const raw = completion.choices[0]?.message?.content ?? "";
+  const parsed = safeParseMorningBriefJSON(raw);
+  const brief: MorningBriefJSON = parsed ?? {
+    brief_markdown: raw,
+    highlighted_action_item_ids: [],
+  };
+
+  const highlightedIds = Array.isArray(brief.highlighted_action_item_ids)
+    ? brief.highlighted_action_item_ids.filter(
+        (x) => typeof x === "string" && x.trim(),
+      )
+    : [];
+
+  return {
+    brief_markdown: brief.brief_markdown,
+    highlightedActionItemIds: highlightedIds,
+    llmContext: {
+      systemPrompt: system,
+      userPrompt: user,
+      response: raw,
+      model: process.env.OPENAI_MODEL || "gpt-4.1",
+      temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
+    },
   };
 }
