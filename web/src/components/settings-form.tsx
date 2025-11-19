@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { MEETING_BRIEF_PROMPT } from "@/lib/prompts/meetingBriefPrompt";
+import { MORNING_BRIEF_PROMPT } from "@/lib/prompts/morningBriefPrompt";
+import { QUERY_PLANNER_PROMPT } from "@/lib/prompts/queryPlannerPrompt";
 
 interface UserSettings {
   id: string;
@@ -206,7 +209,7 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
               </p>
 
               <div className="space-y-4">
-                <div>
+                <div className="space-y-2">
                   <label
                     htmlFor="searchStrategy"
                     className="block text-sm font-medium text-foreground mb-2"
@@ -241,7 +244,7 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                   </p>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <label
                     htmlFor="briefSystemPrompt"
                     className="block text-sm font-medium text-foreground mb-2"
@@ -250,7 +253,7 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                   </label>
                   <textarea
                     id="briefSystemPrompt"
-                    value={settings.briefSystemPrompt ?? ""}
+                    value={settings.briefSystemPrompt ?? MEETING_BRIEF_PROMPT}
                     onChange={(e) =>
                       setSettings({
                         ...settings,
@@ -261,14 +264,28 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="Leave empty to use the default brief generation prompt."
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    If set, this replaces the default brief generation system
-                    prompt. The app will still enforce a strict JSON output
-                    format.
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      If set, this replaces the default brief generation system
+                      prompt. The app will still enforce a strict JSON output
+                      format.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          briefSystemPrompt: "",
+                        })
+                      }
+                      className="ml-4 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-border/20"
+                    >
+                      Reset to default
+                    </button>
+                  </div>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <label
                     htmlFor="queryPlannerSystemPrompt"
                     className="block text-sm font-medium text-foreground mb-2"
@@ -277,7 +294,9 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                   </label>
                   <textarea
                     id="queryPlannerSystemPrompt"
-                    value={settings.queryPlannerSystemPrompt ?? ""}
+                    value={
+                      settings.queryPlannerSystemPrompt ?? QUERY_PLANNER_PROMPT
+                    }
                     onChange={(e) =>
                       setSettings({
                         ...settings,
@@ -288,14 +307,28 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="Leave empty to use the default query planner prompt."
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Controls how Olly asks the LLM to design Gmail and Drive
-                    search queries. The app will still expect a JSON object with
-                    drive_queries and gmail_queries.
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Controls how Olly asks the LLM to design Gmail and Drive
+                      search queries. The app will still expect a JSON object
+                      with drive_queries and gmail_queries.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          queryPlannerSystemPrompt: "",
+                        })
+                      }
+                      className="ml-4 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-border/20"
+                    >
+                      Reset to default
+                    </button>
+                  </div>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <label
                     htmlFor="morningBriefSystemPrompt"
                     className="block text-sm font-medium text-foreground mb-2"
@@ -304,7 +337,9 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                   </label>
                   <textarea
                     id="morningBriefSystemPrompt"
-                    value={settings.morningBriefSystemPrompt ?? ""}
+                    value={
+                      settings.morningBriefSystemPrompt ?? MORNING_BRIEF_PROMPT
+                    }
                     onChange={(e) =>
                       setSettings({
                         ...settings,
@@ -315,11 +350,25 @@ export default function SettingsForm({ isAdmin }: SettingsFormProps) {
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="Leave empty to use the default morning brief prompt."
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Controls how Olly summarizes the day&apos;s upcoming
-                    meetings and highlights relevant action items in the morning
-                    brief.
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Controls how Olly summarizes the day&apos;s upcoming
+                      meetings and highlights relevant action items in the
+                      morning brief.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          morningBriefSystemPrompt: "",
+                        })
+                      }
+                      className="ml-4 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-border/20"
+                    >
+                      Reset to default
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

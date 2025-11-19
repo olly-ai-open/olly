@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { MEETING_BRIEF_PROMPT } from "@/lib/prompts/meetingBriefPrompt";
 import { MORNING_BRIEF_PROMPT } from "@/lib/prompts/morningBriefPrompt";
+import { QUERY_PLANNER_PROMPT } from "@/lib/prompts/queryPlannerPrompt";
 
 export function getOpenAI() {
   const key = process.env.OPENAI_API_KEY;
@@ -268,29 +269,10 @@ export async function generateSearchQueriesForEvent(
       .filter(Boolean)
       .join(", ") || "unknown";
 
-  const defaultSystem = [
-    "You are an assistant that designs Google Workspace search queries for a single calendar meeting.",
-    "Your goal is to suggest a small set of highly relevant search queries for:",
-    "- Gmail (using Gmail search syntax like from:, to:, subject:, quoted phrases, etc.)",
-    "- Google Drive (short natural-language phrases to match file names or contents).",
-    "",
-    "Rules:",
-    "- Consider the meeting title, time, attendees, and description.",
-    "- For Drive, output short phrases (2–6 words) that should match project names, topics, or doc titles.",
-    "- For Gmail, output valid Gmail search queries (you can combine from:/to:/subject: and quoted phrases).",
-    "- DO NOT include time-window filters like newer_than:Xd; the backend will add those.",
-    "- DO NOT include advanced Drive query syntax; just the phrase to search for.",
-    "",
-    "Output format:",
-    "- Return ONLY a single MINIFIED JSON object with keys:",
-    '{ "drive_queries": string[], "gmail_queries": string[] }',
-    "- No comments, no code fences, no additional keys.",
-  ].join("\n");
-
   const system =
     opts?.systemPromptOverride && opts.systemPromptOverride.trim().length
       ? opts.systemPromptOverride
-      : defaultSystem;
+      : QUERY_PLANNER_PROMPT;
 
   const user = `Meeting:\n- Title: ${input.meeting.title}\n- Date/Time: ${input.meeting.start ?? "unknown"}\n- Participants: ${participantList}\n- Description: ${input.meeting.description ?? ""}\n\nReturn only the JSON object as described.`;
 
