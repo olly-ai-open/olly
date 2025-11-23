@@ -1,1 +1,1 @@
-cd web && pnpm precommit
+cd apps/web && pnpm precommit
