@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  MEETING_BRIEF_PROMPT,
-  MORNING_BRIEF_PROMPT,
-  QUERY_PLANNER_PROMPT,
-} from "@olly/core";
+import { MEETING_BRIEF_PROMPT } from "@olly/core/prompts/meetingBriefPrompt";
+import { MORNING_BRIEF_PROMPT } from "@olly/core/prompts/morningBriefPrompt";
+import { QUERY_PLANNER_PROMPT } from "@olly/core/prompts/queryPlannerPrompt";
 
 interface AdminUserSettings {
   id: string;
