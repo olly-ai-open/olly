@@ -66,6 +66,7 @@ export class OllyJobsStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: "index.handler",
       timeout: cdk.Duration.minutes(2),
+      memorySize: 2048,
       code: lambda.Code.fromInline(
         "exports.handler = async () => { console.log('JobWorker placeholder'); };",
       ),
