@@ -1,0 +1,8 @@
+{
+  "name": "olly-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

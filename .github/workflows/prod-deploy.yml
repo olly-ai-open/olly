@@ -23,20 +23,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Enable Corepack
-        run: corepack enable
-      - name: Prepare pnpm via Corepack
-        run: corepack prepare pnpm@10.19.0 --activate
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.19.0
-      - name: Verify pnpm
-        run: pnpm --version
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm install --workspaces --include-workspace-root
       - name: Pull Vercel Environment Information
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         working-directory: apps/web

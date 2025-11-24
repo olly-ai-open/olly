@@ -65,6 +65,5 @@
     "*.{json,md}": [
       "prettier --write"
     ]
-  },
-  "packageManager": "pnpm@10.19.0"
+  }
 }
