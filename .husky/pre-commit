@@ -1,1 +1,1 @@
-cd apps/web && pnpm precommit
+cd apps/web && npm run precommit
