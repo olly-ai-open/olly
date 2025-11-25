@@ -55,8 +55,6 @@ export class OllyJobsStack extends cdk.Stack {
       ),
       environment: {
         JOB_QUEUE_URL: jobQueue.queueUrl,
-        PRISMA_DATABASE_URL_PARAM: "/olly/prisma/databaseUrl",
-        PRISMA_FIELD_ENCRYPTION_KEY_PARAM: "/olly/prisma/encryptionKey",
       },
       layers: runtimeLayer ? [runtimeLayer] : undefined,
     });
@@ -72,8 +70,6 @@ export class OllyJobsStack extends cdk.Stack {
       ),
       environment: {
         JOB_QUEUE_URL: jobQueue.queueUrl,
-        PRISMA_DATABASE_URL_PARAM: "/olly/prisma/databaseUrl",
-        PRISMA_FIELD_ENCRYPTION_KEY_PARAM: "/olly/prisma/encryptionKey",
       },
       layers: runtimeLayer ? [runtimeLayer] : undefined,
     });
@@ -85,8 +81,7 @@ export class OllyJobsStack extends cdk.Stack {
     const ssmPolicy = new iam.PolicyStatement({
       actions: ["ssm:GetParameter"],
       resources: [
-        `arn:aws:ssm:*:*:parameter/olly/prisma/databaseUrl`,
-        `arn:aws:ssm:*:*:parameter/olly/prisma/encryptionKey`
+        `arn:aws:ssm:*:*:parameter/olly/prod/*`
       ],
     });
     const s3ListPolicy = new iam.PolicyStatement({
