@@ -1,4 +1,5 @@
 import { runJobById } from "@olly/core";
+import { initializeEnvironment } from "./init-env";
 
 interface SQSRecord {
   messageId: string;
@@ -9,7 +10,12 @@ interface SQSEvent {
   Records: SQSRecord[];
 }
 
+// Initialize environment at module load (cold start)
+const envInitPromise = initializeEnvironment();
+
 export async function handler(event: SQSEvent): Promise<void> {
+  // Ensure environment is initialized before processing
+  await envInitPromise;
   const records = event.Records || [];
 
   for (const record of records) {
