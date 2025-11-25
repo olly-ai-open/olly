@@ -1,10 +1,16 @@
 import { SQSClient, SendMessageBatchCommand } from "@aws-sdk/client-sqs";
 import { getPrisma, computeNextRunAt } from "@olly/core";
+import { initializeEnvironment } from "./init-env";
 
 const sqs = new SQSClient({});
 const JOB_QUEUE_URL = process.env.JOB_QUEUE_URL;
 
+// Initialize environment at module load (cold start)
+const envInitPromise = initializeEnvironment();
+
 export async function handler(): Promise<void> {
+  // Ensure environment is initialized before processing
+  await envInitPromise;
   if (!JOB_QUEUE_URL) {
     console.warn("JOB_QUEUE_URL not configured; scheduler exiting");
     return;
