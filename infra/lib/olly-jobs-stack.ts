@@ -79,7 +79,11 @@ export class OllyJobsStack extends cdk.Stack {
 
     // Allow Lambdas to read SSM parameters for secrets
     const ssmPolicy = new iam.PolicyStatement({
-      actions: ["ssm:GetParameter"],
+      actions: [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
       resources: [
         `arn:aws:ssm:*:*:parameter/olly/prod/*`
       ],
