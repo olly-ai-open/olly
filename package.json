@@ -6,6 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "npm run postinstall --workspace=apps/web" 
+    "postinstall": "npm run postinstall --workspace=apps/web",
+    "sync-env": "./scripts/sync-env.sh",
+    "sync-env:prod": "./scripts/sync-env.sh prod"
   }
 }
