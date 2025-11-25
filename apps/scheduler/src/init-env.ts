@@ -21,8 +21,8 @@ export async function initializeEnvironment(): Promise<void> {
     // Define all parameters to fetch
     const parameterNames = [
       // Database & Encryption
-      `PRISMA_DATABASE_URL_PARAM`,
-      `PRISMA_FIELD_ENCRYPTION_KEY_PARAM`,      
+      `PRISMA_DATABASE_URL`,
+      `PRISMA_FIELD_ENCRYPTION_KEY`,
     ].map(key => `/olly/${stage}/${key}`);
     
     const response = await ssmClient.send(
@@ -48,8 +48,8 @@ export async function initializeEnvironment(): Promise<void> {
     const missingParams = parameterNames.filter(name => !foundParams.includes(name));
     
     const requiredParams = [
-      `/olly/${stage}/PRISMA_DATABASE_URL_PARAM`,
-      `/olly/${stage}/PRISMA_FIELD_ENCRYPTION_KEY_PARAM`,
+      `/olly/${stage}/PRISMA_DATABASE_URL`,
+      `/olly/${stage}/PRISMA_FIELD_ENCRYPTION_KEY`,
     ];
     
     const missingRequired = missingParams.filter(p => requiredParams.includes(p));
