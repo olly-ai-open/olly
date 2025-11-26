@@ -14,14 +14,6 @@ import { promisify } from "util";
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
 
-// Initialize S3 client
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION,
-});
-
-const BUCKET_NAME = process.env.S3_DEBUG_BUCKET || "olly-debug-data";
-const DEBUG_ENABLED = process.env.ENABLE_DEBUG_CAPTURE === "true";
-
 export interface DebugDataStructure {
   version: string;
   summary: {
@@ -69,16 +61,21 @@ export interface DebugDataStructure {
 
 export class S3DebugStorage {
   private bucketName: string;
+  private s3Client: S3Client;
 
   constructor(bucketName?: string) {
-    this.bucketName = bucketName || BUCKET_NAME;
+    this.bucketName = bucketName || process.env.S3_DEBUG_BUCKET || "olly-debug-data";
+    this.s3Client = new S3Client({
+      region: process.env.AWS_REGION,
+    });
+
   }
 
   /**
    * Check if debug capture is enabled
    */
   static isEnabled(): boolean {
-    return DEBUG_ENABLED;
+    return process.env.ENABLE_DEBUG_CAPTURE === "true";
   }
 
   /**
@@ -96,7 +93,7 @@ export class S3DebugStorage {
     userId: string,
     data: DebugDataStructure,
   ): Promise<{ success: boolean; s3Key?: string; error?: string }> {
-    if (!DEBUG_ENABLED) {
+    if (!S3DebugStorage.isEnabled()) {
       return { success: false, error: "Debug capture is disabled" };
     }
 
@@ -118,7 +115,7 @@ export class S3DebugStorage {
         },
       });
 
-      await s3Client.send(command);
+      await this.s3Client.send(command);
       console.log(`Debug data uploaded to S3: ${s3Key}`);
 
       return { success: true, s3Key };
@@ -143,7 +140,7 @@ export class S3DebugStorage {
       Key: s3Key,
     });
 
-    return await getSignedUrl(s3Client, command, { expiresIn });
+    return await getSignedUrl(this.s3Client, command, { expiresIn });
   }
 
   /**
@@ -161,7 +158,7 @@ export class S3DebugStorage {
         Key: s3Key,
       });
 
-      const response = await s3Client.send(command);
+      const response = await this.s3Client.send(command);
 
       if (!response.Body) {
         return null;
@@ -196,7 +193,7 @@ export class S3DebugStorage {
         Key: s3Key,
       });
 
-      await s3Client.send(command);
+      await this.s3Client.send(command);
       return true;
     } catch {
       return false;
@@ -218,7 +215,7 @@ export class S3DebugStorage {
         Key: s3Key,
       });
 
-      await s3Client.send(command);
+      await this.s3Client.send(command);
       console.log(`Debug data deleted from S3: ${s3Key}`);
 
       return { success: true };
@@ -249,7 +246,7 @@ export class S3DebugStorage {
         Prefix: prefix,
       });
 
-      const response = await s3Client.send(command);
+      const response = await this.s3Client.send(command);
 
       if (!response.Contents) {
         return [];
