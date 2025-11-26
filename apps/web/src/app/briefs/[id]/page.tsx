@@ -4,6 +4,7 @@ import BriefActions from "@/components/brief-actions";
 import BackButton from "@/components/back-button";
 import ActionItemRow from "@/components/action-item-row";
 import MarkdownView from "@/components/markdown-view";
+import { getUserSettings } from "@/lib/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function BriefDetail({
       </div>
     );
   }
+  const settings = await getUserSettings(session.user.id);
 
   // Get user admin status
   const user = await prisma.user.findUnique({
@@ -51,6 +53,7 @@ export default async function BriefDetail({
   }
   const when = brief.meeting?.startsAt
     ? new Intl.DateTimeFormat("en-US", {
+        timeZone: settings.timeZone || "UTC",
         dateStyle: "medium",
         timeStyle: "short",
       }).format(brief.meeting.startsAt)
