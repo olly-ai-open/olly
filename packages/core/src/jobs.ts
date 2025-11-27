@@ -8,6 +8,7 @@ import { getAccessTokenFromAccountCore } from "./core/google-core";
 import { listEventsByDayWithToken } from "./google-http";
 import { generateMorningBrief } from "./llm";
 import { getPrisma } from "./prisma-lambda";
+import { S3DebugStorage, type DebugDataStructure } from "./s3-debug";
 
 export type JobKind = "MORNING_BRIEF" | "EVENING_BRIEF" | "MEETING_BRIEF";
 
@@ -17,10 +18,6 @@ export interface RunJobResult {
   error?: string;
 }
 
-/**
- * Entry point for running a single job by ID.
- * Intended to be called from background workers.
- */
 export async function runJobById(jobId: string): Promise<RunJobResult> {
   const prisma = await getPrisma();
   const job = await prisma.job.findUnique({ where: { id: jobId } });
@@ -32,13 +29,18 @@ export async function runJobById(jobId: string): Promise<RunJobResult> {
     return { jobId, status: "SKIPPED", error: "job_not_runnable" };
   }
 
+  const debugCtx = S3DebugStorage.isEnabled()
+    ? createDebugContext(job.userId || "")
+    : null;
+  const startedAt = Date.now();
+
   try {
     await prisma.job.update({
       where: { id: job.id },
       data: { status: "RUNNING", attempts: job.attempts + 1 },
     });
 
-    await dispatchJob(prisma, job);
+    await dispatchJob(prisma, job, debugCtx ?? undefined);
 
     await prisma.job.update({
       where: { id: job.id },
@@ -52,11 +54,35 @@ export async function runJobById(jobId: string): Promise<RunJobResult> {
       where: { id: job.id },
       data: { status: "FAILED", lastError: message },
     });
+
+    if (debugCtx) {
+      markDebugFailure(debugCtx.debugData, startedAt, message);
+      const targetId =
+        debugCtx.debugData.summary.briefId || job.id || "unknown";
+      debugCtx.debugData.summary.briefId =
+        debugCtx.debugData.summary.briefId || targetId;
+      await uploadDebugData(
+        prisma,
+        targetId,
+        job.userId || "",
+        debugCtx.debugData,
+        false,
+      ).catch((e) => {
+        console.error("Failed to upload debug data on job failure", e);
+      });
+    }
     return { jobId: job.id, status: "FAILED", error: message };
   }
 }
 
-async function dispatchJob(prisma: PrismaClient, job: Job): Promise<void> {
+async function dispatchJob(
+  prisma: PrismaClient,
+  job: Job,
+  debugCtx?: {
+    debugData: DebugDataStructure;
+    addTimelineEntry: (action: string, details?: any) => void;
+  },
+): Promise<void> {
   const kind = job.kind as JobKind;
   const payload = (job.payload ?? {}) as any;
 
@@ -67,7 +93,19 @@ async function dispatchJob(prisma: PrismaClient, job: Job): Promise<void> {
       }
       const dayISO =
         typeof payload.dayISO === "string" ? payload.dayISO : undefined;
-      await generateMorningBriefForUser(prisma, job.userId, dayISO);
+      const start = Date.now();
+      const { briefId } = await generateMorningBriefForUser(
+        prisma,
+        job.userId,
+        dayISO,
+        debugCtx ?? undefined,
+      );
+      if (debugCtx && briefId) {
+        if (!debugCtx.debugData.summary.totalDuration) {
+          markDebugSuccess(debugCtx.debugData, briefId, start);
+        }
+        await uploadDebugData(prisma, briefId, job.userId, debugCtx.debugData);
+      }
       return;
     }
     case "MEETING_BRIEF": {
@@ -89,13 +127,43 @@ async function dispatchJob(prisma: PrismaClient, job: Job): Promise<void> {
           | "HEURISTIC_ONLY"
           | "LLM_AND_HEURISTIC") || "HEURISTIC_ONLY";
 
-      await generateMeetingBriefForEventCore(prisma, {
+      const start = Date.now();
+      const result = await generateMeetingBriefForEventCore(prisma, {
         userId: job.userId,
         eventId,
         searchStrategy,
         userSettings: settings,
         persist: true,
+        debug: debugCtx
+          ? {
+              debugData: debugCtx.debugData,
+              addTimelineEntry: debugCtx.addTimelineEntry,
+            }
+          : undefined,
       });
+      if (debugCtx && result.briefId) {
+        debugCtx.debugData.summary.briefId = result.briefId;
+        debugCtx.debugData.summary.userId = job.userId;
+        markDebugSuccess(debugCtx.debugData, result.briefId, start);
+        await uploadDebugData(
+          prisma,
+          result.briefId,
+          job.userId,
+          debugCtx.debugData,
+        );
+      } else if (debugCtx && debugCtx.debugData.summary.briefId) {
+        markDebugSuccess(
+          debugCtx.debugData,
+          debugCtx.debugData.summary.briefId,
+          start,
+        );
+        await uploadDebugData(
+          prisma,
+          debugCtx.debugData.summary.briefId,
+          job.userId,
+          debugCtx.debugData,
+        );
+      }
       return;
     }
     case "EVENING_BRIEF": {
@@ -108,15 +176,19 @@ async function dispatchJob(prisma: PrismaClient, job: Job): Promise<void> {
   }
 }
 
-/**
- * Minimal re-use of the existing morning-brief flow for background jobs.
- * This intentionally omits debug/S3 logging present in the HTTP handler.
- */
 async function generateMorningBriefForUser(
   prisma: PrismaClient,
   userId: string,
   dayISOOverride?: string,
-): Promise<void> {
+  debugCtx?: {
+    debugData: DebugDataStructure;
+    addTimelineEntry: (action: string, details?: any) => void;
+  },
+): Promise<{ briefId: string }> {
+  const addTimeline = debugCtx?.addTimelineEntry ?? (() => {});
+  const debugData = debugCtx?.debugData;
+  const start = Date.now();
+
   const settings = await getUserSettingsCore(prisma, userId);
   const timeZone = settings.timeZone || "UTC";
 
@@ -130,11 +202,16 @@ async function generateMorningBriefForUser(
     throw new Error("no_account");
   }
 
+  addTimeline("ACCOUNT_FOUND", { userId, provider: "google" });
+
   const token = await getAccessTokenFromAccountCore(
     prisma,
     account as any,
   );
+  addTimeline("ACCESS_TOKEN_RETRIEVED");
+
   const events = await listEventsByDayWithToken(token, dayISO, timeZone);
+  addTimeline("CAL_EVENTS_FETCHED", { count: events.length, dayISO });
 
   const meetingsForBrief = events.map((event) => ({
     id: event.id,
@@ -173,6 +250,11 @@ async function generateMorningBriefForUser(
       systemPromptOverride: settings.morningBriefSystemPrompt ?? undefined,
     },
   );
+  if (debugData) {
+    debugData.llmContext = morning.llmContext;
+    debugData.summary.apiCalls += 1;
+  }
+  addTimeline("LLM_MORNING_BRIEF_COMPLETE");
 
   const externalId = `morning:${dayISO}`;
   const morningMeeting = await prisma.meeting.upsert({
@@ -192,7 +274,7 @@ async function generateMorningBriefForUser(
     },
   });
 
-  await prisma.brief.create({
+  const savedBrief = await prisma.brief.create({
     data: {
       meetingId: morningMeeting.id,
       content: {
@@ -201,6 +283,19 @@ async function generateMorningBriefForUser(
       } as any,
     },
   });
+
+  if (debugData && savedBrief) {
+    debugData.summary.briefId = savedBrief.id;
+    debugData.summary.userId = userId;
+    debugData.summary.success = true;
+    debugData.summary.totalDuration = Date.now() - start;
+    addTimeline("MORNING_BRIEF_SAVED", { briefId: savedBrief.id });
+    addTimeline("COMPLETE", {
+      totalDuration: debugData.summary.totalDuration,
+    });
+  }
+
+  return { briefId: savedBrief ? savedBrief.id : "" };
 }
 
 function toDayInTimeZone(now: Date, timeZone: string): string {
@@ -216,4 +311,107 @@ function toDayInTimeZone(now: Date, timeZone: string): string {
     if (p.type !== "literal") obj[p.type] = p.value;
   }
   return `${obj.year}-${obj.month}-${obj.day}`;
+}
+
+function createDebugContext(userId: string): {
+  debugData: DebugDataStructure;
+  addTimelineEntry: (action: string, details?: any) => void;
+} {
+  const startedAt = Date.now();
+  const debugData: DebugDataStructure = {
+    version: "1.0",
+    summary: {
+      briefId: "",
+      userId,
+      timestamp: new Date().toISOString(),
+      totalDuration: 0,
+      apiCalls: 0,
+      success: false,
+    },
+    timeline: [],
+    searchResults: {
+      drive: { queries: [], totalFound: 0, included: 0, results: [] },
+      gmail: { queries: [], totalFound: 0, included: 0, results: [] },
+    },
+    llmContext: {
+      systemPrompt: "",
+      userPrompt: "",
+      model: "",
+      temperature: 0,
+      response: "",
+    },
+  };
+
+  const addTimelineEntry = (action: string, details?: any) => {
+    debugData.timeline.push({
+      timestamp: Date.now() - startedAt,
+      action,
+      ...details,
+    });
+  };
+
+  return { debugData, addTimelineEntry };
+}
+
+async function uploadDebugData(
+  prisma: PrismaClient,
+  briefId: string,
+  userId: string,
+  debugData: DebugDataStructure,
+  updateBriefMeta = true,
+) {
+  if (!S3DebugStorage.isEnabled()) return;
+  const s3Storage = new S3DebugStorage();
+  const uploadResult = await s3Storage.uploadDebugData(
+    briefId,
+    userId,
+    debugData,
+  );
+
+  if (uploadResult.success && uploadResult.s3Key && updateBriefMeta) {
+    await prisma.brief.update({
+      where: { id: briefId },
+      data: {
+        debugS3Key: uploadResult.s3Key,
+        debugCapturedAt: new Date(),
+        debugMetadata: {
+          totalDuration: debugData.summary.totalDuration,
+          apiCalls: debugData.summary.apiCalls,
+          driveResults: debugData.searchResults.drive.totalFound,
+          gmailResults: debugData.searchResults.gmail.totalFound,
+          timelineEvents: debugData.timeline.length,
+        },
+      },
+    });
+  }
+}
+
+function markDebugSuccess(
+  debugData: DebugDataStructure,
+  briefId: string,
+  startMs: number,
+) {
+  debugData.summary.briefId = briefId;
+  debugData.summary.success = true;
+  debugData.summary.totalDuration = Date.now() - startMs;
+  debugData.timeline.push({
+    timestamp: debugData.summary.totalDuration,
+    action: "COMPLETE",
+    totalDuration: debugData.summary.totalDuration,
+  });
+}
+
+function markDebugFailure(
+  debugData: DebugDataStructure,
+  startMs: number,
+  error: string,
+) {
+  debugData.summary.success = false;
+  debugData.summary.error = error;
+  debugData.summary.totalDuration = Date.now() - startMs;
+  debugData.timeline.push({
+    timestamp: debugData.summary.totalDuration,
+    action: "ERROR",
+    error,
+  });
 }
