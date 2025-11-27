@@ -265,7 +265,10 @@ export async function generateMeetingBriefForEventCore(
   let briefId: string | null = null;
 
   if (persist) {
-    const meeting = await upsertMeetingFromEventCore(prisma, userId, event);
+    const meeting = await upsertMeetingFromEventCore(prisma, userId, {
+      ...event,
+      status: "generated",
+    });
     meetingId = meeting.id;
 
     const saved = await prisma.brief.create({
