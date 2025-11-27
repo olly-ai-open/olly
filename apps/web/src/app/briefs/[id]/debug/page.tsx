@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { getUserSettings } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 import { S3DebugStorage } from "@olly/core";
 import DebugDataViewer from "@/components/debug-data-viewer";
@@ -16,6 +17,8 @@ export default async function BriefDebugPage({
   if (!session?.user?.id) {
     return notFound();
   }
+
+  const settings = await getUserSettings(session.user.id);
 
   // Check if user is admin
   const user = await prisma.user.findUnique({
@@ -55,7 +58,13 @@ export default async function BriefDebugPage({
         <div className="text-sm text-muted-foreground">
           Brief ID: {id}
           {brief.debugCapturedAt && (
-            <> • Captured: {new Date(brief.debugCapturedAt).toLocaleString()}</>
+            <>
+              {" "}
+              • Captured:{" "}
+              {new Date(brief.debugCapturedAt).toLocaleString("en-US", {
+                timeZone: settings.timeZone || "UTC",
+              })}
+            </>
           )}
         </div>
       </div>

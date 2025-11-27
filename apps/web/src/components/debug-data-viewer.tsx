@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { DebugDataStructure } from "@olly/core";
+import humanizeDuration from "humanize-duration";
 
 interface DebugDataViewerProps {
   data: DebugDataStructure;
@@ -38,7 +39,9 @@ export default function DebugDataViewer({
           <div>
             <div className="text-xs text-muted-foreground">Total Duration</div>
             <div className="text-lg font-medium">
-              {data.summary.totalDuration}ms
+              {humanizeDuration(data.summary.totalDuration, {
+                maxDecimalPoints: 2,
+              })}
             </div>
           </div>
           <div>
@@ -105,13 +108,13 @@ export default function DebugDataViewer({
                 <span
                   className={`text-sm font-medium ${data.summary.success ? "text-green-600" : "text-red-600"}`}
                 >
-                  {data.summary.success ? "✅ Success" : "❌ Failed"}
+                  {data.summary.success ? "Success" : "Failed"}
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b">
                 <span className="text-sm text-muted-foreground">Timestamp</span>
                 <span className="text-sm">
-                  {new Date(data.summary.timestamp).toLocaleString()}
+                  {new Date(data.summary.timestamp).toISOString()}
                 </span>
               </div>
               <div className="flex justify-between py-2 border-b">
@@ -147,7 +150,7 @@ export default function DebugDataViewer({
                   }`}
                 >
                   <div className="text-xs text-muted-foreground w-20 shrink-0">
-                    {event.timestamp}ms
+                    {humanizeDuration(event.timestamp, { maxDecimalPoints: 2 })}
                   </div>
                   <div className="flex-1">
                     <div className="font-medium text-sm">{event.action}</div>
@@ -164,7 +167,11 @@ export default function DebugDataViewer({
                     {event.resultCount !== undefined && (
                       <div className="text-xs text-muted-foreground mt-1">
                         Results: {event.resultCount} • Duration:{" "}
-                        {event.duration}ms
+                        {event.duration
+                          ? humanizeDuration(event.duration, {
+                              maxDecimalPoints: 2,
+                            })
+                          : ""}
                       </div>
                     )}
                   </div>

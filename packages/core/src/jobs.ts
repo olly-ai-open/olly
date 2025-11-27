@@ -350,7 +350,13 @@ function createDebugContext(userId: string): {
       apiCalls: 0,
       success: false,
     },
-    timeline: [],
+    timeline: [
+      {
+        action: 'START',
+        duration: 0,
+        timestamp: startedAt,
+      }
+    ],
     searchResults: {
       drive: { queries: [], totalFound: 0, included: 0, results: [] },
       gmail: { queries: [], totalFound: 0, included: 0, results: [] },
