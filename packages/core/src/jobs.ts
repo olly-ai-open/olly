@@ -491,6 +491,11 @@ async function syncCalendarForUser(
 
   addTimeline("SYNC_ACCOUNT_FOUND", { userId, provider: "google" });
 
+  if (!account.access_token && !account.refresh_token) {
+    addTimeline("SYNC_ACCOUNT_SKIPPED_NO_TOKEN", { userId });
+    return;
+  }
+
   const token = await getAccessTokenFromAccountCore(prisma, account as any);
   addTimeline("SYNC_ACCESS_TOKEN_RETRIEVED");
 

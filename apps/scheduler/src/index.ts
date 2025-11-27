@@ -68,7 +68,10 @@ export async function handler(): Promise<void> {
   );
 
   const accountsNeedingSync = await prisma.account.findMany({
-    where: { provider: "google" },
+    where: {
+      provider: "google",
+      OR: [{ access_token: { not: null } }, { refresh_token: { not: null } }],
+    },
     select: { userId: true },
     distinct: ["userId"],
   });
