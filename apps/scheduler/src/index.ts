@@ -4,6 +4,8 @@ import { initializeEnvironment } from "./init-env";
 
 const sqs = new SQSClient({});
 const JOB_QUEUE_URL = process.env.JOB_QUEUE_URL;
+const MEETING_BRIEF_LEAD_MS = 5 * 60 * 1000; // 5 minutes
+const MEETING_LOOKAHEAD_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 // Initialize environment at module load (cold start)
 const envInitPromise = initializeEnvironment();
@@ -58,7 +60,63 @@ export async function handler(): Promise<void> {
     });
   }
 
-  // 2. Enqueue due jobs to SQS
+  // 2. Schedule meeting briefs 5 minutes before meeting start
+  const meetingWindowEnd = new Date(now.getTime() + MEETING_LOOKAHEAD_MS);
+  const upcomingMeetings = await prisma.meeting.findMany({
+    where: {
+      startsAt: {
+        gt: now,
+        lte: meetingWindowEnd,
+      },
+    },
+    orderBy: { startsAt: "asc" },
+    take: 200,
+  });
+
+  for (const meeting of upcomingMeetings) {
+    const targetRunAt = new Date(
+      meeting.startsAt.getTime() - MEETING_BRIEF_LEAD_MS,
+    );
+
+    const existingJob = await prisma.job.findFirst({
+      where: {
+        kind: "MEETING_BRIEF",
+        userId: meeting.userId,
+        payload: {
+          path: ["eventId"],
+          equals: meeting.externalId,
+        },
+        status: { in: ["PENDING", "QUEUED", "RUNNING", "DONE"] },
+      },
+    });
+
+    if (existingJob) {
+      if (
+        (existingJob.status === "PENDING" ||
+          existingJob.status === "QUEUED") &&
+        existingJob.runAt &&
+        existingJob.runAt.getTime() !== targetRunAt.getTime()
+      ) {
+        await prisma.job.update({
+          where: { id: existingJob.id },
+          data: { runAt: targetRunAt },
+        });
+      }
+      continue;
+    }
+
+    await prisma.job.create({
+      data: {
+        kind: "MEETING_BRIEF",
+        payload: { eventId: meeting.externalId },
+        status: "PENDING",
+        userId: meeting.userId,
+        runAt: targetRunAt,
+      },
+    });
+  }
+
+  // 3. Enqueue due jobs to SQS
   const dueJobs = await prisma.job.findMany({
     where: {
       status: "PENDING",
