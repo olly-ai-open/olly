@@ -91,13 +91,13 @@ export class OllyJobsStack extends cdk.Stack {
     const s3ListPolicy = new iam.PolicyStatement({
       actions: ["s3:ListBucket"],
       resources: [
-        `"arn:aws:s3:::olly-debug-data"`
+        `arn:aws:s3:::olly-debug-data`
       ],
     });
     const s3ReadWritePolicy = new iam.PolicyStatement({
       actions: ["s3:*Object"],
       resources: [
-        `"arn:aws:s3:::olly-debug-data/*"`
+        `arn:aws:s3:::olly-debug-data/*`
       ],
     });
 
