@@ -498,15 +498,30 @@ async function syncCalendarForUser(
   const timeMin = now;
   const timeMax = new Date(now.getTime() + lookaheadHours * 60 * 60 * 1000);
 
-  const events = await listEventsInRangeWithToken(token, timeMin, timeMax);
+  let events: Array<{
+    id: string;
+    title: string;
+    start?: string | null;
+    end?: string | null;
+    attendees?: { email?: string | null }[];
+    description?: string | null;
+  }> = [];
+  try {
+    events = await listEventsInRangeWithToken(token, timeMin, timeMax);
+    if (debugData) {
+      debugData.summary.apiCalls += 1;
+    }
+  } catch (err: any) {
+    addTimeline("SYNC_EVENTS_FETCH_ERROR", {
+      error: err?.message || "unknown_error",
+    });
+    return;
+  }
   addTimeline("SYNC_EVENTS_FETCHED", {
     count: events.length,
     timeMin: timeMin.toISOString(),
     timeMax: timeMax.toISOString(),
   });
-  if (debugData) {
-    debugData.summary.apiCalls += 1;
-  }
 
   let upserted = 0;
   for (const event of events) {
