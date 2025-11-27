@@ -397,7 +397,7 @@ function markDebugSuccess(
   debugData.timeline.push({
     timestamp: debugData.summary.totalDuration,
     action: "COMPLETE",
-    totalDuration: debugData.summary.totalDuration,
+    duration: debugData.summary.totalDuration,
   });
 }
 
@@ -412,6 +412,7 @@ function markDebugFailure(
   debugData.timeline.push({
     timestamp: debugData.summary.totalDuration,
     action: "ERROR",
+    duration: debugData.summary.totalDuration,
     error,
   });
 }
