@@ -165,6 +165,9 @@ export async function generateMeetingBriefForEventCore(
         duration: Date.now() - driveStartTime,
       });
       if (debugData) {
+        debugData.summary.apiCalls += 1;
+      }
+      if (debugData) {
         debugData.searchResults.drive.queries.push(query);
         debugData.searchResults.drive.totalFound += files.length;
         debugData.searchResults.drive.results.push(
@@ -178,6 +181,9 @@ export async function generateMeetingBriefForEventCore(
         error: err?.message,
         duration: Date.now() - driveStartTime,
       });
+      if (debugData) {
+        debugData.summary.apiCalls += 1;
+      }
       if (debugData) {
         if (!debugData.searchResults.drive.errors) {
           debugData.searchResults.drive.errors = [];
@@ -198,6 +204,9 @@ export async function generateMeetingBriefForEventCore(
         duration: Date.now() - gmailStartTime,
       });
       if (debugData) {
+        debugData.summary.apiCalls += 1;
+      }
+      if (debugData) {
         debugData.searchResults.gmail.queries.push(query);
         debugData.searchResults.gmail.totalFound += gmail.length;
         debugData.searchResults.gmail.results.push(
@@ -211,6 +220,9 @@ export async function generateMeetingBriefForEventCore(
         error: err?.message,
         duration: Date.now() - gmailStartTime,
       });
+      if (debugData) {
+        debugData.summary.apiCalls += 1;
+      }
       if (debugData) {
         if (!debugData.searchResults.gmail.errors) {
           debugData.searchResults.gmail.errors = [];
@@ -243,8 +255,8 @@ export async function generateMeetingBriefForEventCore(
   );
 
   if (debugData) {
-    debugData.llmContext = briefResult.llmContext;
     debugData.summary.apiCalls += 1;
+    debugData.llmContext = briefResult.llmContext;
   }
 
   addTimeline("LLM_GENERATION_COMPLETE", { eventId });

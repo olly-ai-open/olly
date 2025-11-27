@@ -211,6 +211,9 @@ async function generateMorningBriefForUser(
   addTimeline("ACCESS_TOKEN_RETRIEVED");
 
   const events = await listEventsByDayWithToken(token, dayISO, timeZone);
+  if (debugData) {
+    debugData.summary.apiCalls += 1;
+  }
   addTimeline("CAL_EVENTS_FETCHED", { count: events.length, dayISO });
 
   const meetingsForBrief = events.map((event) => ({
@@ -240,6 +243,9 @@ async function generateMorningBriefForUser(
       },
     },
   });
+  if (debugData) {
+    debugData.summary.apiCalls += 1;
+  }
 
   const actionItemsForBrief = actionItems.map((ai) => ({
     id: ai.id,
