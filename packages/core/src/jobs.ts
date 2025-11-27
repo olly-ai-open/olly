@@ -221,6 +221,15 @@ async function generateMorningBriefForUser(
     status: (event as any).status || null,
     description: event.description || null,
   }));
+  if (debugData) {
+    debugData.searchResults.drive.queries.push("calendar:events");
+    debugData.searchResults.drive.totalFound += 0;
+    debugData.searchResults.gmail.queries.push("calendar:events");
+    debugData.searchResults.gmail.totalFound += 0;
+    addTimeline("CAL_EVENTS_CAPTURED", {
+      count: meetingsForBrief.length,
+    });
+  }
 
   const actionItems = await prisma.actionItem.findMany({
     where: {
@@ -238,6 +247,9 @@ async function generateMorningBriefForUser(
     dueAt: ai.dueAt ? ai.dueAt.toISOString() : null,
     status: ai.status as string,
   }));
+  if (debugData) {
+    addTimeline("ACTION_ITEMS_FETCHED", { count: actionItemsForBrief.length });
+  }
 
   const morning = await generateMorningBrief(
     {
@@ -252,6 +264,10 @@ async function generateMorningBriefForUser(
   );
   if (debugData) {
     debugData.llmContext = morning.llmContext;
+    debugData.searchResults.drive.included =
+      debugData.searchResults.drive.results.length;
+    debugData.searchResults.gmail.included =
+      debugData.searchResults.gmail.results.length;
     debugData.summary.apiCalls += 1;
   }
   addTimeline("LLM_MORNING_BRIEF_COMPLETE");

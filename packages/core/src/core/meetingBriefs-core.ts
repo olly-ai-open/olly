@@ -164,6 +164,13 @@ export async function generateMeetingBriefForEventCore(
         resultCount: files.length,
         duration: Date.now() - driveStartTime,
       });
+      if (debugData) {
+        debugData.searchResults.drive.queries.push(query);
+        debugData.searchResults.drive.totalFound += files.length;
+        debugData.searchResults.drive.results.push(
+          ...files.slice(0, 5),
+        );
+      }
       drive.push(...files);
     } catch (err: any) {
       addTimeline("DRIVE_SEARCH_ERROR", {
@@ -171,6 +178,12 @@ export async function generateMeetingBriefForEventCore(
         error: err?.message,
         duration: Date.now() - driveStartTime,
       });
+      if (debugData) {
+        if (!debugData.searchResults.drive.errors) {
+          debugData.searchResults.drive.errors = [];
+        }
+        debugData.searchResults.drive.errors.push(err?.message || "error");
+      }
     }
   }
 
@@ -184,6 +197,13 @@ export async function generateMeetingBriefForEventCore(
         resultCount: gmail.length,
         duration: Date.now() - gmailStartTime,
       });
+      if (debugData) {
+        debugData.searchResults.gmail.queries.push(query);
+        debugData.searchResults.gmail.totalFound += gmail.length;
+        debugData.searchResults.gmail.results.push(
+          ...gmail.slice(0, 5),
+        );
+      }
       allGmail = allGmail.concat(gmail);
     } catch (err: any) {
       addTimeline("GMAIL_SEARCH_ERROR", {
@@ -191,6 +211,12 @@ export async function generateMeetingBriefForEventCore(
         error: err?.message,
         duration: Date.now() - gmailStartTime,
       });
+      if (debugData) {
+        if (!debugData.searchResults.gmail.errors) {
+          debugData.searchResults.gmail.errors = [];
+        }
+        debugData.searchResults.gmail.errors.push(err?.message || "error");
+      }
     }
   }
 
@@ -218,6 +244,7 @@ export async function generateMeetingBriefForEventCore(
 
   if (debugData) {
     debugData.llmContext = briefResult.llmContext;
+    debugData.summary.apiCalls += 1;
   }
 
   addTimeline("LLM_GENERATION_COMPLETE", { eventId });
