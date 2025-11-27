@@ -1,16 +1,21 @@
 import type { Job, PrismaClient } from "@prisma/client";
 import { generateMeetingBriefForEventCore } from "./core/meetingBriefs-core";
+import { upsertMeetingFromEventCore } from "./core/meetings-core";
 import {
   getUserSettingsCore,
   type UserSettings,
 } from "./core/settings-core";
 import { getAccessTokenFromAccountCore } from "./core/google-core";
-import { listEventsByDayWithToken } from "./google-http";
+import { listEventsByDayWithToken, listEventsInRangeWithToken } from "./google-http";
 import { generateMorningBrief } from "./llm";
 import { getPrisma } from "./prisma-lambda";
 import { S3DebugStorage, type DebugDataStructure } from "./s3-debug";
 
-export type JobKind = "MORNING_BRIEF" | "EVENING_BRIEF" | "MEETING_BRIEF";
+export type JobKind =
+  | "MORNING_BRIEF"
+  | "EVENING_BRIEF"
+  | "MEETING_BRIEF"
+  | "CALENDAR_SYNC";
 
 export interface RunJobResult {
   jobId: string;
@@ -169,6 +174,22 @@ async function dispatchJob(
     case "EVENING_BRIEF": {
       // Placeholder for future implementation.
       // For now, mark as no-op.
+      return;
+    }
+    case "CALENDAR_SYNC": {
+      if (!job.userId) {
+        throw new Error("missing_userId_for_calendar_sync");
+      }
+      const lookaheadHours =
+        typeof payload.lookaheadHours === "number"
+          ? payload.lookaheadHours
+          : 24;
+      await syncCalendarForUser(
+        prisma,
+        job.userId,
+        lookaheadHours,
+        debugCtx ?? undefined,
+      );
       return;
     }
     default:
@@ -443,4 +464,66 @@ function markDebugFailure(
     duration: debugData.summary.totalDuration,
     error,
   });
+}
+
+async function syncCalendarForUser(
+  prisma: PrismaClient,
+  userId: string,
+  lookaheadHours: number,
+  debugCtx?: {
+    debugData: DebugDataStructure;
+    addTimelineEntry: (action: string, details?: any) => void;
+  },
+): Promise<void> {
+  const addTimeline = debugCtx?.addTimelineEntry ?? (() => {});
+  const debugData = debugCtx?.debugData;
+  const start = Date.now();
+
+  const settings = await getUserSettingsCore(prisma, userId);
+  const timeZone = settings.timeZone || "UTC";
+
+  const account = await prisma.account.findFirst({
+    where: { userId, provider: "google" },
+  });
+  if (!account) {
+    throw new Error("no_account_for_calendar_sync");
+  }
+
+  addTimeline("SYNC_ACCOUNT_FOUND", { userId, provider: "google" });
+
+  const token = await getAccessTokenFromAccountCore(prisma, account as any);
+  addTimeline("SYNC_ACCESS_TOKEN_RETRIEVED");
+
+  const now = new Date();
+  const timeMin = now;
+  const timeMax = new Date(now.getTime() + lookaheadHours * 60 * 60 * 1000);
+
+  const events = await listEventsInRangeWithToken(token, timeMin, timeMax);
+  addTimeline("SYNC_EVENTS_FETCHED", {
+    count: events.length,
+    timeMin: timeMin.toISOString(),
+    timeMax: timeMax.toISOString(),
+  });
+  if (debugData) {
+    debugData.summary.apiCalls += 1;
+  }
+
+  let upserted = 0;
+  for (const event of events) {
+    await upsertMeetingFromEventCore(prisma, userId, {
+      id: event.id,
+      title: event.title,
+      start: event.start,
+      end: event.end,
+      attendees: event.attendees,
+      description: event.description,
+    });
+    upserted += 1;
+  }
+
+  addTimeline("SYNC_MEETINGS_UPSERTED", { count: upserted });
+
+  if (debugData) {
+    debugData.summary.totalDuration = Date.now() - start;
+  }
 }

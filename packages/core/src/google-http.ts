@@ -144,6 +144,49 @@ export async function getEventDetailsWithToken(token: string, eventId: string) {
   };
 }
 
+export async function listEventsInRangeWithToken(
+  token: string,
+  timeMin: Date,
+  timeMax: Date,
+) {
+  const url = new URL(
+    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+  );
+  url.searchParams.set("timeMin", timeMin.toISOString());
+  url.searchParams.set("timeMax", timeMax.toISOString());
+  url.searchParams.set("maxResults", "100");
+  url.searchParams.set("singleEvents", "true");
+  url.searchParams.set("orderBy", "startTime");
+
+  const resp = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!resp.ok) {
+    throw new Error(`events_range_list_failed: ${resp.status}`);
+  }
+
+  const data: any = await resp.json();
+  const events = (data.items as any[]) || [];
+
+  return events.map((e) => ({
+    id: e.id as string,
+    title: (e.summary as string) || "(no title)",
+    start: e.start?.dateTime || e.start?.date || null,
+    end: e.end?.dateTime || e.end?.date || null,
+    attendees: Array.isArray(e.attendees)
+      ? e.attendees.map((a: any) => ({
+          email: a.email,
+          responseStatus: a.responseStatus,
+        }))
+      : [],
+    hangoutLink:
+      (e as any).hangoutLink ||
+      (e.conferenceData?.entryPoints?.[0]?.uri ?? null),
+    description: e.description || null,
+  }));
+}
+
 export async function getDriveFilesByIdsWithToken(
   token: string,
   fileIds: string[],

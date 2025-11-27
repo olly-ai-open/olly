@@ -6,6 +6,8 @@ const sqs = new SQSClient({});
 const JOB_QUEUE_URL = process.env.JOB_QUEUE_URL;
 const MEETING_BRIEF_LEAD_MS = 5 * 60 * 1000; // 5 minutes
 const MEETING_LOOKAHEAD_MS = 2 * 60 * 60 * 1000; // 2 hours
+const CALENDAR_SYNC_INTERVAL_MIN = 60; // 1 hour
+const CALENDAR_SYNC_LOOKAHEAD_HOURS = 24; // 24 hours
 
 // Initialize environment at module load (cold start)
 const envInitPromise = initializeEnvironment();
@@ -60,7 +62,40 @@ export async function handler(): Promise<void> {
     });
   }
 
-  // 2. Schedule meeting briefs 5 minutes before meeting start
+  // 2. Enqueue calendar sync jobs on a slower cadence
+  const calendarSyncWindowStart = new Date(
+    now.getTime() - CALENDAR_SYNC_INTERVAL_MIN * 60 * 1000,
+  );
+
+  const accountsNeedingSync = await prisma.account.findMany({
+    where: { provider: "google" },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
+
+  for (const acct of accountsNeedingSync) {
+    const recentSync = await prisma.job.findFirst({
+      where: {
+        userId: acct.userId,
+        kind: "CALENDAR_SYNC",
+        createdAt: { gte: calendarSyncWindowStart },
+        status: { in: ["PENDING", "QUEUED", "RUNNING", "DONE"] },
+      },
+    });
+    if (recentSync) continue;
+
+    await prisma.job.create({
+      data: {
+        kind: "CALENDAR_SYNC",
+        payload: { lookaheadHours: CALENDAR_SYNC_LOOKAHEAD_HOURS },
+        status: "PENDING",
+        userId: acct.userId,
+        runAt: now,
+      },
+    });
+  }
+
+  // 3. Schedule meeting briefs 5 minutes before meeting start
   const meetingWindowEnd = new Date(now.getTime() + MEETING_LOOKAHEAD_MS);
   const upcomingMeetings = await prisma.meeting.findMany({
     where: {
@@ -116,7 +151,7 @@ export async function handler(): Promise<void> {
     });
   }
 
-  // 3. Enqueue due jobs to SQS
+  // 4. Enqueue due jobs to SQS
   const dueJobs = await prisma.job.findMany({
     where: {
       status: "PENDING",
