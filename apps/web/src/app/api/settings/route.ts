@@ -24,6 +24,7 @@ export async function GET() {
           briefSystemPrompt: null,
           queryPlannerSystemPrompt: null,
           emailNotifications: true,
+          ignoredEventPatterns: [],
         },
       });
     }
@@ -87,6 +88,7 @@ export async function PUT(req: Request) {
     let nextBriefSystemPrompt: string | null | undefined;
     let nextQueryPlannerSystemPrompt: string | null | undefined;
     let nextMorningBriefSystemPrompt: string | null | undefined;
+    let nextIgnoredEventPatterns: any[] | undefined;
     let adminUser: { isAdmin: boolean } | null = null;
 
     const ensureAdmin = async (uid: string) => {
@@ -179,6 +181,20 @@ export async function PUT(req: Request) {
       }
     }
 
+    if (Array.isArray(body?.ignoredEventPatterns)) {
+      nextIgnoredEventPatterns = body.ignoredEventPatterns;
+    } else if (body?.ignoredEventPatterns === null) {
+      nextIgnoredEventPatterns = [];
+    } else if (body?.ignoredEventPatterns !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "ignoredEventPatterns must be an array of strings or pattern objects",
+        },
+        { status: 400 },
+      );
+    }
+
     const settings = await prisma.userSettings.upsert({
       where: { userId: session.user.id },
       update: {
@@ -199,6 +215,9 @@ export async function PUT(req: Request) {
         ...(timeZone !== undefined && {
           timeZone: timeZone === null ? null : timeZone.trim() || null,
         }),
+        ...(nextIgnoredEventPatterns !== undefined && {
+          ignoredEventPatterns: nextIgnoredEventPatterns,
+        }),
       },
       create: {
         userId: session.user.id,
@@ -212,6 +231,7 @@ export async function PUT(req: Request) {
             ? null
             : timeZone.trim() || null,
         emailNotifications: emailNotifications ?? true,
+        ignoredEventPatterns: nextIgnoredEventPatterns ?? [],
       },
     });
 

@@ -12,6 +12,7 @@ interface UserSettings {
   morningBriefSystemPrompt?: string | null;
   timeZone?: string | null;
   emailNotifications: boolean;
+  ignoredEventPatterns?: Array<string | { type?: string; value?: string }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,6 +92,7 @@ export default function SettingsForm() {
     "America/Chicago",
     "America/New_York",
   ]);
+  const [ignoredPatternsText, setIgnoredPatternsText] = useState("");
 
   // Load settings on mount
   useEffect(() => {
@@ -100,6 +102,19 @@ export default function SettingsForm() {
         if (response.ok) {
           const data = await response.json();
           setSettings(data);
+          if (Array.isArray(data?.ignoredEventPatterns)) {
+            const lines = data.ignoredEventPatterns
+              .map((p: any) =>
+                typeof p === "string"
+                  ? p
+                  : p?.value
+                    ? `${p.type || "title_contains"}:${p.value}`
+                    : "",
+              )
+              .filter(Boolean)
+              .join("\n");
+            setIgnoredPatternsText(lines);
+          }
         } else {
           setMessage("Failed to load settings");
         }
@@ -151,6 +166,7 @@ export default function SettingsForm() {
           searchTimeframeDays: settings.searchTimeframeDays,
           timeZone: settings.timeZone ?? "UTC",
           emailNotifications: settings.emailNotifications,
+          ignoredEventPatterns: parseIgnoredPatterns(ignoredPatternsText),
         }),
       });
 
@@ -201,6 +217,22 @@ export default function SettingsForm() {
     if (!schedules) return null;
     const existing = schedules.find((s) => s.type === type);
     return existing || null;
+  };
+
+  const parseIgnoredPatterns = (
+    text: string,
+  ): Array<string | { type: string; value: string }> => {
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    return lines.map((line) => {
+      const [type, ...rest] = line.split(":");
+      if (rest.length && type) {
+        return { type: type.trim(), value: rest.join(":").trim() };
+      }
+      return line;
+    });
   };
 
   const updateScheduleLocal = (
@@ -285,6 +317,26 @@ export default function SettingsForm() {
         <h2 className="mb-4 text-lg font-medium">Search Preferences</h2>
 
         <div className="space-y-4">
+          <div>
+            <label
+              htmlFor="ignoredPatterns"
+              className="block text-sm font-medium text-foreground mb-2"
+            >
+              Ignore events with titles matching
+            </label>
+            <textarea
+              id="ignoredPatterns"
+              value={ignoredPatternsText}
+              onChange={(e) => setIgnoredPatternsText(e.target.value)}
+              rows={3}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder={`Examples:\nlunch\nOOO\ntitle_regex:^focus block$`}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              One rule per line. Format can be just text (matched anywhere in
+              the title) or <code>title_regex:pattern</code>.
+            </p>
+          </div>
           <div>
             <label
               htmlFor="searchTimeframe"
