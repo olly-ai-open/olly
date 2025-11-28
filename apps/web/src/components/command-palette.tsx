@@ -157,9 +157,28 @@ export default function CommandPalette() {
 
   return (
     <>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="hidden items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm transition hover:border-primary hover:text-foreground md:inline-flex"
+        >
+          <span className="text-foreground">⌘K</span>
+          <span className="text-xs text-muted-foreground">Command palette</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-xs text-muted-foreground shadow-sm transition hover:border-primary hover:text-foreground md:hidden"
+          aria-label="Open command palette"
+        >
+          ⋮
+        </button>
+      </div>
+
       {open && mounted
         ? createPortal(
-            <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/50 px-4 py-10 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/50 px-4 py-6 backdrop-blur-sm md:py-10">
               <div className="w-full max-w-2xl rounded-xl border border-border bg-card shadow-xl">
                 <div className="flex items-center border-b border-border px-3 py-2">
                   <input
