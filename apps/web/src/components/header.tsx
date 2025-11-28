@@ -6,6 +6,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import NavAuth from "@/components/nav-auth";
 import ThemeToggle from "@/components/theme-toggle";
 import MobileNav from "@/components/mobile-nav";
+import CommandPalette from "@/components/command-palette";
 
 export default async function Header() {
   noStore();
@@ -42,6 +43,7 @@ export default async function Header() {
           Olly
         </Link>
         <div className="flex items-center gap-3">
+          {userId ? <CommandPalette /> : null}
           <ThemeToggle />
           <Suspense fallback={<div className="h-5 w-24 rounded bg-border" />}>
             <NavAuth />
