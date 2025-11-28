@@ -106,6 +106,9 @@ export async function handler(): Promise<void> {
         gt: now,
         lte: meetingWindowEnd,
       },
+      status: {
+        not: "ignored",
+      },
     },
     orderBy: { startsAt: "asc" },
     take: 200,
