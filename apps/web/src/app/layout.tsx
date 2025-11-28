@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground min-h-dvh flex flex-col`}
       >
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('theme');var m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');var d=(t==='dark')||((t==='system'||!t)&&m&&m.matches);var r=document.documentElement;d?r.classList.add('dark'):r.classList.remove('dark');}catch(e){}})();`}
@@ -45,7 +45,7 @@ export default function RootLayout({
         >
           <Header />
         </Suspense>
-        <div className="min-h-dvh">{children}</div>
+        <main className="flex-1">{children}</main>
       </body>
     </html>
   );

@@ -70,10 +70,10 @@ export default function CommandPalette() {
       }
       setLoading(true);
       try {
-        const resp = await fetch(
-          `/api/command-search?q=${encodeURIComponent(query.trim())}`,
-          { signal: controller.signal },
-        );
+        const url = `/api/command-search?q=${encodeURIComponent(query.trim())}`;
+        const resp = await fetch(url as RequestInfo, {
+          signal: controller.signal,
+        });
         if (resp.ok) {
           const data = (await resp.json()) as SearchPayload;
           setResults(data);
