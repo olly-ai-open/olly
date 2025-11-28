@@ -10,6 +10,7 @@ export async function upsertMeetingFromEventCore(
     end?: string | null;
     attendees?: { email?: string | null }[];
     description?: string | null;
+    status?: string | null;
   },
 ) {
   const startsAt = event.start ? new Date(event.start) : new Date();
@@ -21,6 +22,7 @@ export async function upsertMeetingFromEventCore(
       startsAt,
       endsAt,
       attendees: event.attendees ? event.attendees : undefined,
+      status: event.status ?? undefined,
     },
     create: {
       userId,
@@ -29,6 +31,7 @@ export async function upsertMeetingFromEventCore(
       startsAt,
       endsAt,
       attendees: event.attendees ? event.attendees : undefined,
+      status: event.status ?? undefined,
     },
   });
 }

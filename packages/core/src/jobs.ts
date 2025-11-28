@@ -10,6 +10,10 @@ import { listEventsByDayWithToken, listEventsInRangeWithToken } from "./google-h
 import { generateMorningBrief } from "./llm";
 import { getPrisma } from "./prisma-lambda";
 import { S3DebugStorage, type DebugDataStructure } from "./s3-debug";
+import {
+  normalizeIgnorePatterns,
+  shouldIgnoreEventByTitle,
+} from "./core/eventFilters-core";
 
 export type JobKind =
   | "MORNING_BRIEF"
@@ -122,6 +126,18 @@ async function dispatchJob(
         throw new Error("missing_eventId_for_meeting_brief");
       }
 
+      const meeting = await prisma.meeting.findUnique({
+        where: {
+          userId_externalId: {
+            userId: job.userId,
+            externalId: eventId,
+          },
+        },
+      });
+      if (meeting?.status === "ignored") {
+        return;
+      }
+
       const settings: UserSettings = await getUserSettingsCore(
         prisma,
         job.userId,
@@ -212,6 +228,7 @@ async function generateMorningBriefForUser(
 
   const settings = await getUserSettingsCore(prisma, userId);
   const timeZone = settings.timeZone || "UTC";
+  const ignorePatterns = normalizeIgnorePatterns(settings);
 
   const now = new Date();
   const dayISO = dayISOOverride ?? toDayInTimeZone(now, timeZone);
@@ -232,12 +249,25 @@ async function generateMorningBriefForUser(
   addTimeline("ACCESS_TOKEN_RETRIEVED");
 
   const events = await listEventsByDayWithToken(token, dayISO, timeZone);
+  const filteredEvents = ignorePatterns.length
+    ? events.filter((evt) =>
+        shouldIgnoreEventByTitle(evt.title, ignorePatterns) ? false : true,
+      )
+    : events;
+  if (events.length !== filteredEvents.length) {
+    addTimeline("CAL_EVENTS_IGNORED", {
+      skipped: events.length - filteredEvents.length,
+    });
+  }
   if (debugData) {
     debugData.summary.apiCalls += 1;
   }
-  addTimeline("CAL_EVENTS_FETCHED", { count: events.length, dayISO });
+  addTimeline("CAL_EVENTS_FETCHED", {
+    count: filteredEvents.length,
+    dayISO,
+  });
 
-  const meetingsForBrief = events.map((event) => ({
+  const meetingsForBrief = filteredEvents.map((event) => ({
     id: event.id,
     title: event.title,
     startsAt: event.start,
@@ -522,14 +552,28 @@ async function syncCalendarForUser(
     });
     return;
   }
+  const ignorePatterns = normalizeIgnorePatterns(settings);
+
+  const filteredEvents = ignorePatterns.length
+    ? events.filter(
+        (evt) => !shouldIgnoreEventByTitle(evt.title, ignorePatterns),
+      )
+    : events;
+
+  if (events.length !== filteredEvents.length) {
+    addTimeline("SYNC_EVENTS_IGNORED", {
+      skipped: events.length - filteredEvents.length,
+    });
+  }
+
   addTimeline("SYNC_EVENTS_FETCHED", {
-    count: events.length,
+    count: filteredEvents.length,
     timeMin: timeMin.toISOString(),
     timeMax: timeMax.toISOString(),
   });
 
   let upserted = 0;
-  for (const event of events) {
+  for (const event of filteredEvents) {
     await upsertMeetingFromEventCore(prisma, userId, {
       id: event.id,
       title: event.title,
@@ -537,6 +581,9 @@ async function syncCalendarForUser(
       end: event.end,
       attendees: event.attendees,
       description: event.description,
+      status: shouldIgnoreEventByTitle(event.title, ignorePatterns)
+        ? "ignored"
+        : null,
     });
     upserted += 1;
   }

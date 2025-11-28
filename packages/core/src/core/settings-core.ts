@@ -24,6 +24,7 @@ export async function getUserSettingsCore(
         morningBriefSystemPrompt: null,
         timeZone: null,
         emailNotifications: true,
+        ignoredEventPatterns: [],
       },
     });
   }
