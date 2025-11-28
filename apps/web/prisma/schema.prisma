@@ -295,6 +295,9 @@ model UserSettings {
   
   // Notification preferences
   emailNotifications Boolean @default(true)
+
+  // Event ignore settings (e.g., titles to skip for briefs)
+  ignoredEventPatterns Json?
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
