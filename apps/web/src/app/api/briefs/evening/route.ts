@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateEndOfDayBriefForUser } from "@/lib/endOfDayBriefs";
-import { type DebugDataStructure } from "@olly/core";
+import { createBriefDebugContext } from "@olly/core";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -28,36 +28,9 @@ export async function POST(req: Request) {
       : 24;
 
   const start = Date.now();
-  const debugData: DebugDataStructure = {
-    version: "1.0",
-    summary: {
-      briefId: "",
-      userId: session.user.id,
-      timestamp: new Date().toISOString(),
-      totalDuration: 0,
-      apiCalls: 0,
-      success: false,
-    },
-    timeline: [],
-    searchResults: {
-      drive: { queries: [], totalFound: 0, included: 0, results: [] },
-      gmail: { queries: [], totalFound: 0, included: 0, results: [] },
-    },
-    llmContext: {
-      systemPrompt: "",
-      userPrompt: "",
-      model: "",
-      temperature: 0,
-      response: "",
-    },
-  };
-  const addTimelineEntry = (action: string, details?: any) => {
-    debugData.timeline.push({
-      timestamp: Date.now() - start,
-      action,
-      ...details,
-    });
-  };
+  const debug = createBriefDebugContext(session.user.id);
+  const debugData = debug.debugData;
+  const addTimelineEntry = debug.addTimelineEntry.bind(debug);
   addTimelineEntry("START", { details: "Evening brief generation initiated" });
 
   try {

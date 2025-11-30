@@ -12,8 +12,6 @@ Sections (in order):
 3) Action Items
    - Assign all items to the user.
    - Include due date if present; otherwise note "No due date".
-4) Notable Docs
-   - Title + link per doc.
 
 Output:
 - Be concise and use bullet points.

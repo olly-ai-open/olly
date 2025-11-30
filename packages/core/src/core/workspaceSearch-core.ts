@@ -53,31 +53,4 @@ export class WorkspaceSearchCore {
     const token = await this.getToken();
     return searchGmailMessagesWithToken(token, query, maxResults);
   }
-
-  async searchDriveRecent(
-    windowStart: Date,
-    windowEnd: Date,
-    pageSize = 25,
-  ) {
-    const token = await this.getToken();
-    return listDriveFilesUpdatedWithinWithToken(token, windowStart, windowEnd, {
-      pageSize,
-    });
-  }
-
-  async searchGmailRecent(
-    windowStart: Date,
-    windowEnd: Date,
-    pageSize = 25,
-  ) {
-    const token = await this.getToken();
-    return listGmailMessagesWithinWithToken(
-      token,
-      windowStart,
-      windowEnd,
-      {
-        maxResults: pageSize,
-      },
-    );
-  }
 }

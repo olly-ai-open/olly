@@ -570,13 +570,6 @@ Output format:
       "source": string | null,
       "assignee": string
     }
-  ],
-  "docs": [
-    {
-      "title": string,
-      "link": string | null,
-      "source": string | null
-    }
   ]
 }
 - No markdown fences. No commentary outside the JSON.`;

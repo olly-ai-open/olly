@@ -13,6 +13,8 @@ export * from "./core/settings-core";
 export * from "./core/eventFilters-core";
 export * from "./core/workspaceSearch-core";
 export * from "./core/endOfDayBriefs-core";
+export * from "./core/briefQueries-core";
+export * from "./core/briefDebug-core";
 export * from "./prompts/meetingBriefPrompt";
 export * from "./prompts/morningBriefPrompt";
 export * from "./prompts/endOfDayBriefPrompt";

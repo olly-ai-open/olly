@@ -9,7 +9,7 @@ import { getUserSearchStrategy, getUserSettings } from "@/lib/settings";
 import {
   generateMorningBrief,
   S3DebugStorage,
-  type DebugDataStructure,
+  createBriefDebugContext,
 } from "@olly/core";
 import {
   generateMeetingBriefForEvent,
@@ -32,58 +32,15 @@ function toDayInTimeZone(now: Date, timeZone: string): string {
 }
 
 export async function POST(req: Request) {
-  const startTime = Date.now();
-
   // NOTE: Ephemeral meeting-brief mode:
   // When true, we treat per-meeting briefs used during morning-brief generation
   // as ephemeral: generateMeetingBriefForEvent is called with persist=false so
   // no Meeting/Brief rows are created or updated.
   const USE_EPHEMERAL_MEETING_BRIEFS_FOR_MORNING = true;
 
-  const debugData: DebugDataStructure = {
-    version: "1.0",
-    summary: {
-      briefId: "",
-      userId: "",
-      timestamp: new Date().toISOString(),
-      totalDuration: 0,
-      apiCalls: 0,
-      success: false,
-    },
-    timeline: [],
-    searchResults: {
-      drive: {
-        queries: [],
-        totalFound: 0,
-        included: 0,
-        results: [],
-        errors: [],
-      },
-      gmail: {
-        queries: [],
-        totalFound: 0,
-        included: 0,
-        results: [],
-        errors: [],
-      },
-    },
-    llmContext: {
-      systemPrompt: "",
-      userPrompt: "",
-      model: "",
-      temperature: 0,
-      response: "",
-    },
-  };
-
-  const addTimelineEntry = (action: string, details?: any) => {
-    debugData.timeline.push({
-      timestamp: Date.now() - startTime,
-      action,
-      ...details,
-    });
-  };
-
+  const debug = createBriefDebugContext();
+  const debugData = debug.debugData;
+  const addTimelineEntry = debug.addTimelineEntry.bind(debug);
   addTimelineEntry("START", {
     details: "Morning brief generation initiated",
   });
@@ -314,9 +271,7 @@ export async function POST(req: Request) {
       },
     });
 
-    debugData.summary.briefId = saved.id;
-    debugData.summary.success = true;
-    debugData.summary.totalDuration = Date.now() - startTime;
+    debug.markSuccess(saved.id, userId);
     addTimelineEntry("MORNING_BRIEF_SAVED", { briefId: saved.id });
     addTimelineEntry("COMPLETE", {
       details: "Morning brief generation completed successfully",
@@ -325,12 +280,7 @@ export async function POST(req: Request) {
 
     if (S3DebugStorage.isEnabled()) {
       try {
-        const s3Storage = new S3DebugStorage();
-        const uploadResult = await s3Storage.uploadDebugData(
-          saved.id,
-          userId,
-          debugData,
-        );
+        const uploadResult = await debug.uploadIfEnabled(saved.id, userId);
 
         if (uploadResult.success && uploadResult.s3Key) {
           await prisma.brief.update({
@@ -338,13 +288,7 @@ export async function POST(req: Request) {
             data: {
               debugS3Key: uploadResult.s3Key,
               debugCapturedAt: new Date(),
-              debugMetadata: {
-                totalDuration: debugData.summary.totalDuration,
-                apiCalls: debugData.summary.apiCalls,
-                driveResults: debugData.searchResults.drive.totalFound,
-                gmailResults: debugData.searchResults.gmail.totalFound,
-                timelineEvents: debugData.timeline.length,
-              },
+              debugMetadata: debug.getMetadata(),
             },
           });
           console.log(`Debug data saved to S3 for morning brief ${saved.id}`);
@@ -364,9 +308,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error("Failed to generate morning brief:", error);
-    debugData.summary.success = false;
-    debugData.summary.error = error?.message || "unknown error";
-    debugData.summary.totalDuration = Date.now() - startTime;
+    debug.markError(error, { userId });
     addTimelineEntry("ERROR", {
       error: error?.message || "unknown error",
       stack: error?.stack,
@@ -374,11 +316,9 @@ export async function POST(req: Request) {
 
     if (S3DebugStorage.isEnabled() && debugData.summary.briefId) {
       try {
-        const s3Storage = new S3DebugStorage();
-        await s3Storage.uploadDebugData(
+        await debug.uploadIfEnabled(
           debugData.summary.briefId,
           debugData.summary.userId,
-          debugData,
         );
       } catch (s3Error) {
         console.error(

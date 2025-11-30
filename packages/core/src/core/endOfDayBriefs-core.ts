@@ -1,14 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { S3DebugStorage, type DebugDataStructure } from "../s3-debug";
-import {
-  listDriveFilesUpdatedWithinWithToken,
-  exportDriveFileAsTextWithToken,
-  listGmailMessagesWithinWithToken,
-  extractPlainTextFromGmailMessage,
-} from "../google-http";
-import { getAccessTokenFromAccountCore } from "./google-core";
 import { getUserSettingsCore } from "./settings-core";
 import { generateEndOfDaySummary } from "../llm";
+import { runWorkspaceQueryPlan } from "./briefQueries-core";
 
 type NormalizedDoc = {
   id: string;
@@ -49,8 +43,6 @@ function formatEndOfDayMarkdown(input: {
   docs: { title: string; link?: string | null; source?: string | null }[];
 }): string {
   const lines: string[] = [];
-  lines.push("# End of day summary");
-  lines.push("");
   lines.push("## Highlights & Decisions");
   if (input.highlights.length) lines.push(...input.highlights.map((h) => `- ${h}`));
   else lines.push("- None.");
@@ -72,18 +64,6 @@ function formatEndOfDayMarkdown(input: {
     lines.push("- None.");
   }
   lines.push("");
-  lines.push("## Notable Docs");
-  if (input.docs.length) {
-    lines.push(
-      ...input.docs.map((d) => {
-        const link = d.link ? ` (${d.link})` : "";
-        const source = d.source ? ` [${d.source}]` : "";
-        return `- ${d.title}${source}${link}`;
-      }),
-    );
-  } else {
-    lines.push("- None.");
-  }
   return lines.join("\n");
 }
 
@@ -96,15 +76,6 @@ function dedupeDocs(docs: NormalizedDoc[]): NormalizedDoc[] {
     if (!seen.has(key)) seen.set(key, d);
   }
   return Array.from(seen.values());
-}
-
-function getHeaderValue(headers: any[], name: string): string | null {
-  const h = headers.find(
-    (hh: any) => typeof hh?.name === "string" && hh.name.toLowerCase() === name,
-  );
-  return typeof h?.value === "string" && h.value.trim().length
-    ? h.value.trim()
-    : null;
 }
 
 export async function generateEndOfDayBriefForUserCore(
@@ -158,132 +129,60 @@ export async function generateEndOfDayBriefForUserCore(
     }
   }
 
-  const account = await prisma.account.findFirst({
-    where: { userId, provider: "google" },
-  });
-  if (!account) throw new Error("no_account");
-  const token = await getAccessTokenFromAccountCore(prisma, account);
+  const { drive, gmail } = await runWorkspaceQueryPlan(
+    prisma,
+    userId,
+    {
+      driveQueries: [],
+      gmailQueries: [],
+      windowStart,
+      windowEnd,
+      maxResults: 25,
+    },
+    { debugData, addTimelineEntry: addTimeline },
+  );
 
   const docs: NormalizedDoc[] = [];
-
-  // Drive
-  const driveQuery = `(modifiedTime > '${windowStart.toISOString()}') and (modifiedTime <= '${windowEnd.toISOString()}') and trashed = false`;
-  addTimeline("DRIVE_SEARCH_START", { query: driveQuery });
-  try {
-    const driveRes = await listDriveFilesUpdatedWithinWithToken(
-      token,
-      windowStart,
-      windowEnd,
-      { pageSize: 25, pageToken: null },
-    );
-    if (debugData?.summary) debugData.summary.apiCalls += 1;
-    if (debugData?.searchResults?.drive) {
-      debugData.searchResults.drive.queries.push(driveQuery);
-      debugData.searchResults.drive.totalFound += driveRes.files.length;
-    }
-
-    for (const f of driveRes.files.slice(0, 25)) {
-      let text = "";
-      try {
-        const exported = await exportDriveFileAsTextWithToken(token, f.id, f.mimeType);
-        if (debugData?.summary) debugData.summary.apiCalls += 1;
-        text = exported?.text || "";
-      } catch (err: any) {
-        addTimeline("DRIVE_EXPORT_ERROR", { id: f.id, error: err?.message || "error" });
-      }
-      if (!text.trim()) continue;
-      docs.push({
-        id: f.id as string,
-        title: (f.name as string) || "(untitled)",
-        source: "google_drive",
-        updatedAt: f.modifiedTime || windowEnd.toISOString(),
-        link: f.webViewLink || null,
-        docType: f.mimeType || null,
-        text: text.trim(),
-      });
-    }
-    if (debugData?.searchResults?.drive) {
-      debugData.searchResults.drive.results.push(
-        ...driveRes.files.slice(0, 5).map((f: any) => ({
-          id: f.id,
-          title: f.name,
-          link: f.webViewLink,
-          updatedAt: f.modifiedTime,
-        })),
-      );
-    }
-  } catch (err: any) {
-    addTimeline("DRIVE_SEARCH_ERROR", { error: err?.message || "error" });
-    if (debugData) {
-      debugData.searchResults.drive.errors =
-        debugData.searchResults.drive.errors || [];
-      debugData.searchResults.drive.errors.push(err?.message || "drive_error");
-    }
+  for (const f of drive as any[]) {
+    if (!f?.text?.trim()) continue;
+    docs.push({
+      id: f.id as string,
+      title: (f.name as string) || "(untitled)",
+      source: "google_drive",
+      updatedAt: f.modifiedTime || windowEnd.toISOString(),
+      link: (f as any).webViewLink || null,
+      docType: (f as any).mimeType || null,
+      text: (f.text as string).trim(),
+    });
   }
-  addTimeline("DRIVE_SEARCH_COMPLETE", { count: docs.filter((d) => d.source === "google_drive").length });
-
-  // Gmail
-  const gmailQuery = `after:${Math.floor(windowStart.getTime() / 1000)} before:${Math.floor(
-    windowEnd.getTime() / 1000,
-  )}`;
-  addTimeline("GMAIL_SEARCH_START", { query: gmailQuery });
-  try {
-    const gmailRes = await listGmailMessagesWithinWithToken(
-      token,
-      windowStart,
-      windowEnd,
-      { maxResults: 25, pageToken: null },
-    );
-    if (debugData?.summary) debugData.summary.apiCalls += 1;
-    if (debugData?.searchResults?.gmail) {
-      debugData.searchResults.gmail.queries.push(gmailQuery);
-      debugData.searchResults.gmail.totalFound += gmailRes.messages.length;
-    }
-
-    for (const m of gmailRes.messages.slice(0, 25)) {
-      const text = extractPlainTextFromGmailMessage(m);
-      if (!text.trim()) continue;
-      const headers = Array.isArray(m.payload?.headers) ? m.payload.headers : [];
-      const subject = getHeaderValue(headers, "subject") || m.snippet || "(no subject)";
-      const from = getHeaderValue(headers, "from") || "(unknown sender)";
-      const to = getHeaderValue(headers, "to") || "(unknown recipients)";
-      const headerBlock = `From: ${from}\nTo: ${to}\n\n`;
-      docs.push({
-        id: m.id as string,
-        title: subject,
-        source: "gmail",
-        updatedAt: m.internalDate
-          ? new Date(Number(m.internalDate)).toISOString()
-          : windowEnd.toISOString(),
-        link: `https://mail.google.com/mail/u/0/#inbox/${m.id}`,
-        docType: "email",
-        text: `${headerBlock}${text.trim()}`,
-      });
-    }
-    if (debugData?.searchResults?.gmail) {
-      debugData.searchResults.gmail.results.push(
-        ...gmailRes.messages.slice(0, 5).map((m: any) => ({
-          id: m.id,
-          title:
-            (m.payload?.headers || []).find(
-              (h: any) => h.name?.toLowerCase() === "subject",
-            )?.value || m.snippet || "(no subject)",
-          updatedAt: m.internalDate
-            ? new Date(Number(m.internalDate)).toISOString()
-            : windowEnd.toISOString(),
-          link: `https://mail.google.com/mail/u/0/#inbox/${m.id}`,
-        })),
-      );
-    }
-  } catch (err: any) {
-    addTimeline("GMAIL_SEARCH_ERROR", { error: err?.message || "error" });
-    if (debugData) {
-      debugData.searchResults.gmail.errors =
-        debugData.searchResults.gmail.errors || [];
-      debugData.searchResults.gmail.errors.push(err?.message || "gmail_error");
-    }
+  for (const m of gmail as any[]) {
+    if (!m?.text?.trim()) continue;
+    const headers = Array.isArray(m.payload?.headers) ? m.payload.headers : [];
+    const subject =
+      headers.find(
+        (h: any) => h.name?.toLowerCase() === "subject",
+      )?.value ||
+      m.snippet ||
+      "(no subject)";
+    const from =
+      headers.find((h: any) => h.name?.toLowerCase() === "from")?.value ||
+      "(unknown sender)";
+    const to =
+      headers.find((h: any) => h.name?.toLowerCase() === "to")?.value ||
+      "(unknown recipients)";
+    const headerBlock = `From: ${from}\nTo: ${to}\n\n`;
+    docs.push({
+      id: m.id as string,
+      title: subject,
+      source: "gmail",
+      updatedAt: m.internalDate
+        ? new Date(Number(m.internalDate)).toISOString()
+        : windowEnd.toISOString(),
+      link: `https://mail.google.com/mail/u/0/#inbox/${m.id}`,
+      docType: "email",
+      text: `${headerBlock}${(m.text as string).trim()}`,
+    });
   }
-  addTimeline("GMAIL_SEARCH_COMPLETE", { count: docs.filter((d) => d.source === "gmail").length });
 
   const deduped = dedupeDocs(docs);
   addTimeline("DOCS_DEDUPED", { count: deduped.length });

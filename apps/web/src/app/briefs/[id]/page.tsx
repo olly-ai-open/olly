@@ -170,38 +170,59 @@ export default async function BriefDetail({
 
         {/* Relevant Documents */}
         {sources?.length ? (
-          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <div className="mb-3 text-lg font-semibold">Relevant Documents</div>
-            <ul className="space-y-2">
-              {sources.slice(0, 10).map((s, i) => {
-                const p = parseSource(s);
-                return (
-                  <li
-                    key={i}
-                    className="flex items-center justify-between rounded-md bg-muted px-3 py-2"
-                  >
-                    <div>
-                      <div className="font-medium">{p.title}</div>
-                      {p.provider && (
-                        <div className="text-xs text-muted-foreground">
-                          {p.provider}
-                        </div>
+          <details
+            className="group rounded-lg border border-border bg-card shadow-sm"
+            defaultValue={undefined}
+          >
+            <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold">
+                  Relevant Documents
+                </span>
+                <span
+                  className="text-muted-foreground transition-transform duration-150 group-open:rotate-90"
+                  aria-hidden
+                >
+                  ▸
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {sources.length} item{sources.length === 1 ? "" : "s"}
+              </span>
+            </summary>
+            <div className="border-t border-border px-4 py-4">
+              <ul className="space-y-2">
+                {sources.slice(0, 10).map((s, i) => {
+                  const p = parseSource(s);
+                  return (
+                    <li
+                      key={i}
+                      className="flex items-center justify-between rounded-md bg-muted px-3 py-2"
+                    >
+                      <div>
+                        <div className="font-medium">{p.title}</div>
+                        {p.provider && (
+                          <div className="text-xs text-muted-foreground capitalize">
+                            {p.provider}
+                          </div>
+                        )}
+                      </div>
+                      {p.url && (
+                        <a
+                          className="rounded-md border border-border px-3 py-1 text-sm hover:bg-border/30"
+                          href={p.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open
+                        </a>
                       )}
-                    </div>
-                    {p.url && (
-                      <a
-                        className="rounded-md border border-border px-3 py-1 text-sm hover:bg-border/30"
-                        href={p.url}
-                        target="_blank"
-                      >
-                        Open
-                      </a>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </details>
         ) : null}
 
         {/* Morning Priorities / Action Items */}

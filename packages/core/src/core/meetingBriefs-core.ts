@@ -1,14 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
-import {
-  getEventDetailsWithToken,
-  getDriveFilesByIdsWithToken,
-} from "../google-http";
-import { WorkspaceSearchCore } from "./workspaceSearch-core";
+import { getEventDetailsWithToken } from "../google-http";
 import {
   buildDriveHeuristicQueries,
   buildGmailHeuristicQueries,
 } from "../searchHeuristics";
 import { generateBriefFromContext, type BriefJSON } from "../llm";
+import { runWorkspaceQueryPlan } from "./briefQueries-core";
 import { upsertMeetingFromEventCore } from "./meetings-core";
 import {
   upsertPersonsForEmailsCore,
@@ -22,6 +19,15 @@ import {
 } from "./settings-core";
 import { getAccessTokenFromAccountCore } from "./google-core";
 import type { DebugDataStructure } from "../s3-debug";
+
+function getHeaderValue(headers: any[], name: string): string | null {
+  const h = headers.find(
+    (hh: any) => typeof hh?.name === "string" && hh.name.toLowerCase() === name,
+  );
+  return typeof h?.value === "string" && h.value.trim().length
+    ? h.value.trim()
+    : null;
+}
 
 export type MeetingBriefSearchStrategy =
   | "LLM_ONLY"
@@ -86,8 +92,6 @@ export async function generateMeetingBriefForEventCore(
   const event = await getEventDetailsWithToken(token, eventId);
   addTimeline("EVENT_LOAD_COMPLETE", { eventId });
 
-  const workspaceSearch = new WorkspaceSearchCore(prisma, userId);
-
   const titleQ = event.title?.split(/\s+/).slice(0, 10).join(" ") || "";
 
   const attendees = ((event.attendees || []) as { email?: string | null }[])
@@ -114,31 +118,9 @@ export async function generateMeetingBriefForEventCore(
   const effectiveAttendees =
     attendees.length > 0 ? attendees : inferredAttendees;
 
-  const rawAttachments = ((event as any)?.raw?.attachments || []) as any[];
-  const driveAttachmentIds = rawAttachments
-    .map((a: any) => a.fileId)
-    .filter(Boolean) as string[];
-  let driveAttachments: any[] = [];
-  if (driveAttachmentIds.length) {
-    addTimeline("CALENDAR_ATTACHMENTS_FETCH_START", {
-      count: driveAttachmentIds.length,
-    });
-    driveAttachments = await getDriveFilesByIdsWithToken(
-      token,
-      driveAttachmentIds,
-    );
-    if (driveAttachments.length) {
-      addTimeline("CALENDAR_ATTACHMENTS_FETCH_COMPLETE", {
-        count: driveAttachments.length,
-        fileIds: driveAttachments.map((f: any) => f.id),
-      });
-    }
-  }
-
   const driveQueries: string[] = [];
   const gmailQueries: string[] = [];
 
-  const driveTimeframeDays = searchTimeframeDays;
   const gmailTimeframeDays = searchTimeframeDays;
 
   const driveHeuristicQueries = buildDriveHeuristicQueries(titleQ);
@@ -155,82 +137,24 @@ export async function generateMeetingBriefForEventCore(
   gmailQueries.push(...heuristicQueries);
 
   const drive: any[] = [];
-  for (const query of driveQueries) {
-    const driveStartTime = Date.now();
-    try {
-      const { files } = await workspaceSearch.searchDrive(query);
-      addTimeline("DRIVE_SEARCH", {
-        query,
-        resultCount: files.length,
-        duration: Date.now() - driveStartTime,
-      });
-      if (debugData) {
-        debugData.summary.apiCalls += 1;
-      }
-      if (debugData) {
-        debugData.searchResults.drive.queries.push(query);
-        debugData.searchResults.drive.totalFound += files.length;
-        debugData.searchResults.drive.results.push(
-          ...files.slice(0, 5),
-        );
-      }
-      drive.push(...files);
-    } catch (err: any) {
-      addTimeline("DRIVE_SEARCH_ERROR", {
-        query,
-        error: err?.message,
-        duration: Date.now() - driveStartTime,
-      });
-      if (debugData) {
-        debugData.summary.apiCalls += 1;
-      }
-      if (debugData) {
-        if (!debugData.searchResults.drive.errors) {
-          debugData.searchResults.drive.errors = [];
-        }
-        debugData.searchResults.drive.errors.push(err?.message || "error");
-      }
-    }
-  }
-
-  let allGmail: any[] = [];
-  for (const query of gmailQueries) {
-    const gmailStartTime = Date.now();
-    try {
-      const gmail = await workspaceSearch.searchGmail(query);
-      addTimeline("GMAIL_SEARCH", {
-        query,
-        resultCount: gmail.length,
-        duration: Date.now() - gmailStartTime,
-      });
-      if (debugData) {
-        debugData.summary.apiCalls += 1;
-      }
-      if (debugData) {
-        debugData.searchResults.gmail.queries.push(query);
-        debugData.searchResults.gmail.totalFound += gmail.length;
-        debugData.searchResults.gmail.results.push(
-          ...gmail.slice(0, 5),
-        );
-      }
-      allGmail = allGmail.concat(gmail);
-    } catch (err: any) {
-      addTimeline("GMAIL_SEARCH_ERROR", {
-        query,
-        error: err?.message,
-        duration: Date.now() - gmailStartTime,
-      });
-      if (debugData) {
-        debugData.summary.apiCalls += 1;
-      }
-      if (debugData) {
-        if (!debugData.searchResults.gmail.errors) {
-          debugData.searchResults.gmail.errors = [];
-        }
-        debugData.searchResults.gmail.errors.push(err?.message || "error");
-      }
-    }
-  }
+  const { drive: driveRes, gmail: gmailRes } = await runWorkspaceQueryPlan(
+    prisma,
+    userId,
+    { driveQueries, gmailQueries },
+    { debugData, addTimelineEntry: addTimeline },
+  );
+  drive.push(...driveRes);
+  const allGmail = gmailRes.map((m: any) => {
+    const headers = Array.isArray(m.payload?.headers) ? m.payload.headers : [];
+    return {
+      ...m,
+      subject: getHeaderValue(headers, "subject") || m.snippet || "(no subject)",
+      from: getHeaderValue(headers, "from") || "",
+      to: getHeaderValue(headers, "to") || "",
+      snippet: m.snippet || "",
+      body: m.text || "",
+    };
+  });
 
   addTimeline("LLM_GENERATION_START", {
     eventId,

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { S3DebugStorage, type DebugDataStructure } from "@olly/core";
+import { S3DebugStorage, createBriefDebugContext } from "@olly/core";
 import { getUserSearchStrategy, getUserSettings } from "@/lib/settings";
 import {
   generateMeetingBriefForEvent,
@@ -10,53 +10,9 @@ import {
 } from "@/lib/meetingBriefs";
 
 export async function POST(req: Request) {
-  const startTime = Date.now();
-
-  // Initialize debug data structure
-  const debugData: DebugDataStructure = {
-    version: "1.0",
-    summary: {
-      briefId: "",
-      userId: "",
-      timestamp: new Date().toISOString(),
-      totalDuration: 0,
-      apiCalls: 0,
-      success: false,
-    },
-    timeline: [],
-    searchResults: {
-      drive: {
-        queries: [],
-        totalFound: 0,
-        included: 0,
-        results: [],
-        errors: [],
-      },
-      gmail: {
-        queries: [],
-        totalFound: 0,
-        included: 0,
-        results: [],
-        errors: [],
-      },
-    },
-    llmContext: {
-      systemPrompt: "",
-      userPrompt: "",
-      model: "",
-      temperature: 0,
-      response: "",
-    },
-  };
-
-  const addTimelineEntry = (action: string, details?: any) => {
-    debugData.timeline.push({
-      timestamp: Date.now() - startTime,
-      action,
-      ...details,
-    });
-  };
-
+  const debug = createBriefDebugContext();
+  const debugData = debug.debugData;
+  const addTimelineEntry = debug.addTimelineEntry.bind(debug);
   addTimelineEntry("START", { details: "Brief generation initiated" });
 
   const session = await auth();
@@ -145,7 +101,7 @@ export async function POST(req: Request) {
       throw new Error("brief_not_persisted");
     }
 
-    debugData.summary.briefId = briefId;
+    debug.markSuccess(briefId, session.user.id);
     addTimelineEntry("BRIEF_SAVED", { briefId });
 
     const saved = await prisma.brief.findUnique({
@@ -156,8 +112,6 @@ export async function POST(req: Request) {
     }
 
     // Mark success and calculate final duration
-    debugData.summary.success = true;
-    debugData.summary.totalDuration = Date.now() - startTime;
     addTimelineEntry("COMPLETE", {
       details: "Brief generation completed successfully",
       totalDuration: debugData.summary.totalDuration,
@@ -166,34 +120,24 @@ export async function POST(req: Request) {
     // Upload debug data to S3 if enabled
     if (S3DebugStorage.isEnabled()) {
       try {
-        const s3Storage = new S3DebugStorage();
-        const uploadResult = await s3Storage.uploadDebugData(
+        const uploadResult = await debug.uploadIfEnabled(
           saved.id,
           session.user.id,
-          debugData,
         );
 
         if (uploadResult.success && uploadResult.s3Key) {
-          // Update brief with debug metadata
           await prisma.brief.update({
             where: { id: saved.id },
             data: {
               debugS3Key: uploadResult.s3Key,
               debugCapturedAt: new Date(),
-              debugMetadata: {
-                totalDuration: debugData.summary.totalDuration,
-                apiCalls: debugData.summary.apiCalls,
-                driveResults: debugData.searchResults.drive.totalFound,
-                gmailResults: debugData.searchResults.gmail.totalFound,
-                timelineEvents: debugData.timeline.length,
-              },
+              debugMetadata: debug.getMetadata(),
             },
           });
           console.log(`Debug data saved to S3 for brief ${saved.id}`);
         }
       } catch (s3Error) {
         console.error("Failed to save debug data to S3:", s3Error);
-        // Don't fail the request if debug upload fails
       }
     }
 
@@ -210,23 +154,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, brief: saved });
   } catch (err: any) {
     // Capture error in debug data
-    debugData.summary.success = false;
-    debugData.summary.error = err?.message || "unknown error";
-    debugData.summary.totalDuration = Date.now() - startTime;
+    debug.markError(err, { userId: session.user.id });
     addTimelineEntry("ERROR", {
       error: err?.message || "unknown error",
       stack: err?.stack,
     });
 
-    // Try to save debug data even on error (if we have a briefId)
     if (S3DebugStorage.isEnabled() && debugData.summary.briefId) {
       try {
-        const s3Storage = new S3DebugStorage();
-        await s3Storage.uploadDebugData(
-          debugData.summary.briefId,
-          session.user.id,
-          debugData,
-        );
+        await debug.uploadIfEnabled(debugData.summary.briefId, session.user.id);
       } catch (s3Error) {
         console.error("Failed to save error debug data to S3:", s3Error);
       }

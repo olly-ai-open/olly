@@ -296,7 +296,7 @@ export default function DebugDataViewer({
                     <div key={idx} className="border rounded p-3">
                       <div className="flex items-start justify-between">
                         <div className="font-medium text-sm">
-                          {result.subject || "No Subject"}
+                          {result.title || "No Subject"}
                         </div>
                         {result.isThreadRepresentative &&
                           result.threadMessageCount > 1 && (
