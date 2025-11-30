@@ -3,16 +3,19 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import NavLinkActive from "@/components/nav-link-active";
-
 interface MobileNavProps {
   connected: {
     gmail: boolean;
     calendar: boolean;
     drive: boolean;
   };
+  isAdmin?: boolean;
 }
 
-export default function MobileNav({ connected }: MobileNavProps) {
+export default function MobileNav({
+  connected,
+  isAdmin = false,
+}: MobileNavProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const previousPathname = useRef(pathname);
@@ -88,9 +91,7 @@ export default function MobileNav({ connected }: MobileNavProps) {
           <div className="fixed top-0 left-0 right-0 bg-background border-b border-border z-50 md:hidden shadow-lg">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className="font-semibold text-lg text-primary">
-                Navigation
-              </div>
+              <div className="font-semibold text-lg text-primary">Olly</div>
               <button
                 onClick={() => setIsOpen(false)}
                 className="p-2 hover:bg-border/40 rounded-md transition-colors"
@@ -117,25 +118,25 @@ export default function MobileNav({ connected }: MobileNavProps) {
               {/* Navigation Links */}
               <div className="space-y-1">
                 <NavLinkActive href="/" className={itemCls}>
-                  <span className="text-lg">🏠</span>
                   <span>Dashboard</span>
                 </NavLinkActive>
                 <NavLinkActive className={itemCls} href="/people">
-                  <span className="text-lg">👥</span>
                   <span>People</span>
                 </NavLinkActive>
                 <NavLinkActive className={itemCls} href="/action-items">
-                  <span className="text-lg">✅</span>
                   <span>Action Items</span>
                 </NavLinkActive>
                 <NavLinkActive href="/integrations" className={itemCls}>
-                  <span className="text-lg">🔗</span>
                   <span>Integrations</span>
                 </NavLinkActive>
                 <NavLinkActive href="/settings" className={itemCls}>
-                  <span className="text-lg">⚙️</span>
                   <span>Settings</span>
                 </NavLinkActive>
+                {isAdmin && (
+                  <NavLinkActive href="/admin" className={itemCls}>
+                    <span>Admin</span>
+                  </NavLinkActive>
+                )}
               </div>
 
               {/* Connection Status */}

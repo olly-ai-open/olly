@@ -48,28 +48,22 @@ export default async function Sidebar() {
       <div className="sticky top-6 space-y-4">
         <nav className="rounded-lg border border-border bg-card p-2 shadow-sm">
           <NavLinkActive href="/" className={itemCls}>
-            <span>🏠</span>
             <span>Dashboard</span>
           </NavLinkActive>
           <NavLinkActive className={itemCls} href="/people">
-            <span>👥</span>
             <span>People</span>
           </NavLinkActive>
           <NavLinkActive className={itemCls} href="/action-items">
-            <span>✅</span>
             <span>Action Items</span>
           </NavLinkActive>
           <NavLinkActive href="/integrations" className={itemCls}>
-            <span>🔗</span>
             <span>Integrations</span>
           </NavLinkActive>
           <NavLinkActive href="/settings" className={itemCls}>
-            <span>⚙️</span>
             <span>Settings</span>
           </NavLinkActive>
           {isAdmin && (
             <NavLinkActive href="/admin" className={itemCls}>
-              <span>🛠</span>
               <span>Admin</span>
             </NavLinkActive>
           )}

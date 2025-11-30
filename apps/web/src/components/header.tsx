@@ -18,6 +18,7 @@ export default async function Header() {
     calendar: false,
     drive: false,
   };
+  let isAdmin = false;
 
   if (userId) {
     try {
@@ -30,6 +31,11 @@ export default async function Header() {
         calendar: scope.includes("calendar"),
         drive: scope.includes("drive"),
       };
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { isAdmin: true },
+      });
+      isAdmin = !!user?.isAdmin;
     } catch {
       // DB unavailable — keep defaults
       connected = { gmail: false, calendar: false, drive: false };
@@ -49,7 +55,7 @@ export default async function Header() {
             <NavAuth />
           </Suspense>
           {/* Mobile Navigation - only show if user is logged in */}
-          {userId && <MobileNav connected={connected} />}
+          {userId && <MobileNav connected={connected} isAdmin={isAdmin} />}
         </div>
       </div>
     </header>
