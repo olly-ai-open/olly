@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/sidebar";
 import SettingsForm from "@/components/settings-form";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Olly - Settings",
+  description: "Settings",
+};
 
 export default async function SettingsPage() {
   const session = await auth();

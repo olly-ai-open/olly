@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Sidebar from "@/components/sidebar";
@@ -7,6 +8,11 @@ import ClientDateTime from "@/components/client-date-time";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+export const metadata: Metadata = {
+  title: "Olly - People",
+  description: "People",
+};
 
 export default async function PeoplePage({
   searchParams,

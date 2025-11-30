@@ -1,7 +1,13 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 import HomeGate from "@/components/home-gate";
+
+export const metadata: Metadata = {
+  title: "Olly - Dashboard",
+  description: "Dashboard",
+};
 
 export default async function Home({
   searchParams,

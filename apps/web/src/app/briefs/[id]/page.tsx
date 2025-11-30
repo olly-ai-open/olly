@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import BriefActions from "@/components/brief-actions";
@@ -9,6 +10,11 @@ import { getUserSettings } from "@/lib/settings";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+export const metadata: Metadata = {
+  title: "Olly - Brief",
+  description: "Brief",
+};
 
 export default async function BriefDetail({
   params,
