@@ -36,22 +36,12 @@ export type WorkspaceQueryResults = {
   gmail: any[];
 };
 
-/**
- * Execute a query plan across Drive and Gmail using WorkspaceSearchCore so all
- * briefs share the same search + debug wiring.
- */
 export async function runWorkspaceQueryPlan(
   prisma: PrismaClient,
   userId: string,
   plan: WorkspaceQueryPlan,
   debug?: DebugCtx,
 ): Promise<WorkspaceQueryResults> {
-  // Behavior note:
-  // - windowStart/windowEnd present: fetch recent items and include full text
-  //   (used for end-of-day summaries).
-  // - queries present: run heuristic/LLM queries and also hydrate full text
-  //   (used for meeting briefs and morning goal extraction). We still search
-  //   via snippets APIs but follow with content fetches.
   const workspaceSearch = new WorkspaceSearchCore(prisma, userId);
   const addTimeline = debug?.addTimelineEntry ?? (() => {});
   const debugData = debug?.debugData ?? null;
