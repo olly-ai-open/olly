@@ -293,3 +293,134 @@ export async function searchGmailMessagesWithToken(
 
   return messages;
 }
+
+export async function listGmailMessagesWithinWithToken(
+  token: string,
+  windowStart: Date,
+  windowEnd: Date,
+  opts?: { maxResults?: number; pageToken?: string | null },
+) {
+  const base = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
+  const q = `after:${Math.floor(windowStart.getTime() / 1000)} before:${Math.floor(
+    windowEnd.getTime() / 1000,
+  )}`;
+  const url = new URL(base);
+  url.searchParams.set("q", q);
+  url.searchParams.set("maxResults", String(opts?.maxResults ?? 25));
+  if (opts?.pageToken) url.searchParams.set("pageToken", opts.pageToken);
+
+  const listResp = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!listResp.ok) throw new Error(`gmail_list_failed: ${listResp.status}`);
+  const list: any = await listResp.json();
+  const ids: string[] = (list.messages || []).map((m: any) => m.id);
+
+  const messages: any[] = [];
+  for (const id of ids) {
+    const mr = await fetch(`${base}/${id}?format=full`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!mr.ok) continue;
+    const md = await mr.json();
+    messages.push(md);
+  }
+
+  return {
+    messages,
+    nextPageToken: (list.nextPageToken as string | undefined) ?? null,
+    query: q,
+  };
+}
+
+export function extractPlainTextFromGmailMessage(message: any): string {
+  if (!message) return "";
+  const payload = message.payload || {};
+
+  const walkParts = (part: any): string[] => {
+    if (!part) return [];
+    const mimeType = part.mimeType || "";
+    if (mimeType === "text/plain" && part.body?.data) {
+      try {
+        const decoded = Buffer.from(part.body.data, "base64").toString("utf8");
+        return [decoded];
+      } catch {
+        return [];
+      }
+    }
+    const parts = Array.isArray(part.parts) ? part.parts : [];
+    return parts.flatMap((p: any) => walkParts(p));
+  };
+
+  const texts = walkParts(payload);
+  if (texts.length) return texts.join("\n\n").trim();
+  return message.snippet || "";
+}
+
+export async function getGmailMessageByIdWithToken(
+  token: string,
+  id: string,
+) {
+  const base = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
+  const resp = await fetch(`${base}/${encodeURIComponent(id)}?format=full`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok) throw new Error(`gmail_get_failed: ${resp.status}`);
+  return resp.json();
+}
+
+export async function listDriveFilesUpdatedWithinWithToken(
+  token: string,
+  windowStart: Date,
+  windowEnd: Date,
+  opts?: { pageSize?: number; pageToken?: string | null },
+) {
+  const url = new URL("https://www.googleapis.com/drive/v3/files");
+  const clauses = [
+    "trashed = false",
+    `modifiedTime > '${windowStart.toISOString()}'`,
+    `modifiedTime <= '${windowEnd.toISOString()}'`,
+  ];
+  url.searchParams.set("q", clauses.join(" and "));
+  url.searchParams.set(
+    "fields",
+    "nextPageToken,files(id,name,mimeType,webViewLink,modifiedTime,createdTime,owners/displayName)",
+  );
+  if (opts?.pageSize) url.searchParams.set("pageSize", String(opts.pageSize));
+  if (opts?.pageToken) url.searchParams.set("pageToken", opts.pageToken);
+  url.searchParams.set("orderBy", "modifiedTime desc");
+
+  const resp = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok) throw new Error(`drive_list_failed: ${resp.status}`);
+  const data: any = await resp.json();
+  return {
+    files: (data.files as any[]) || [],
+    nextPageToken: (data.nextPageToken as string | undefined) ?? null,
+  };
+}
+
+export async function exportDriveFileAsTextWithToken(
+  token: string,
+  fileId: string,
+  mimeTypeHint?: string | null,
+) {
+  const isGoogleDoc =
+    mimeTypeHint && mimeTypeHint.startsWith("application/vnd.google-apps.");
+  const base = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`;
+  const url = isGoogleDoc
+    ? `${base}/export?mimeType=text/plain`
+    : `${base}?alt=media`;
+
+  const resp = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok) return null;
+
+  const text = await resp.text();
+  const mimeType =
+    resp.headers.get("content-type") || mimeTypeHint || "text/plain";
+
+  return { text, mimeType };
+}

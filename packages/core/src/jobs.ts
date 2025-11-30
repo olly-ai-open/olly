@@ -8,6 +8,7 @@ import {
 import { getAccessTokenFromAccountCore } from "./core/google-core";
 import { listEventsByDayWithToken, listEventsInRangeWithToken } from "./google-http";
 import { generateMorningBrief } from "./llm";
+import { generateEndOfDayBriefForUserCore } from "./core/endOfDayBriefs-core";
 import { getPrisma } from "./prisma-lambda";
 import { S3DebugStorage, type DebugDataStructure } from "./s3-debug";
 import {
@@ -188,8 +189,36 @@ async function dispatchJob(
       return;
     }
     case "EVENING_BRIEF": {
-      // Placeholder for future implementation.
-      // For now, mark as no-op.
+      if (!job.userId) {
+        throw new Error("missing_userId_for_evening_brief");
+      }
+      const briefTimeInput = payload.briefTime as string | undefined;
+      const briefTime = briefTimeInput ? new Date(briefTimeInput) : new Date();
+      const windowHours =
+        typeof payload.windowHours === "number"
+          ? payload.windowHours
+          : 24;
+
+      const start = Date.now();
+      const result = await generateEndOfDayBriefForUserCore(prisma, job.userId, {
+        briefTime: Number.isNaN(briefTime.getTime())
+          ? new Date()
+          : briefTime,
+        windowHours,
+        debug: debugCtx ?? undefined,
+      });
+
+      if (debugCtx && result.briefId) {
+        debugCtx.debugData.summary.briefId = result.briefId;
+        debugCtx.debugData.summary.userId = job.userId;
+        markDebugSuccess(debugCtx.debugData, result.briefId, start);
+        await uploadDebugData(
+          prisma,
+          result.briefId,
+          job.userId,
+          debugCtx.debugData,
+        );
+      }
       return;
     }
     case "CALENDAR_SYNC": {

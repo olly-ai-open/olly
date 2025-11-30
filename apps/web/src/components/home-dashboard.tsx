@@ -13,6 +13,7 @@ import GenerateBriefButton from "@/components/generate-brief-button";
 import ClientDateTime from "@/components/client-date-time";
 import { getUserSettings } from "@/lib/settings";
 import GenerateMorningBriefButton from "@/components/generate-morning-brief-button";
+import GenerateEveningBriefButton from "@/components/generate-evening-brief-button";
 
 function formatMinutesHuman(mins: number) {
   if (!mins || mins < 0) return "0m";
@@ -139,6 +140,19 @@ export default async function HomeDashboard({ day }: { day?: string }) {
       : null;
   const morningBriefId = (morningMeeting as any)?.briefs?.[0]?.id ?? null;
 
+  const eveningExternalId = `evening:${targetDay}`;
+  const eveningMeeting =
+    userId && googleHealth?.hasAdvancedScopes
+      ? await prisma.meeting.findFirst({
+          where: { userId, externalId: eveningExternalId },
+          include: {
+            briefs: { orderBy: { generatedAt: "desc" }, take: 1 },
+          },
+        })
+      : null;
+  const eveningBriefId = (eveningMeeting as any)?.briefs?.[0]?.id ?? null;
+  const eveningBriefTimeIso = `${targetDay}T23:59:59Z`;
+
   return (
     <div className="mt-2 flex gap-6">
       {/* Center column */}
@@ -198,10 +212,17 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           </div>
           <div>
             {userId && (
-              <GenerateMorningBriefButton
-                day={targetDay}
-                existingBriefId={morningBriefId}
-              />
+              <div className="flex items-center gap-2">
+                <GenerateMorningBriefButton
+                  day={targetDay}
+                  existingBriefId={morningBriefId}
+                />
+                <GenerateEveningBriefButton
+                  existingBriefId={eveningBriefId}
+                  briefTime={eveningBriefTimeIso}
+                  windowHours={24}
+                />
+              </div>
             )}
           </div>
         </div>

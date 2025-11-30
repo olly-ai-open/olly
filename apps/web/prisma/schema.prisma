@@ -291,6 +291,7 @@ model UserSettings {
   briefSystemPrompt   String? @db.Text // Optional override for brief generation system prompt
   queryPlannerSystemPrompt String? @db.Text // Optional override for query planner system prompt
   morningBriefSystemPrompt String? @db.Text // Optional override for morning brief generation prompt
+  endOfDayBriefSystemPrompt String? @db.Text // Optional override for end-of-day brief generation prompt
   timeZone            String? // Optional IANA timezone identifier (e.g. America/Los_Angeles)
   
   // Notification preferences

@@ -23,9 +23,10 @@ export async function GET() {
           searchStrategy: null,
           briefSystemPrompt: null,
           queryPlannerSystemPrompt: null,
+          endOfDayBriefSystemPrompt: null,
           emailNotifications: true,
           ignoredEventPatterns: [],
-        },
+        } as any,
       });
     }
 
@@ -56,6 +57,7 @@ export async function PUT(req: Request) {
       briefSystemPrompt,
       queryPlannerSystemPrompt,
       morningBriefSystemPrompt,
+      endOfDayBriefSystemPrompt,
       timeZone,
     } = body;
 
@@ -88,6 +90,7 @@ export async function PUT(req: Request) {
     let nextBriefSystemPrompt: string | null | undefined;
     let nextQueryPlannerSystemPrompt: string | null | undefined;
     let nextMorningBriefSystemPrompt: string | null | undefined;
+    let nextEndOfDayBriefSystemPrompt: string | null | undefined;
     let nextIgnoredEventPatterns: any[] | undefined;
     let adminUser: { isAdmin: boolean } | null = null;
 
@@ -126,7 +129,8 @@ export async function PUT(req: Request) {
     if (
       briefSystemPrompt !== undefined ||
       queryPlannerSystemPrompt !== undefined ||
-      morningBriefSystemPrompt !== undefined
+      morningBriefSystemPrompt !== undefined ||
+      endOfDayBriefSystemPrompt !== undefined
     ) {
       if (!(await ensureAdmin(userId))) {
         return NextResponse.json(
@@ -153,6 +157,13 @@ export async function PUT(req: Request) {
             ? morningBriefSystemPrompt.trim()
             : "";
         nextMorningBriefSystemPrompt = v.length ? v : null;
+      }
+      if (endOfDayBriefSystemPrompt !== undefined) {
+        const v =
+          typeof endOfDayBriefSystemPrompt === "string"
+            ? endOfDayBriefSystemPrompt.trim()
+            : "";
+        nextEndOfDayBriefSystemPrompt = v.length ? v : null;
       }
     }
 
@@ -212,6 +223,9 @@ export async function PUT(req: Request) {
         ...(nextMorningBriefSystemPrompt !== undefined && {
           morningBriefSystemPrompt: nextMorningBriefSystemPrompt,
         }),
+        ...(nextEndOfDayBriefSystemPrompt !== undefined && {
+          endOfDayBriefSystemPrompt: nextEndOfDayBriefSystemPrompt,
+        }),
         ...(timeZone !== undefined && {
           timeZone: timeZone === null ? null : timeZone.trim() || null,
         }),
@@ -226,13 +240,14 @@ export async function PUT(req: Request) {
         briefSystemPrompt: nextBriefSystemPrompt ?? null,
         queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt ?? null,
         morningBriefSystemPrompt: nextMorningBriefSystemPrompt ?? null,
+        endOfDayBriefSystemPrompt: nextEndOfDayBriefSystemPrompt ?? null,
         timeZone:
           timeZone === undefined || timeZone === null
             ? null
             : timeZone.trim() || null,
         emailNotifications: emailNotifications ?? true,
         ignoredEventPatterns: nextIgnoredEventPatterns ?? [],
-      },
+      } as any,
     });
 
     return NextResponse.json(settings);

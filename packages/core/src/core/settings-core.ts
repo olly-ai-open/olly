@@ -22,6 +22,7 @@ export async function getUserSettingsCore(
         briefSystemPrompt: null,
         queryPlannerSystemPrompt: null,
         morningBriefSystemPrompt: null,
+        endOfDayBriefSystemPrompt: null,
         timeZone: null,
         emailNotifications: true,
         ignoredEventPatterns: [],

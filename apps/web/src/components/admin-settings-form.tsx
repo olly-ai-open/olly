@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MEETING_BRIEF_PROMPT } from "@olly/core/prompts/meetingBriefPrompt";
 import { MORNING_BRIEF_PROMPT } from "@olly/core/prompts/morningBriefPrompt";
+import { END_OF_DAY_BRIEF_PROMPT } from "@olly/core/prompts/endOfDayBriefPrompt";
 import { QUERY_PLANNER_PROMPT } from "@olly/core/prompts/queryPlannerPrompt";
 
 interface AdminUserSettings {
@@ -12,6 +13,7 @@ interface AdminUserSettings {
   briefSystemPrompt?: string | null;
   queryPlannerSystemPrompt?: string | null;
   morningBriefSystemPrompt?: string | null;
+  endOfDayBriefSystemPrompt?: string | null;
 }
 
 export default function AdminSettingsForm() {
@@ -33,6 +35,7 @@ export default function AdminSettingsForm() {
             briefSystemPrompt: data.briefSystemPrompt,
             queryPlannerSystemPrompt: data.queryPlannerSystemPrompt,
             morningBriefSystemPrompt: data.morningBriefSystemPrompt,
+            endOfDayBriefSystemPrompt: data.endOfDayBriefSystemPrompt,
           });
         } else {
           setMessage("Failed to load admin settings");
@@ -62,6 +65,7 @@ export default function AdminSettingsForm() {
           briefSystemPrompt: settings.briefSystemPrompt ?? "",
           queryPlannerSystemPrompt: settings.queryPlannerSystemPrompt ?? "",
           morningBriefSystemPrompt: settings.morningBriefSystemPrompt ?? "",
+          endOfDayBriefSystemPrompt: settings.endOfDayBriefSystemPrompt ?? "",
         }),
       });
 
@@ -74,6 +78,7 @@ export default function AdminSettingsForm() {
           briefSystemPrompt: data.briefSystemPrompt,
           queryPlannerSystemPrompt: data.queryPlannerSystemPrompt,
           morningBriefSystemPrompt: data.morningBriefSystemPrompt,
+          endOfDayBriefSystemPrompt: data.endOfDayBriefSystemPrompt,
         });
         setMessage("Admin settings saved successfully");
         setTimeout(() => setMessage(""), 3000);
@@ -266,6 +271,48 @@ export default function AdminSettingsForm() {
                   setSettings({
                     ...settings,
                     morningBriefSystemPrompt: "",
+                  })
+                }
+                className="ml-4 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-border/20"
+              >
+                Reset to default
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="endOfDayBriefSystemPrompt"
+              className="mb-2 block text-sm font-medium text-foreground"
+            >
+              End of day summary system prompt
+            </label>
+            <textarea
+              id="endOfDayBriefSystemPrompt"
+              value={
+                settings.endOfDayBriefSystemPrompt ?? END_OF_DAY_BRIEF_PROMPT
+              }
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  endOfDayBriefSystemPrompt: e.target.value,
+                })
+              }
+              rows={6}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder="Leave empty to use the default end-of-day prompt."
+            />
+            <div className="flex items-center justify-between">
+              <p className="mt-1 text-xs text-muted-foreground">
+                If set, this replaces the default end-of-day summary system
+                prompt.
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setSettings({
+                    ...settings,
+                    endOfDayBriefSystemPrompt: "",
                   })
                 }
                 className="ml-4 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-border/20"
