@@ -6,6 +6,7 @@ import BackButton from "@/components/back-button";
 import ActionItemRow from "@/components/action-item-row";
 import MarkdownView from "@/components/markdown-view";
 import { getUserSettings } from "@/lib/settings";
+import { getBriefForUser } from "@/lib/briefs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,13 +42,10 @@ export default async function BriefDetail({
     select: { isAdmin: true },
   });
 
-  const brief = await prisma.brief.findUnique({
-    where: { id },
-    include: {
-      meeting: true,
-      actionItems: { include: { assignees: { include: { person: true } } } },
-      people: { include: { person: true } },
-    },
+  const brief = await getBriefForUser({
+    id,
+    userId: session.user.id,
+    markRead: true,
   });
   if (!brief || brief.meeting?.userId !== session.user.id) {
     return (
@@ -57,6 +55,7 @@ export default async function BriefDetail({
       </div>
     );
   }
+
   const when = brief.meeting?.startsAt
     ? new Intl.DateTimeFormat("en-US", {
         timeZone: settings.timeZone || "UTC",

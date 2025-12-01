@@ -5,28 +5,15 @@ import Link from "next/link";
 
 export default function BriefActions({
   briefId,
-  readAt,
   isAdmin = false,
 }: {
   briefId: string;
   readAt: string | Date | null;
   isAdmin?: boolean;
 }) {
-  const [isRead, setIsRead] = useState(!!readAt);
-  const [sending, setSending] = useState(false);
   const [thumb, setThumb] = useState<"up" | "down" | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
-
-  async function markRead() {
-    try {
-      setSending(true);
-      await fetch(`/api/briefs/${briefId}/read`, { method: "POST" });
-      setIsRead(true);
-    } finally {
-      setSending(false);
-    }
-  }
 
   async function sendFeedback(v: "up" | "down") {
     setThumb(v);
@@ -71,14 +58,6 @@ export default function BriefActions({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <button
-        disabled={isRead || sending}
-        onClick={markRead}
-        className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-60 cursor-pointer"
-      >
-        {isRead ? "✓ Read" : "✓ Mark as Read"}
-      </button>
-
       {isAdmin && (
         <>
           <Link

@@ -63,9 +63,14 @@ export default async function Sidebar() {
             <span>Settings</span>
           </NavLinkActive>
           {isAdmin && (
-            <NavLinkActive href="/admin" className={itemCls}>
-              <span>Admin</span>
-            </NavLinkActive>
+            <>
+              <NavLinkActive href="/admin" className={itemCls}>
+                <span>Admin Settings</span>
+              </NavLinkActive>
+              <NavLinkActive href="/admin/metrics" className={itemCls}>
+                <span>Admin Dashboard</span>
+              </NavLinkActive>
+            </>
           )}
         </nav>
 

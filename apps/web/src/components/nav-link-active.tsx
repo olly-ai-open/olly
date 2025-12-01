@@ -13,7 +13,7 @@ export default function NavLinkActive({
   children: React.ReactNode;
 }) {
   const pathname = usePathname() || "/";
-  const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const isActive = href === "/" ? pathname === "/" : pathname === href;
   const activeCls = isActive
     ? "bg-primary text-primary-foreground rounded-lg"
     : "";
