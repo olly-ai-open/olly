@@ -67,9 +67,9 @@ export default async function Sidebar() {
               <NavLinkActive href="/admin" className={itemCls}>
                 <span>Admin Settings</span>
               </NavLinkActive>
-              <NavLinkActive href="/admin/metrics" className={itemCls}>
+              {/* <NavLinkActive href="/admin/metrics" className={itemCls}>
                 <span>Admin Dashboard</span>
-              </NavLinkActive>
+              </NavLinkActive> */}
             </>
           )}
         </nav>
