@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Badge, Card, Flex, Grid, Text, Title } from "@tremor/react";
 import {
   BarChart as RCBarChart,
   AreaChart as RCAreaChart,
@@ -76,6 +75,44 @@ const chartText = "var(--foreground)";
 const chartMuted = "var(--muted-foreground)";
 function colorAt(index: number): string {
   return palette[index % palette.length];
+}
+
+type BasicProps = { children: React.ReactNode; className?: string };
+
+function Card({ children, className = "" }: BasicProps) {
+  return (
+    <div
+      className={`rounded-lg border border-border bg-card p-4 shadow-sm ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Title({ children, className = "" }: BasicProps) {
+  return <h2 className={`text-lg font-semibold ${className}`}>{children}</h2>;
+}
+
+function Text({ children, className = "" }: BasicProps) {
+  return <p className={`text-sm text-foreground ${className}`}>{children}</p>;
+}
+
+function Badge({
+  children,
+  color = "gray",
+  className = "",
+}: BasicProps & { color?: "gray" | "orange" }) {
+  const styles =
+    color === "orange"
+      ? "bg-orange-100 text-orange-800 border border-orange-200"
+      : "bg-muted text-foreground border border-border";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${styles} ${className}`}
+    >
+      {children}
+    </span>
+  );
 }
 
 function ChartTooltip({
@@ -216,16 +253,24 @@ export default function AdminDashboard() {
   const loadingState = (
     <div className="space-y-4">
       <div className="h-10 w-48 rounded bg-border animate-pulse" />
-      <Grid numItemsMd={2} numItemsLg={4} className="gap-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, idx) => (
-          <Card key={idx} className="h-32 animate-pulse bg-border/40" />
+          <Card key={idx} className="h-32 animate-pulse bg-border/40">
+            <div className="h-full w-full" />
+          </Card>
         ))}
-      </Grid>
-      <Grid numItemsMd={2} className="gap-4">
-        <Card className="h-72 animate-pulse bg-border/40" />
-        <Card className="h-72 animate-pulse bg-border/40" />
-      </Grid>
-      <Card className="h-72 animate-pulse bg-border/40" />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="h-72 animate-pulse bg-border/40">
+          <div className="h-full w-full" />
+        </Card>
+        <Card className="h-72 animate-pulse bg-border/40">
+          <div className="h-full w-full" />
+        </Card>
+      </div>
+      <Card className="h-72 animate-pulse bg-border/40">
+        <div className="h-full w-full" />
+      </Card>
     </div>
   );
 
@@ -266,8 +311,8 @@ export default function AdminDashboard() {
 
       <div>
         <Title className="text-lg font-semibold">Briefs</Title>
-        <div className="mt-3 rounded-2xl shadow-lg ring-1">
-          <div className="grid gap-0 divide-x md:grid-cols-4">
+        <div className="mt-3 rounded-2xl ring-1">
+          <div className="grid gap-0 divide-x md:grid-cols-4 bg-card rounded-2xl">
             <StatCard
               label="Briefs generated"
               value={formatNumber(data.summary.briefsGenerated)}
@@ -301,7 +346,7 @@ export default function AdminDashboard() {
       <div>
         <Title className="text-lg font-semibold">Action items</Title>
         <div className="mt-3 rounded-2xl shadow-lg ring-1">
-          <div className="grid gap-0 divide-x md:grid-cols-5">
+          <div className="grid gap-0 divide-x md:grid-cols-5 bg-card rounded-2xl">
             <StatCard
               label="Created"
               value={formatNumber(data.actionItems.created)}
@@ -334,7 +379,7 @@ export default function AdminDashboard() {
       <div>
         <Title className="text-lg font-semibold">Other Metrics</Title>
         <div className="mt-3 rounded-xl shadow-lg ring-1">
-          <div className="grid gap-0 divide-x md:grid-cols-5">
+          <div className="grid gap-0 divide-x md:grid-cols-5 bg-card rounded-2xl">
             <StatCard
               label="Total Users"
               value={formatNumber(data.sync.totalUsers)}
@@ -367,16 +412,16 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
-      <Grid numItemsMd={2} className="gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card className="rounded-2xl">
-          <Flex justifyContent="between" alignItems="center" className="mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <div>
               <Title>Brief volume by day</Title>
             </div>
             {briefsPerDayChart.length === 0 && (
               <Badge color="gray">No data</Badge>
             )}
-          </Flex>
+          </div>
           <div className="mt-2 h-64">
             <ResponsiveContainer>
               <RCAreaChart data={briefsPerDayChart}>
@@ -406,14 +451,14 @@ export default function AdminDashboard() {
         </Card>
 
         <Card className="rounded-2xl">
-          <Flex justifyContent="between" alignItems="center" className="mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <div>
               <Title>Calendar sync health</Title>
             </div>
             {data.sync.jobsByStatus.length === 0 && (
               <Badge color="gray">No data</Badge>
             )}
-          </Flex>
+          </div>
           <div className="h-64">
             <ResponsiveContainer>
               <RCBarChart data={data.sync.jobsByStatus}>
@@ -432,9 +477,9 @@ export default function AdminDashboard() {
             </ResponsiveContainer>
           </div>
         </Card>
-      </Grid>
+      </div>
 
-      <Grid numItemsMd={3} className="gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card className="rounded-2xl">
           <Title>Feedback mix</Title>
           <div className="h-56">
@@ -487,7 +532,7 @@ export default function AdminDashboard() {
             schedule
           </Text>
         </Card>
-      </Grid>
+      </div>
     </div>
   );
 }
