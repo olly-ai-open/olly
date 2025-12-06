@@ -19,6 +19,10 @@ import {
 } from "./settings-core";
 import { getAccessTokenFromAccountCore } from "./google-core";
 import type { DebugDataStructure } from "../s3-debug";
+import {
+  normalizeIgnorePatterns,
+  shouldIgnoreEventByTitle,
+} from "./eventFilters-core";
 
 function getHeaderValue(headers: any[], name: string): string | null {
   const h = headers.find(
@@ -78,6 +82,7 @@ export async function generateMeetingBriefForEventCore(
   }
   const searchTimeframeDays = settings.searchTimeframeDays;
   const briefSystemPromptOverride = settings.briefSystemPrompt ?? null;
+  const ignorePatterns = normalizeIgnorePatterns(settings);
 
   let token = tokenOverride;
   if (!token) {
@@ -91,6 +96,49 @@ export async function generateMeetingBriefForEventCore(
   addTimeline("EVENT_LOAD_START", { eventId });
   const event = await getEventDetailsWithToken(token, eventId);
   addTimeline("EVENT_LOAD_COMPLETE", { eventId });
+
+  if (
+    ignorePatterns.length &&
+    shouldIgnoreEventByTitle(event.title, ignorePatterns)
+  ) {
+    addTimeline("EVENT_IGNORED_BY_PATTERN", {
+      eventId,
+      title: event.title,
+    });
+
+    let meetingId: string | null = null;
+    if (persist) {
+      const existingMeeting = await prisma.meeting.findUnique({
+        where: {
+          userId_externalId: {
+            userId,
+            externalId: eventId,
+          },
+        },
+      });
+
+      if (existingMeeting?.status === "generated") {
+        meetingId = existingMeeting.id;
+      } else {
+        const meeting = await upsertMeetingFromEventCore(prisma, userId, {
+          id: event.id,
+          title: event.title || "(no title)",
+          start: event.start,
+          end: event.end,
+          attendees: event.attendees || [],
+          description: event.description || null,
+          status: "ignored",
+        });
+        meetingId = meeting.id;
+      }
+    }
+
+    return {
+      meetingId,
+      briefId: null,
+      content: { brief_markdown: "" },
+    };
+  }
 
   const titleQ = event.title?.split(/\s+/).slice(0, 10).join(" ") || "";
 
