@@ -13,10 +13,16 @@ export default async function Header() {
   const session = await auth();
   const userId = (session?.user as any)?.id as string | undefined;
 
-  let connected: { gmail: boolean; calendar: boolean; drive: boolean } = {
+  let connected: {
+    gmail: boolean;
+    calendar: boolean;
+    drive: boolean;
+    slack: boolean;
+  } = {
     gmail: false,
     calendar: false,
     drive: false,
+    slack: false,
   };
   let isAdmin = false;
 
@@ -26,10 +32,14 @@ export default async function Header() {
         where: { userId, provider: "google" },
       });
       const scope = account?.scope || "";
+      const slackAccount = await prisma.account.findFirst({
+        where: { userId, provider: "slack" },
+      });
       connected = {
         gmail: scope.includes("gmail"),
         calendar: scope.includes("calendar"),
         drive: scope.includes("drive"),
+        slack: !!slackAccount?.access_token,
       };
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -38,7 +48,7 @@ export default async function Header() {
       isAdmin = !!user?.isAdmin;
     } catch {
       // DB unavailable — keep defaults
-      connected = { gmail: false, calendar: false, drive: false };
+      connected = { gmail: false, calendar: false, drive: false, slack: false };
     }
   }
 

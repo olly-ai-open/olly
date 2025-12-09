@@ -8,6 +8,7 @@ interface MobileNavProps {
     gmail: boolean;
     calendar: boolean;
     drive: boolean;
+    slack: boolean;
   };
   isAdmin?: boolean;
 }
@@ -161,6 +162,10 @@ export default function MobileNav({
                   <div className="flex items-center gap-2 text-sm">
                     {dot(connected.drive)}
                     <span>Drive</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    {dot(connected.slack)}
+                    <span>Slack</span>
                   </div>
                 </div>
               </div>

@@ -8,10 +8,16 @@ export default async function Sidebar() {
   const session = await auth();
   const userId = (session?.user as any)?.id as string | undefined;
   let isAdmin = false;
-  let connected: { gmail: boolean; calendar: boolean; drive: boolean } = {
+  let connected: {
+    gmail: boolean;
+    calendar: boolean;
+    drive: boolean;
+    slack: boolean;
+  } = {
     gmail: false,
     calendar: false,
     drive: false,
+    slack: false,
   };
   if (userId) {
     try {
@@ -24,14 +30,18 @@ export default async function Sidebar() {
         where: { userId, provider: "google" },
       });
       const scope = account?.scope || "";
+      const slackAccount = await prisma.account.findFirst({
+        where: { userId, provider: "slack" },
+      });
       connected = {
         gmail: scope.includes("gmail"),
         calendar: scope.includes("calendar"),
         drive: scope.includes("drive"),
+        slack: !!slackAccount?.access_token,
       };
     } catch {
       // DB unavailable — keep sidebar rendering with defaults
-      connected = { gmail: false, calendar: false, drive: false };
+      connected = { gmail: false, calendar: false, drive: false, slack: false };
     }
   }
 
@@ -87,6 +97,9 @@ export default async function Sidebar() {
             </div>
             <div className="flex items-center gap-2">
               {dot(connected.drive)} Google Drive
+            </div>
+            <div className="flex items-center gap-2">
+              {dot(connected.slack)} Slack
             </div>
           </div>
         </div>
