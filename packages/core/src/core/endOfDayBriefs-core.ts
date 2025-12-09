@@ -129,12 +129,15 @@ export async function generateEndOfDayBriefForUserCore(
     }
   }
 
-  const { drive, gmail } = await runWorkspaceQueryPlan(
+  const slackWindowQueries = ["status", "update", "decision", "action item"];
+
+  const { drive, gmail, slack } = await runWorkspaceQueryPlan(
     prisma,
     userId,
     {
       driveQueries: [],
       gmailQueries: [],
+      slackQueries: slackWindowQueries,
       windowStart,
       windowEnd,
       maxResults: 25,
@@ -183,6 +186,29 @@ export async function generateEndOfDayBriefForUserCore(
       text: `${headerBlock}${(m.text as string).trim()}`,
     });
   }
+  for (const m of slack as any[]) {
+    if (!m?.text || !String(m.text).trim()) continue;
+    const tsMs =
+      typeof m.ts === "string" && !Number.isNaN(Number(m.ts))
+        ? Math.floor(Number(m.ts) * 1000)
+        : null;
+    const updatedAt =
+      tsMs && Number.isFinite(tsMs)
+        ? new Date(tsMs).toISOString()
+        : windowEnd.toISOString();
+    const channelLabel = m.channel?.name ? `#${m.channel.name}` : "Slack";
+    docs.push({
+      id: (m.id as string) || `${m.channel?.id || "slack"}-${m.ts || "msg"}`,
+      title:
+        String(m.text).trim().slice(0, 120) ||
+        `${channelLabel} message (${updatedAt})`,
+      source: "slack",
+      updatedAt,
+      link: (m.permalink as string) || null,
+      docType: channelLabel,
+      text: `${channelLabel}\n${String(m.text).trim()}`,
+    });
+  }
 
   const deduped = dedupeDocs(docs);
   addTimeline("DOCS_DEDUPED", { count: deduped.length });
@@ -194,6 +220,11 @@ export async function generateEndOfDayBriefForUserCore(
   if (debugData?.searchResults?.gmail) {
     debugData.searchResults.gmail.included = deduped.filter(
       (d) => d.source === "gmail",
+    ).length;
+  }
+  if (debugData?.searchResults?.slack) {
+    debugData.searchResults.slack.included = deduped.filter(
+      (d) => d.source === "slack",
     ).length;
   }
 
@@ -317,6 +348,7 @@ export async function generateEndOfDayBriefForUserCore(
                 apiCalls: debugData.summary.apiCalls,
                 driveResults: debugData.searchResults.drive.totalFound,
                 gmailResults: debugData.searchResults.gmail.totalFound,
+                slackResults: debugData.searchResults.slack.totalFound,
                 timelineEvents: debugData.timeline.length,
               },
             },

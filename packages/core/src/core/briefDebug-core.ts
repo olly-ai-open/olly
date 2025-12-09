@@ -34,6 +34,13 @@ export class BriefDebugContext {
           results: [],
           errors: [],
         },
+        slack: {
+          queries: [],
+          totalFound: 0,
+          included: 0,
+          results: [],
+          errors: [],
+        },
       },
       llmContext: {
         systemPrompt: "",
@@ -75,6 +82,7 @@ export class BriefDebugContext {
       apiCalls: this.debugData.summary.apiCalls,
       driveResults: this.debugData.searchResults.drive.totalFound,
       gmailResults: this.debugData.searchResults.gmail.totalFound,
+      slackResults: this.debugData.searchResults.slack.totalFound,
       timelineEvents: this.debugData.timeline.length,
     };
   }

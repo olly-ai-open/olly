@@ -26,6 +26,7 @@ type DebugCtx = {
 export type WorkspaceQueryPlan = {
   driveQueries: string[];
   gmailQueries: string[];
+  slackQueries?: string[];
   maxResults?: number;
   windowStart?: Date;
   windowEnd?: Date;
@@ -34,6 +35,7 @@ export type WorkspaceQueryPlan = {
 export type WorkspaceQueryResults = {
   drive: any[];
   gmail: any[];
+  slack: any[];
 };
 
 export async function runWorkspaceQueryPlan(
@@ -47,7 +49,9 @@ export async function runWorkspaceQueryPlan(
   const debugData = debug?.debugData ?? null;
   const driveResults: any[] = [];
   const gmailResults: any[] = [];
+  const slackResults: any[] = [];
   const maxResults = plan.maxResults ?? 5;
+  const slackQueries = plan.slackQueries ?? [];
   let exportToken: string | null = null;
 
   // If time-window is specified, use recent-search endpoints for consistency
@@ -178,7 +182,49 @@ export async function runWorkspaceQueryPlan(
       }
     }
     addTimeline("GMAIL_SEARCH_COMPLETE", { count: gmailResults.length });
-    return { drive: driveResults, gmail: gmailResults };
+    for (const query of slackQueries) {
+      const slackStart = Date.now();
+      const q = query.trim();
+      if (!q.length) continue;
+      addTimeline("SLACK_SEARCH_START", { query: q });
+      try {
+        const results = await workspaceSearch.searchSlack(q, {
+          maxResults,
+          windowStart: plan.windowStart,
+          windowEnd: plan.windowEnd,
+        });
+        slackResults.push(...results);
+        if (debugData?.summary) debugData.summary.apiCalls += 1;
+        if (debugData?.searchResults?.slack) {
+          debugData.searchResults.slack.queries.push(q);
+          debugData.searchResults.slack.totalFound += results.length;
+          debugData.searchResults.slack.results.push(
+            ...results.slice(0, 5).map((m: any) => ({
+              id: m.id,
+              title: m.text?.slice(0, 80) || "(message)",
+              channel: m.channel?.name || "",
+              ts: m.ts,
+              link: m.permalink || null,
+            })),
+          );
+        }
+      } catch (err: any) {
+        addTimeline("SLACK_SEARCH_ERROR", {
+          error: err?.message || "error",
+          duration: Date.now() - slackStart,
+        });
+        if (debugData?.searchResults?.slack) {
+          debugData.searchResults.slack.errors =
+            debugData.searchResults.slack.errors || [];
+          debugData.searchResults.slack.errors.push(
+            err?.message || "slack_error",
+          );
+        }
+      }
+      addTimeline("SLACK_SEARCH_COMPLETE", { duration: Date.now() - slackStart });
+    }
+
+    return { drive: driveResults, gmail: gmailResults, slack: slackResults };
   }
 
   const ensureToken = async () => {
@@ -310,5 +356,45 @@ export async function runWorkspaceQueryPlan(
     }
   }
 
-  return { drive: driveResults, gmail: gmailResults };
+  for (const query of slackQueries) {
+    const slackStart = Date.now();
+    const q = query.trim();
+    if (!q.length) continue;
+    addTimeline("SLACK_SEARCH_START", { query: q });
+    try {
+      const results = await workspaceSearch.searchSlack(q, {
+        maxResults,
+      });
+      slackResults.push(...results);
+      if (debugData?.summary) debugData.summary.apiCalls += 1;
+      if (debugData?.searchResults?.slack) {
+        debugData.searchResults.slack.queries.push(q);
+        debugData.searchResults.slack.totalFound += results.length;
+        debugData.searchResults.slack.results.push(
+          ...results.slice(0, 5).map((m: any) => ({
+            id: m.id,
+            title: m.text?.slice(0, 80) || "(message)",
+            channel: m.channel?.name || "",
+            ts: m.ts,
+            link: m.permalink || null,
+          })),
+        );
+      }
+    } catch (err: any) {
+      addTimeline("SLACK_SEARCH_ERROR", {
+        error: err?.message || "error",
+        duration: Date.now() - slackStart,
+      });
+      if (debugData?.searchResults?.slack) {
+        debugData.searchResults.slack.errors =
+          debugData.searchResults.slack.errors || [];
+        debugData.searchResults.slack.errors.push(
+          err?.message || "slack_error",
+        );
+      }
+    }
+    addTimeline("SLACK_SEARCH_COMPLETE", { duration: Date.now() - slackStart });
+  }
+
+  return { drive: driveResults, gmail: gmailResults, slack: slackResults };
 }

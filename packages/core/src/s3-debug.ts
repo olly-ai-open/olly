@@ -49,6 +49,13 @@ export interface DebugDataStructure {
       results: any[];
       errors?: string[];
     };
+    slack: {
+      queries: string[];
+      totalFound: number;
+      included: number;
+      results: any[];
+      errors?: string[];
+    };
   };
   llmContext: {
     systemPrompt: string;

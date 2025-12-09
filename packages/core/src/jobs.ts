@@ -440,6 +440,7 @@ function createDebugContext(userId: string): {
     searchResults: {
       drive: { queries: [], totalFound: 0, included: 0, results: [] },
       gmail: { queries: [], totalFound: 0, included: 0, results: [] },
+      slack: { queries: [], totalFound: 0, included: 0, results: [] },
     },
     llmContext: {
       systemPrompt: "",
@@ -487,6 +488,7 @@ async function uploadDebugData(
           apiCalls: debugData.summary.apiCalls,
           driveResults: debugData.searchResults.drive.totalFound,
           gmailResults: debugData.searchResults.gmail.totalFound,
+          slackResults: debugData.searchResults.slack.totalFound,
           timelineEvents: debugData.timeline.length,
         },
       },

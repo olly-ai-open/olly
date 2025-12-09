@@ -41,6 +41,7 @@ function safeParseBriefJSON(s: string): BriefJSON | null {
 type SearchQueriesJSON = {
   drive_queries?: string[];
   gmail_queries?: string[];
+  slack_queries?: string[];
 };
 
 function safeParseSearchQueriesJSON(s: string): SearchQueriesJSON | null {
@@ -163,6 +164,15 @@ export async function generateBriefFromContext(
         textContent?: string | null;
       }[];
     }[];
+    slack: {
+      id?: string | null;
+      text?: string | null;
+      ts?: string | null;
+      userId?: string | null;
+      username?: string | null;
+      channel?: { id?: string | null; name?: string | null } | null;
+      permalink?: string | null;
+    }[];
   },
   opts?: { systemPromptOverride?: string },
 ) {
@@ -187,6 +197,15 @@ export async function generateBriefFromContext(
         );
       });
     }
+  const slackMessages = Array.isArray(input.slack) ? input.slack : [];
+  for (const m of slackMessages.slice(0, 5)) {
+    if (m?.permalink) {
+      const channelLabel = m.channel?.name
+        ? `#${m.channel.name}`
+        : "Slack message";
+      sources.push(`${channelLabel} -> ${m.permalink}`);
+    }
+  }
 
   const confidence =
     sources.length >= 3 ? "high" : sources.length > 0 ? "medium" : "low";
@@ -270,7 +289,15 @@ export async function generateBriefFromContext(
     })
     .join(
       "\n\n",
-    )}\n\nReturn ONLY the JSON object with the keys described above.`;
+    )}\n\nSlack messages:\n${slackMessages
+    .map((s) => {
+      const channel = s.channel?.name ? `#${s.channel.name}` : "Slack";
+      const author = s.username || s.userId || "";
+      const link = s.permalink ? `\n  Link: ${s.permalink}` : "";
+      const tsLine = s.ts ? `\n  Timestamp: ${s.ts}` : "";
+      return `- ${channel}${author ? ` (from ${author})` : ""}${tsLine}\n  Content: ${s.text || "(no content)"}${link}`;
+    })
+    .join("\n\n")}\n\nReturn ONLY the JSON object with the keys described above.`;
 
   const completion = await openai.chat.completions.create({
     model: process.env.OPENAI_MODEL || "gpt-4.1",
@@ -314,10 +341,10 @@ export async function generateSearchQueriesForEvent(
     };
   },
   opts?: { systemPromptOverride?: string },
-): Promise<{ driveQueries: string[]; gmailQueries: string[] }> {
+): Promise<{ driveQueries: string[]; gmailQueries: string[]; slackQueries: string[] }> {
   const openai = getOpenAI();
   if (!openai) {
-    return { driveQueries: [], gmailQueries: [] };
+    return { driveQueries: [], gmailQueries: [], slackQueries: [] };
   }
 
   const participantList =
@@ -350,10 +377,14 @@ export async function generateSearchQueriesForEvent(
   const gmailQueries = Array.isArray(parsed?.gmail_queries)
     ? parsed!.gmail_queries.filter((q) => typeof q === "string" && q.trim())
     : [];
+  const slackQueries = Array.isArray(parsed?.slack_queries)
+    ? parsed!.slack_queries.filter((q) => typeof q === "string" && q.trim())
+    : [];
 
   return {
     driveQueries,
     gmailQueries,
+    slackQueries,
   };
 }
 

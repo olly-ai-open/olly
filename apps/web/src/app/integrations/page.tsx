@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { checkGoogleHealth } from "@/lib/google";
+import { checkSlackHealth } from "@/lib/slack";
 import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import Sidebar from "@/components/sidebar";
@@ -25,7 +26,10 @@ export default async function IntegrationsPage() {
   }
 
   // Check Google connection and scope status
-  const health = await checkGoogleHealth(session.user.id);
+  const [health, slackHealth] = await Promise.all([
+    checkGoogleHealth(session.user.id),
+    checkSlackHealth(session.user.id),
+  ]);
 
   return (
     <>
@@ -142,6 +146,54 @@ export default async function IntegrationsPage() {
                       </button>
                     </form>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Slack Integration */}
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm mt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Slack</div>
+                  <div className="text-sm text-muted-foreground">
+                    Search messages to enrich briefs
+                  </div>
+                </div>
+                <div className="text-sm">
+                  {slackHealth.connected ? (
+                    <span className="text-green-600">
+                      ✓ Connected
+                      {slackHealth.teamName
+                        ? ` to ${slackHealth.teamName}`
+                        : ""}
+                    </span>
+                  ) : (
+                    <span className="text-gray-500">Not Connected</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-4">
+                {!slackHealth.connected && (
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    href="/api/auth/slack-connect"
+                  >
+                    Connect Slack
+                  </Link>
+                )}
+              </div>
+
+              {slackHealth.connected && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <form action="/api/auth/slack-disconnect" method="post">
+                    <button
+                      type="submit"
+                      className="bg-background rounded-md border border-border px-3 py-1 text-sm hover:bg-accent cursor-pointer"
+                    >
+                      Disconnect Slack
+                    </button>
+                  </form>
                 </div>
               )}
             </div>

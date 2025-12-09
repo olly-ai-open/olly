@@ -140,3 +140,43 @@ export function buildGmailHeuristicQueries(input: GmailHeuristicsInput): {
 
   return { queries, usedExtractedNames };
 }
+
+export function buildSlackHeuristicQueries(input: {
+  titleQ?: string | null;
+  attendees?: string[];
+}) {
+  const queries: string[] = [];
+  const { titleQ, attendees = [] } = input;
+
+  if (titleQ && titleQ.trim().length > 4) {
+    const trimmed = titleQ.trim();
+    queries.push(`"${trimmed}"`);
+
+    const words = trimmed.split(/\s+/).filter((w) => w.length > 3);
+    if (words.length >= 2) {
+      queries.push(words.slice(0, 3).join(" "));
+    }
+  }
+
+  const attendeeNames = attendees
+    .map((email) =>
+      email
+        .split("@")[0]
+        .replace(/[._-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter((name) => name.length > 2);
+
+  if (attendeeNames.length > 0) {
+    attendeeNames.slice(0, 2).forEach((name) => queries.push(name));
+    if (attendeeNames.length >= 2) {
+      queries.push(attendeeNames.slice(0, 2).join(" "));
+    }
+  }
+
+  const unique = Array.from(new Set(queries.map((q) => q.trim()))).filter(
+    Boolean,
+  );
+  return unique.slice(0, 6);
+}

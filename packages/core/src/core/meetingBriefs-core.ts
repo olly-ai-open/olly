@@ -3,6 +3,7 @@ import { getEventDetailsWithToken } from "../google-http";
 import {
   buildDriveHeuristicQueries,
   buildGmailHeuristicQueries,
+  buildSlackHeuristicQueries,
 } from "../searchHeuristics";
 import { generateBriefFromContext, type BriefJSON } from "../llm";
 import { runWorkspaceQueryPlan } from "./briefQueries-core";
@@ -168,6 +169,7 @@ export async function generateMeetingBriefForEventCore(
 
   const driveQueries: string[] = [];
   const gmailQueries: string[] = [];
+  const slackQueries: string[] = [];
 
   const gmailTimeframeDays = searchTimeframeDays;
 
@@ -184,11 +186,21 @@ export async function generateMeetingBriefForEventCore(
   });
   gmailQueries.push(...heuristicQueries);
 
+  const slackHeuristicQueries = buildSlackHeuristicQueries({
+    titleQ,
+    attendees: effectiveAttendees,
+  });
+  slackQueries.push(...slackHeuristicQueries);
+
   const drive: any[] = [];
-  const { drive: driveRes, gmail: gmailRes } = await runWorkspaceQueryPlan(
+  const {
+    drive: driveRes,
+    gmail: gmailRes,
+    slack: slackRes,
+  } = await runWorkspaceQueryPlan(
     prisma,
     userId,
-    { driveQueries, gmailQueries },
+    { driveQueries, gmailQueries, slackQueries },
     { debugData, addTimelineEntry: addTimeline },
   );
   drive.push(...driveRes);
@@ -203,11 +215,18 @@ export async function generateMeetingBriefForEventCore(
       body: m.text || "",
     };
   });
+  const slackMessages = slackRes
+    .filter((m: any) => typeof m?.text === "string" && m.text.trim().length)
+    .map((m: any) => ({
+      ...m,
+      text: (m.text as string).trim(),
+    }));
 
   addTimeline("LLM_GENERATION_START", {
     eventId,
     driveResults: drive.length,
     gmailResults: allGmail.length,
+    slackResults: slackMessages.length,
   });
 
   const briefResult = await generateBriefFromContext(
@@ -220,6 +239,7 @@ export async function generateMeetingBriefForEventCore(
       },
       drive,
       gmail: allGmail,
+      slack: slackMessages,
     },
     {
       systemPromptOverride: briefSystemPromptOverride ?? undefined,

@@ -1,5 +1,10 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Integration Configuration
+
+- Slack: set `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET`; optional `SLACK_SCOPES` (comma-separated, defaults to `search:read,channels:history,groups:history,im:history,mpim:history,users:read`).
+- Google: ensure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `NEXTAUTH_URL` are set before connecting integrations.
+
 ## Getting Started
 
 First, run the development server:
