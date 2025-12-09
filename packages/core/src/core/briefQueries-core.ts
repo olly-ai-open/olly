@@ -53,6 +53,7 @@ export async function runWorkspaceQueryPlan(
   const maxResults = plan.maxResults ?? 5;
   const slackQueries = plan.slackQueries ?? [];
   let exportToken: string | null = null;
+  const slackSeen = new Set<string>();
 
   // If time-window is specified, use recent-search endpoints for consistency
   if (plan.windowStart && plan.windowEnd) {
@@ -193,7 +194,12 @@ export async function runWorkspaceQueryPlan(
           windowStart: plan.windowStart,
           windowEnd: plan.windowEnd,
         });
-        slackResults.push(...results);
+        for (const r of results) {
+          const key = r.permalink || `${r.channel?.id || "slack"}:${r.ts || r.id}`;
+          if (slackSeen.has(key)) continue;
+          slackSeen.add(key);
+          slackResults.push(r);
+        }
         if (debugData?.summary) debugData.summary.apiCalls += 1;
         if (debugData?.searchResults?.slack) {
           debugData.searchResults.slack.queries.push(q);
@@ -205,6 +211,7 @@ export async function runWorkspaceQueryPlan(
               channel: m.channel?.name || "",
               ts: m.ts,
               link: m.permalink || null,
+              text: m.text || "",
             })),
           );
         }
@@ -222,6 +229,10 @@ export async function runWorkspaceQueryPlan(
         }
       }
       addTimeline("SLACK_SEARCH_COMPLETE", { duration: Date.now() - slackStart });
+    }
+
+    if (debugData?.searchResults?.slack) {
+      debugData.searchResults.slack.included = slackResults.length;
     }
 
     return { drive: driveResults, gmail: gmailResults, slack: slackResults };
@@ -365,7 +376,12 @@ export async function runWorkspaceQueryPlan(
       const results = await workspaceSearch.searchSlack(q, {
         maxResults,
       });
-      slackResults.push(...results);
+      for (const r of results) {
+        const key = r.permalink || `${r.channel?.id || "slack"}:${r.ts || r.id}`;
+        if (slackSeen.has(key)) continue;
+        slackSeen.add(key);
+        slackResults.push(r);
+      }
       if (debugData?.summary) debugData.summary.apiCalls += 1;
       if (debugData?.searchResults?.slack) {
         debugData.searchResults.slack.queries.push(q);
@@ -377,6 +393,7 @@ export async function runWorkspaceQueryPlan(
             channel: m.channel?.name || "",
             ts: m.ts,
             link: m.permalink || null,
+            text: m.text || "",
           })),
         );
       }
@@ -394,6 +411,10 @@ export async function runWorkspaceQueryPlan(
       }
     }
     addTimeline("SLACK_SEARCH_COMPLETE", { duration: Date.now() - slackStart });
+  }
+
+  if (debugData?.searchResults?.slack) {
+    debugData.searchResults.slack.included = slackResults.length;
   }
 
   return { drive: driveResults, gmail: gmailResults, slack: slackResults };
