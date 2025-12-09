@@ -14,7 +14,7 @@ export default function DebugDataViewer({
   metadata,
 }: DebugDataViewerProps) {
   const [activeTab, setActiveTab] = useState<
-    "summary" | "timeline" | "drive" | "gmail" | "llm" | "raw"
+    "summary" | "timeline" | "drive" | "gmail" | "slack" | "llm" | "raw"
   >("summary");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["timeline"]),
@@ -35,7 +35,7 @@ export default function DebugDataViewer({
       {/* Summary Card */}
       <div className="rounded-lg border border-border bg-card p-6">
         <h2 className="text-lg font-semibold mb-4">Summary</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div>
             <div className="text-xs text-muted-foreground">Total Duration</div>
             <div className="text-lg font-medium">
@@ -60,6 +60,12 @@ export default function DebugDataViewer({
               {data.searchResults.gmail.totalFound}
             </div>
           </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Slack Results</div>
+            <div className="text-lg font-medium">
+              {data.searchResults.slack?.totalFound ?? 0}
+            </div>
+          </div>
         </div>
         {data.summary.error && (
           <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
@@ -79,6 +85,7 @@ export default function DebugDataViewer({
             { id: "timeline", label: "Timeline" },
             { id: "drive", label: "Drive Search" },
             { id: "gmail", label: "Gmail Search" },
+            { id: "slack", label: "Slack Search" },
             { id: "llm", label: "LLM Context" },
             { id: "raw", label: "Raw Data" },
           ].map((tab) => (
@@ -129,7 +136,8 @@ export default function DebugDataViewer({
                 </span>
                 <span className="text-sm">
                   {data.searchResults.drive.queries.length +
-                    data.searchResults.gmail.queries.length}
+                    data.searchResults.gmail.queries.length +
+                    (data.searchResults.slack?.queries.length || 0)}
                 </span>
               </div>
             </div>
@@ -328,6 +336,89 @@ export default function DebugDataViewer({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "slack" && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Slack Search</h3>
+
+            <div>
+              <h4 className="text-sm font-medium mb-2">
+                Queries ({data.searchResults.slack.queries.length})
+              </h4>
+              <div className="space-y-2">
+                {data.searchResults.slack.queries.map((query, idx) => (
+                  <div
+                    key={idx}
+                    className="text-sm bg-background border border-border px-3 py-2 rounded font-mono break-all"
+                  >
+                    {query}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {data.searchResults.slack.results.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">
+                  Results ({data.searchResults.slack.totalFound} found,{" "}
+                  {data.searchResults.slack.included} included)
+                </h4>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {data.searchResults.slack.results.map((result: any, idx) => (
+                    <div key={idx} className="border rounded p-3">
+                      <div className="font-medium text-sm">
+                        {(result.title as string) ||
+                          result.text?.slice(0, 80) ||
+                          "Slack message"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {result.channel?.name
+                          ? `Channel: #${result.channel.name}`
+                          : "Channel: n/a"}
+                        {result.ts ? ` • TS: ${result.ts}` : ""}
+                      </div>
+                      {result.text && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <div className="font-medium">Text:</div>
+                          <div className="max-h-20 overflow-y-auto bg-background border border-border p-2 rounded mt-1">
+                            {result.text}
+                          </div>
+                        </div>
+                      )}
+                      {result.link && (
+                        <a
+                          href={result.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline mt-1 inline-block"
+                        >
+                          Open in Slack →
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {data.searchResults.slack.errors &&
+              data.searchResults.slack.errors.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2 text-destructive">
+                    Errors
+                  </h4>
+                  {data.searchResults.slack.errors.map((error, idx) => (
+                    <div
+                      key={idx}
+                      className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded"
+                    >
+                      {error}
+                    </div>
+                  ))}
+                </div>
+              )}
           </div>
         )}
 
