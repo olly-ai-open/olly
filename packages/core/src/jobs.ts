@@ -6,7 +6,11 @@ import {
   type UserSettings,
 } from "./core/settings-core";
 import { getAccessTokenFromAccountCore } from "./core/google-core";
-import { listEventsByDayWithToken, listEventsInRangeWithToken } from "./google-http";
+import {
+  listEventsByDayWithToken,
+  listEventsInRangeWithToken,
+  getEventDetailsWithToken,
+} from "./google-http";
 import { generateMorningBrief } from "./llm";
 import { generateEndOfDayBriefForUserCore } from "./core/endOfDayBriefs-core";
 import { getPrisma } from "./prisma-lambda";
@@ -143,11 +147,44 @@ async function dispatchJob(
         prisma,
         job.userId,
       );
+      const ignorePatterns = normalizeIgnorePatterns(settings);
       const searchStrategy =
         (settings.searchStrategy as any as
           | "LLM_ONLY"
           | "HEURISTIC_ONLY"
           | "LLM_AND_HEURISTIC") || "HEURISTIC_ONLY";
+
+      if (ignorePatterns.length) {
+        let title = meeting?.title || null;
+        let fetchedEvent: any = null;
+
+        if (!title) {
+          const account = await prisma.account.findFirst({
+            where: { userId: job.userId, provider: "google" },
+          });
+          if (!account) throw new Error("no_account_for_meeting_brief");
+          const token = await getAccessTokenFromAccountCore(
+            prisma,
+            account as any,
+          );
+          fetchedEvent = await getEventDetailsWithToken(token, eventId);
+          title = fetchedEvent.title || null;
+        }
+
+        if (title && shouldIgnoreEventByTitle(title, ignorePatterns)) {
+          const eventData = fetchedEvent || meeting;
+          await upsertMeetingFromEventCore(prisma, job.userId, {
+            id: eventId,
+            title: title || "(no title)",
+            start: eventData?.start,
+            end: eventData?.end,
+            attendees: eventData?.attendees || [],
+            description: eventData?.description || null,
+            status: "ignored",
+          });
+          return;
+        }
+      }
 
       const start = Date.now();
       const result = await generateMeetingBriefForEventCore(prisma, {
@@ -584,27 +621,21 @@ async function syncCalendarForUser(
     return;
   }
   const ignorePatterns = normalizeIgnorePatterns(settings);
-
-  const filteredEvents = ignorePatterns.length
-    ? events.filter(
-        (evt) => !shouldIgnoreEventByTitle(evt.title, ignorePatterns),
-      )
-    : events;
-
-  if (events.length !== filteredEvents.length) {
-    addTimeline("SYNC_EVENTS_IGNORED", {
-      skipped: events.length - filteredEvents.length,
-    });
-  }
+  let ignoredCount = 0;
 
   addTimeline("SYNC_EVENTS_FETCHED", {
-    count: filteredEvents.length,
+    count: events.length,
     timeMin: timeMin.toISOString(),
     timeMax: timeMax.toISOString(),
   });
 
   let upserted = 0;
-  for (const event of filteredEvents) {
+  for (const event of events) {
+    const isIgnored =
+      ignorePatterns.length &&
+      shouldIgnoreEventByTitle(event.title, ignorePatterns);
+    if (isIgnored) ignoredCount += 1;
+
     await upsertMeetingFromEventCore(prisma, userId, {
       id: event.id,
       title: event.title,
@@ -612,11 +643,13 @@ async function syncCalendarForUser(
       end: event.end,
       attendees: event.attendees,
       description: event.description,
-      status: shouldIgnoreEventByTitle(event.title, ignorePatterns)
-        ? "ignored"
-        : null,
+      status: isIgnored ? "ignored" : null,
     });
     upserted += 1;
+  }
+
+  if (ignoredCount > 0) {
+    addTimeline("SYNC_EVENTS_IGNORED", { skipped: ignoredCount });
   }
 
   addTimeline("SYNC_MEETINGS_UPSERTED", { count: upserted });
