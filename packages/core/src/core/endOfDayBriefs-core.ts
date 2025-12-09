@@ -39,7 +39,6 @@ function parseDueDate(value?: string | null): Date | null {
 function formatEndOfDayMarkdown(input: {
   highlights: string[];
   risks: string[];
-  actionItems: { title: string; dueDate?: string | null }[];
   docs: { title: string; link?: string | null; source?: string | null }[];
 }): string {
   const lines: string[] = [];
@@ -50,19 +49,6 @@ function formatEndOfDayMarkdown(input: {
   lines.push("## Risks & Blockers");
   if (input.risks.length) lines.push(...input.risks.map((r) => `- ${r}`));
   else lines.push("- None.");
-  lines.push("");
-  lines.push("## Action Items");
-  if (input.actionItems.length) {
-    lines.push(
-      ...input.actionItems.map((a) => {
-        const due =
-          a.dueDate && a.dueDate.trim().length ? ` (Due: ${a.dueDate})` : " (No due date)";
-        return `- ${a.title}${due}`;
-      }),
-    );
-  } else {
-    lines.push("- None.");
-  }
   lines.push("");
   return lines.join("\n");
 }
@@ -257,7 +243,6 @@ export async function generateEndOfDayBriefForUserCore(
   const briefMarkdown = formatEndOfDayMarkdown({
     highlights: summary.highlights,
     risks: summary.risks,
-    actionItems: summary.actionItems,
     docs: summary.docs,
   });
 
