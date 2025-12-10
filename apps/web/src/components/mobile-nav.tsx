@@ -3,6 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import NavLinkActive from "@/components/nav-link-active";
+import {
+  Calendar,
+  Users,
+  CheckSquare,
+  CircuitBoard,
+  Settings,
+  Shield,
+} from "lucide-react";
+
 interface MobileNavProps {
   connected: {
     gmail: boolean;
@@ -51,6 +60,15 @@ export default function MobileNav({
       className={`inline-block h-2 w-2 rounded-full ${ok ? "bg-green-500" : "bg-zinc-300"}`}
     />
   );
+
+  const navItems = [
+    { path: "/", label: "Dashboard", icon: Calendar },
+    { path: "/people", label: "People", icon: Users },
+    { path: "/action-items", label: "Action Items", icon: CheckSquare },
+    { path: "/integrations", label: "Integrations", icon: CircuitBoard },
+    { path: "/settings", label: "Settings", icon: Settings },
+    { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
+  ];
 
   return (
     <>
@@ -118,31 +136,18 @@ export default function MobileNav({
             <div className="p-4 space-y-6">
               {/* Navigation Links */}
               <div className="space-y-1">
-                <NavLinkActive href="/" className={itemCls}>
-                  <span>Dashboard</span>
-                </NavLinkActive>
-                <NavLinkActive className={itemCls} href="/people">
-                  <span>People</span>
-                </NavLinkActive>
-                <NavLinkActive className={itemCls} href="/action-items">
-                  <span>Action Items</span>
-                </NavLinkActive>
-                <NavLinkActive href="/integrations" className={itemCls}>
-                  <span>Integrations</span>
-                </NavLinkActive>
-                <NavLinkActive href="/settings" className={itemCls}>
-                  <span>Settings</span>
-                </NavLinkActive>
-                {isAdmin && (
-                  <>
-                    <NavLinkActive href="/admin" className={itemCls}>
-                      <span>Admin Settings</span>
+                {navItems
+                  .filter(() => isAdmin)
+                  .map((item) => (
+                    <NavLinkActive
+                      key={item.path}
+                      href={item.path}
+                      className={itemCls}
+                    >
+                      <item.icon className="w-4 h-4 mr-2" />
+                      <span>{item.label}</span>
                     </NavLinkActive>
-                    {/* <NavLinkActive href="/admin/metrics" className={itemCls}>
-                      <span>Admin Dashboard</span>
-                    </NavLinkActive> */}
-                  </>
-                )}
+                  ))}
               </div>
 
               {/* Connection Status */}
@@ -150,7 +155,7 @@ export default function MobileNav({
                 <div className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Connected Services
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <div className="flex items-center gap-2 text-sm">
                     {dot(connected.gmail)}
                     <span>Gmail</span>

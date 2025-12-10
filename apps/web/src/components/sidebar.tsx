@@ -2,6 +2,14 @@ import { auth } from "@/lib/auth";
 import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import NavLinkActive from "@/components/nav-link-active";
+import {
+  Calendar,
+  Users,
+  CheckSquare,
+  CircuitBoard,
+  Settings,
+  Shield,
+} from "lucide-react";
 
 export default async function Sidebar() {
   noStore();
@@ -53,35 +61,31 @@ export default async function Sidebar() {
     />
   );
 
+  const navItems = [
+    { path: "/", label: "Dashboard", icon: Calendar },
+    { path: "/people", label: "People", icon: Users },
+    { path: "/action-items", label: "Action Items", icon: CheckSquare },
+    { path: "/integrations", label: "Integrations", icon: CircuitBoard },
+    { path: "/settings", label: "Settings", icon: Settings },
+    { path: "/admin", label: "Admin", icon: Shield, adminOnly: true },
+  ];
+
   return (
     <aside className="hidden w-60 shrink-0 md:block">
       <div className="sticky top-6 space-y-4">
         <nav className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-card">
-          <NavLinkActive href="/" className={itemCls}>
-            <span>Dashboard</span>
-          </NavLinkActive>
-          <NavLinkActive className={itemCls} href="/people">
-            <span>People</span>
-          </NavLinkActive>
-          <NavLinkActive className={itemCls} href="/action-items">
-            <span>Action Items</span>
-          </NavLinkActive>
-          <NavLinkActive href="/integrations" className={itemCls}>
-            <span>Integrations</span>
-          </NavLinkActive>
-          <NavLinkActive href="/settings" className={itemCls}>
-            <span>Settings</span>
-          </NavLinkActive>
-          {isAdmin && (
-            <>
-              <NavLinkActive href="/admin" className={itemCls}>
-                <span>Admin Settings</span>
+          {navItems
+            .filter(() => isAdmin)
+            .map((item) => (
+              <NavLinkActive
+                key={item.path}
+                href={item.path}
+                className={itemCls}
+              >
+                <item.icon className="w-4 h-4 mr-2" />
+                <span>{item.label}</span>
               </NavLinkActive>
-              {/* <NavLinkActive href="/admin/metrics" className={itemCls}>
-                <span>Admin Dashboard</span>
-              </NavLinkActive> */}
-            </>
-          )}
+            ))}
         </nav>
 
         <div className="rounded-2xl border border-border/70 bg-gradient-brand-light p-3 shadow-card">
