@@ -46,17 +46,17 @@ export default async function Sidebar() {
   }
 
   const itemCls =
-    "flex items-center gap-2 rounded px-3 py-2 text-sm hover:bg-border/40";
+    "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/80 hover:bg-sidebar-accent/70 hover:text-foreground transition-colors";
   const dot = (ok: boolean) => (
     <span
-      className={`inline-block h-2 w-2 rounded-full ${ok ? "bg-green-500" : "bg-zinc-300"}`}
+      className={`inline-block h-2.5 w-2.5 rounded-full ${ok ? "bg-success" : "bg-muted"}`}
     />
   );
 
   return (
     <aside className="hidden w-60 shrink-0 md:block">
       <div className="sticky top-6 space-y-4">
-        <nav className="rounded-lg border border-border bg-card p-2 shadow-sm">
+        <nav className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-card">
           <NavLinkActive href="/" className={itemCls}>
             <span>Dashboard</span>
           </NavLinkActive>
@@ -84,8 +84,8 @@ export default async function Sidebar() {
           )}
         </nav>
 
-        <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
-          <div className="mb-2 text-xs font-medium text-muted-foreground">
+        <div className="rounded-2xl border border-border/70 bg-gradient-brand-light p-3 shadow-card">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Connected:
           </div>
           <div className="space-y-1 text-sm">

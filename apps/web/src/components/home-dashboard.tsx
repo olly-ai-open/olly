@@ -10,7 +10,6 @@ import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import NextLocal from "@/components/next-local";
 import GenerateBriefButton from "@/components/generate-brief-button";
-import ClientDateTime from "@/components/client-date-time";
 import { getUserSettings } from "@/lib/settings";
 import GenerateMorningBriefButton from "@/components/generate-morning-brief-button";
 import GenerateEveningBriefButton from "@/components/generate-evening-brief-button";
@@ -30,6 +29,76 @@ function toLocalISODate(d: Date) {
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatDueLabel(due: Date) {
+  const now = new Date();
+  const diff = due.getTime() - now.getTime();
+  const days = Math.round(diff / (24 * 60 * 60 * 1000));
+  if (days <= -1) return "Overdue";
+  if (days === 0) return "Due today";
+  if (days === 1) return "Due tomorrow";
+  if (days <= 7) return "Due this week";
+  return due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function actionTone(due: Date) {
+  const now = new Date();
+  const diff = due.getTime() - now.getTime();
+  const days = Math.round(diff / (24 * 60 * 60 * 1000));
+  if (days <= 0) {
+    return {
+      dot: "bg-destructive",
+      container:
+        "border-destructive/30 bg-destructive/10 text-destructive-foreground",
+    };
+  }
+  if (days <= 3) {
+    return {
+      dot: "bg-warning",
+      container: "border-warning/30 bg-warning/10 text-foreground",
+    };
+  }
+  return {
+    dot: "bg-accent",
+    container: "border-accent/40 bg-accent/10 text-foreground",
+  };
+}
+
+function formatTimeRange(
+  start: Date | null,
+  end: Date | null,
+  timeZone: string,
+) {
+  if (!start || !end) return null;
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone,
+  });
+  const startLabel = fmt.format(start);
+  const endLabel = fmt.format(end);
+  const durationMinutes = Math.max(
+    0,
+    Math.round((end.getTime() - start.getTime()) / (60 * 1000)),
+  );
+  const hours = Math.floor(durationMinutes / 60);
+  const mins = durationMinutes % 60;
+  const duration =
+    hours && mins ? `${hours}h ${mins}m` : hours ? `${hours}h` : `${mins}m`;
+  return { label: `${startLabel} \u2013 ${endLabel}`, duration };
+}
+
+function formatAttendees(attendees?: { email?: string | null }[]) {
+  const names = (attendees || [])
+    .map((a) => a.email)
+    .filter(Boolean)
+    .slice(0, 2);
+  if (!names.length) return null;
+  const remaining = (attendees?.length || 0) - names.length;
+  const tail = remaining > 0 ? ` +${remaining}` : "";
+  return `${names.join(", ")}${tail}`;
 }
 
 export default async function HomeDashboard({ day }: { day?: string }) {
@@ -153,26 +222,69 @@ export default async function HomeDashboard({ day }: { day?: string }) {
   const eveningBriefId = (eveningMeeting as any)?.briefs?.[0]?.id ?? null;
   const eveningBriefTimeIso = `${targetDay}T23:59:59Z`;
 
+  const actionItems = userId
+    ? await prisma.actionItem.findMany({
+        where: { userId, completedAt: null, dueAt: { not: null } },
+        orderBy: { dueAt: "asc" },
+        take: 4,
+        select: { id: true, title: true, dueAt: true },
+      })
+    : [];
+
   return (
     <div className="mt-2 flex gap-6">
       {/* Center column */}
       <div className="flex-1">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card/80 px-4 py-3 text-xs text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-medium text-foreground">Today</span>
-            <span>{meetingsToday} meetings</span>
-            <span className="hidden text-border md:inline">•</span>
-            <span>{briefsReady} briefs ready</span>
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-card bg-gradient-brand-light">
+            <div className="text-sm font-medium text-muted-foreground">
+              Today
+            </div>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-3xl font-semibold">{meetingsToday}</span>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                Meetings
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              {briefsReady} briefs ready
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            {nextISO ? (
-              <div className="flex items-center gap-2 text-xs">
-                <NextLocal iso={nextISO} timeZone={timeZone} />
-              </div>
-            ) : null}
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-card bg-gradient-brand-light">
+            <div className="text-sm font-medium text-muted-foreground">
+              Time saved
+            </div>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-3xl font-semibold">{timeSavedLabel}</span>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                Estimate
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              Based on delivered briefs
+            </div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-card bg-gradient-brand-light">
+            <div className="text-sm font-medium text-muted-foreground">
+              Next meeting
+            </div>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span
+                className={`${nextISO ? "text-3xl" : "text-3xl"} font-semibold`}
+              >
+                {nextISO ? (
+                  <NextLocal iso={nextISO} timeZone={timeZone} />
+                ) : (
+                  "--"
+                )}
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              {nextISO ? "Get a fresh brief" : "No upcoming events"}
+            </div>
           </div>
         </div>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 shadow-card">
           <div className="flex items-center gap-3">
             {(() => {
               const current = new Date(`${targetDay}T00:00:00`);
@@ -191,17 +303,20 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                 <>
                   <Link
                     href={`/?date=${prev}`}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-sm hover:bg-border/40"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-muted text-sm font-semibold text-foreground hover:bg-accent/50"
                   >
                     <span aria-hidden="true">‹</span>
                     <span className="sr-only">Previous day</span>
                   </Link>
-                  <div className="text-sm font-medium" suppressHydrationWarning>
+                  <div
+                    className="text-base font-semibold"
+                    suppressHydrationWarning
+                  >
                     {label}
                   </div>
                   <Link
                     href={`/?date=${next}`}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-sm hover:bg-border/40"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-muted text-sm font-semibold text-foreground hover:bg-accent/50"
                   >
                     <span aria-hidden="true">›</span>
                     <span className="sr-only">Next day</span>
@@ -252,107 +367,172 @@ export default async function HomeDashboard({ day }: { day?: string }) {
         )}
 
         <div className="grid grid-cols-1 gap-6">
-          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <h2 className="mb-3 text-xl font-semibold text-primary">
-              Upcoming Meetings
-            </h2>
-            {userId ? (
-              meetings.length ? (
-                <ul className="divide-y divide-border">
-                  {meetings.map((m) => {
-                    const start = m.start ? new Date(m.start) : null;
-                    // Optional preview from latest brief
-                    const meetingRow = byExternalId.get(m.id);
-                    const latest = meetingRow?.briefs?.[0];
-                    const content = latest?.content as BriefJSON;
-                    const bullets = content?.key_context || [];
-                    return (
-                      <li key={m.id} className="py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-medium">{m.title}</div>
-                            <div className="text-sm text-muted-foreground">
-                              <ClientDateTime
-                                date={start}
-                                timeZone={timeZone}
-                              />
-                            </div>
-                          </div>
+          {userId ? (
+            meetings.length ? (
+              <div className="space-y-4">
+                {meetings.map((m) => {
+                  const start = m.start ? new Date(m.start) : null;
+                  const end = m.end ? new Date(m.end) : null;
+                  const timeRange = formatTimeRange(start, end, timeZone);
+                  const attendeeLabel = formatAttendees(m.attendees);
+                  const meetingRow = byExternalId.get(m.id);
+                  const latest = meetingRow?.briefs?.[0];
+                  const content = latest?.content as BriefJSON;
+                  const bullets = content?.key_context || [];
+                  return (
+                    <div
+                      key={m.id}
+                      className="rounded-2xl border border-border/60 bg-card/90 p-4 shadow-card ring-1 ring-border/40 hover:shadow-card-hover hover:border-secondary/30 transition-all duration-300"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
                           <div className="flex items-center gap-2">
+                            <span className="text-lg font-semibold text-foreground">
+                              {m.title}
+                            </span>
                             {latest ? (
+                              <span className="rounded-full bg-success/15 px-2 py-1 text-xs font-semibold text-success shadow-card">
+                                Brief ready
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {timeRange ? (
                               <>
-                                <span className="rounded-full bg-primary px-2 py-0.5 text-sm text-primary-foreground">
-                                  Brief ready
+                                <span>{timeRange.label}</span>
+                                <span className="text-muted-foreground">
+                                  {" "}
+                                  ({timeRange.duration})
                                 </span>
-                                <a
-                                  href={`/briefs/${latest.id}`}
-                                  className="bg-background rounded-md border border-border px-3 py-1 text-sm hover:bg-accent"
-                                >
-                                  View
-                                </a>
                               </>
-                            ) : (
-                              <GenerateBriefButton eventId={m.id} />
-                            )}
+                            ) : null}
+                            {attendeeLabel ? (
+                              <>
+                                <br />
+                                <span className="text-muted-foreground">
+                                  with: {attendeeLabel}
+                                </span>
+                              </>
+                            ) : null}
                           </div>
                         </div>
-                        {bullets.length ? (
-                          <div className="mt-3 rounded-md bg-border/30 p-3 text-sm">
-                            <div className="mb-1 text-xs font-medium text-muted-foreground">
-                              Key Context
-                            </div>
-                            <ul className="list-disc space-y-1 pl-5">
-                              {bullets.map((b, i) => (
-                                <li key={i}>{b}</li>
-                              ))}
-                            </ul>
+                        <div className="flex items-center gap-2">
+                          {latest ? (
+                            <a
+                              href={`/briefs/${latest.id}`}
+                              className="rounded-md border border-border/80 bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground shadow-card hover:opacity-90"
+                            >
+                              View Full Brief
+                            </a>
+                          ) : (
+                            <GenerateBriefButton eventId={m.id} />
+                          )}
+                        </div>
+                      </div>
+                      {bullets.length ? (
+                        <div className="mt-4 rounded-2xl border border-border/50 bg-gradient-brand-light p-4 text-sm shadow-card">
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Key Context
                           </div>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No meetings in the next few hours.
-                </p>
-              )
+                          <ul className="list-disc space-y-1 pl-5 text-foreground">
+                            {bullets.map((b, i) => (
+                              <li key={i}>{b}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Sign in to view your upcoming meetings.
+                No meetings in the next few hours.
               </p>
-            )}
-          </div>
+            )
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Sign in to view your upcoming meetings.
+            </p>
+          )}
         </div>
       </div>
 
       {/* Right column */}
       <aside className="hidden w-80 shrink-0 lg:block">
         <div className="sticky top-6 space-y-4">
-          <div className="rounded-lg border border-border bg-card/80 p-4 shadow-sm">
-            <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="rounded-2xl border border-border/70 bg-gradient-brand-light p-4 shadow-card">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               This week
             </div>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-3 text-sm">
               <div className="flex items-baseline justify-between">
                 <span className="text-muted-foreground">Meetings</span>
-                <span className="font-medium text-foreground">
+                <span className="text-lg font-semibold text-foreground">
                   {meetings.length}
                 </span>
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-muted-foreground">Briefs delivered</span>
-                <span className="font-medium text-foreground">
+                <span className="text-lg font-semibold text-foreground">
                   {briefsReady}
                 </span>
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-muted-foreground">Time saved</span>
-                <span className="font-medium text-foreground">
+                <span className="text-lg font-semibold text-foreground">
                   {timeSavedLabel}
                 </span>
               </div>
             </div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-card">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Upcoming action items
+              </div>
+              <Link
+                href="/action-items"
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                View all
+              </Link>
+            </div>
+            {actionItems.length ? (
+              <div className="space-y-3">
+                {actionItems.map((item) => {
+                  const due = item.dueAt ? new Date(item.dueAt) : null;
+                  if (!due) return null;
+                  const tone = actionTone(due);
+                  return (
+                    <div
+                      key={item.id}
+                      className={`rounded-xl border px-3 py-3 text-sm shadow-card ${tone.container}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2">
+                          <span
+                            className={`mt-1 inline-block h-2.5 w-2.5 rounded-full ${tone.dot}`}
+                          />
+                          <div>
+                            <div className="font-semibold text-foreground">
+                              {item.title}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatDueLabel(due)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/60 bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
+                No upcoming action items.
+              </div>
+            )}
           </div>
         </div>
       </aside>

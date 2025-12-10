@@ -7,6 +7,8 @@ import NavAuth from "@/components/nav-auth";
 import ThemeToggle from "@/components/theme-toggle";
 import MobileNav from "@/components/mobile-nav";
 import CommandPalette from "@/components/command-palette";
+import Image from "next/image";
+import mascot from "@/assets/olly-mascot.png";
 
 export default async function Header() {
   noStore();
@@ -53,9 +55,18 @@ export default async function Header() {
   }
 
   return (
-    <header className="border-b border-border bg-card/70 backdrop-blur">
+    <header className="border-b border-border/60 bg-card/95 text-foreground shadow-card backdrop-blur">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        <Link href="/" className="font-semibold text-lg text-primary">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-1 text-lg font-semibold text-primary shadow-card hover:bg-muted"
+        >
+          <Image
+            src={mascot}
+            alt="Olly logo"
+            className="h-7 w-7 rounded-full"
+            priority
+          />
           Olly
         </Link>
         <div className="flex items-center gap-3">

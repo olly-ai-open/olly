@@ -2,6 +2,9 @@ import { auth } from "@/lib/auth";
 import Sidebar from "@/components/sidebar";
 import HomeDashboard from "@/components/home-dashboard";
 import LoginHero from "@/components/login-hero";
+import ollyMascot from "@/assets/olly-mascot.png";
+import Image from "next/image";
+
 import { unstable_noStore as noStore } from "next/cache";
 
 export default async function HomeGate({ day }: { day?: string }) {
@@ -16,8 +19,10 @@ export default async function HomeGate({ day }: { day?: string }) {
     <div className="flex gap-6">
       <Sidebar />
       <div className="flex-1">
-        <h1 className="mb-2 text-3xl font-semibold">{`Good Morning ${firstName}!`}</h1>
-        <p className="text-foreground">Here’s what’s on deck today.</p>
+        <div className="mb-6 rounded-2xl p-6 flex items-center gap-3">
+          <h1 className="text-3xl font-semibold text-foreground">{`Hey ${firstName}!`}</h1>
+          <Image src={ollyMascot} alt="Olly" className="w-8 h-8" />
+        </div>
         <HomeDashboard day={day} />
       </div>
     </div>

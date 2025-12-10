@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 import Script from "next/script";
+import Image from "next/image";
+import mascot from "@/assets/olly-mascot.png";
 import Header from "@/components/header";
 import "./globals.css";
 
@@ -46,6 +48,14 @@ export default function RootLayout({
           <Header />
         </Suspense>
         <main className="flex-1">{children}</main>
+        <div className="pointer-events-none fixed bottom-4 right-4 z-40 hidden sm:block opacity-90 drop-shadow-lg">
+          <Image
+            src={mascot}
+            alt="Olly mascot"
+            className="h-16 w-16 rounded-full bg-card/90 p-1 shadow-card"
+            priority
+          />
+        </div>
       </body>
     </html>
   );

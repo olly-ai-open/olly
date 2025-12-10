@@ -15,5 +15,5 @@ export default function NextLocal({
     ...(timeZone ? { timeZone } : {}),
   };
   const label = new Intl.DateTimeFormat("en-US", opts).format(d);
-  return <span>Next: {label}</span>;
+  return <span>{label}</span>;
 }

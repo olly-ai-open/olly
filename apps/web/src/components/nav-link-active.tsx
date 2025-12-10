@@ -15,7 +15,7 @@ export default function NavLinkActive({
   const pathname = usePathname() || "/";
   const isActive = href === "/" ? pathname === "/" : pathname === href;
   const activeCls = isActive
-    ? "bg-primary text-primary-foreground rounded-lg"
+    ? "bg-sidebar-accent text-sidebar-foreground shadow-card ring-1 ring-sidebar-border/70 rounded-md font-semibold"
     : "";
   return (
     <Link href={href} className={`${className ?? ""} ${activeCls}`.trim()}>
