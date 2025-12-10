@@ -69,7 +69,13 @@ function formatNumber(value: number): string {
   return value.toLocaleString("en-US");
 }
 
-const palette = ["#3b82f6", "#f97316", "#8b5cf6", "#22c55e", "#e11d48"];
+const palette = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
 const chartGrid = "var(--border)";
 const chartText = "var(--foreground)";
 const chartMuted = "var(--muted-foreground)";
@@ -102,13 +108,21 @@ function Badge({
   color = "gray",
   className = "",
 }: BasicProps & { color?: "gray" | "orange" }) {
-  const styles =
-    color === "orange"
-      ? "bg-orange-100 text-orange-800 border border-orange-200"
-      : "bg-muted text-foreground border border-border";
+  const isWarning = color === "orange";
+  const styles = isWarning
+    ? "border"
+    : "bg-muted text-foreground border border-border";
+  const warningTone = isWarning
+    ? {
+        backgroundColor: "hsl(38 92% 50% / 0.12)",
+        color: "hsl(38 92% 50%)",
+        borderColor: "hsl(38 92% 50% / 0.24)",
+      }
+    : undefined;
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${styles} ${className}`}
+      style={warningTone}
     >
       {children}
     </span>
@@ -469,7 +483,7 @@ export default function AdminDashboard() {
                 <Legend wrapperStyle={{ color: chartText }} />
                 <Bar
                   dataKey="count"
-                  fill="#3b82f6"
+                  fill="var(--chart-1)"
                   barSize={32}
                   radius={[4, 4, 0, 0]}
                 />
@@ -493,8 +507,8 @@ export default function AdminDashboard() {
                   wrapperStyle={{ outline: "none" }}
                 />
                 <Legend wrapperStyle={{ color: chartText }} />
-                <Bar dataKey="Up" fill="#22c55e" barSize={24} />
-                <Bar dataKey="Down" fill="#f97316" barSize={24} />
+                <Bar dataKey="Up" fill="var(--success)" barSize={24} />
+                <Bar dataKey="Down" fill="var(--destructive)" barSize={24} />
               </RCBarChart>
             </ResponsiveContainer>
           </div>
