@@ -232,7 +232,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
     : [];
 
   return (
-    <div className="mt-2 flex gap-6">
+    <div className="mt-0 flex items-start gap-6">
       {/* Center column */}
       <div className="flex-1">
         <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -459,8 +459,8 @@ export default async function HomeDashboard({ day }: { day?: string }) {
       </div>
 
       {/* Right column */}
-      <aside className="hidden w-80 shrink-0 lg:block">
-        <div className="sticky top-6 space-y-4">
+      <aside className="hidden w-80 shrink-0 lg:block lg:sticky lg:top-4 lg:self-start -mt-15">
+        <div className="space-y-4">
           <div className="rounded-2xl border border-border/70 bg-gradient-brand-light p-4 shadow-card">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               This week

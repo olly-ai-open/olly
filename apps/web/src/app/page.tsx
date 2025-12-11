@@ -20,7 +20,7 @@ export default async function Home({
     | undefined;
   return (
     <div className="min-h-dvh bg-background">
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6">
         <Suspense
           fallback={
             <div className="mt-8 flex items-center justify-center">
