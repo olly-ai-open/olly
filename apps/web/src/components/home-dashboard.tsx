@@ -90,13 +90,19 @@ function formatTimeRange(
   return { label: `${startLabel} \u2013 ${endLabel}`, duration };
 }
 
-function formatAttendees(attendees?: { email?: string | null }[]) {
-  const names = (attendees || [])
+function formatAttendees(
+  attendees?: { email?: string | null }[],
+  currentEmail?: string | null,
+) {
+  const filtered = (attendees || [])
     .map((a) => a.email)
     .filter(Boolean)
-    .slice(0, 2);
+    .filter((email) =>
+      currentEmail ? email!.toLowerCase() !== currentEmail.toLowerCase() : true,
+    );
+  const names = filtered.slice(0, 2);
   if (!names.length) return null;
-  const remaining = (attendees?.length || 0) - names.length;
+  const remaining = filtered.length - names.length;
   const tail = remaining > 0 ? ` +${remaining}` : "";
   return `${names.join(", ")}${tail}`;
 }
@@ -374,7 +380,10 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                   const start = m.start ? new Date(m.start) : null;
                   const end = m.end ? new Date(m.end) : null;
                   const timeRange = formatTimeRange(start, end, timeZone);
-                  const attendeeLabel = formatAttendees(m.attendees);
+                  const attendeeLabel = formatAttendees(
+                    m.attendees,
+                    session?.user?.email ?? null,
+                  );
                   const meetingRow = byExternalId.get(m.id);
                   const latest = meetingRow?.briefs?.[0];
                   const content = latest?.content as BriefJSON;
