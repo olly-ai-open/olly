@@ -7,6 +7,7 @@ import {
   checkGoogleHealth,
 } from "@/lib/google";
 import { unstable_noStore as noStore } from "next/cache";
+import { AttendeeList, type AttendeeEntry } from "@/components/attendee-list";
 import Link from "next/link";
 import NextLocal from "@/components/next-local";
 import GenerateBriefButton from "@/components/generate-brief-button";
@@ -90,21 +91,36 @@ function formatTimeRange(
   return { label: `${startLabel} \u2013 ${endLabel}`, duration };
 }
 
-function formatAttendees(
-  attendees?: { email?: string | null }[],
-  currentEmail?: string | null,
+function buildAttendeeDisplay(
+  attendees: { email?: string | null }[] | undefined,
+  currentEmail: string | null,
+  peopleLookup: Map<
+    string,
+    {
+      name: string;
+      id: string;
+    }
+  >,
 ) {
-  const filtered = (attendees || [])
+  const filteredEmails = (attendees || [])
     .map((a) => a.email)
     .filter(Boolean)
     .filter((email) =>
       currentEmail ? email!.toLowerCase() !== currentEmail.toLowerCase() : true,
-    );
-  const names = filtered.slice(0, 2);
-  if (!names.length) return null;
-  const remaining = filtered.length - names.length;
-  const tail = remaining > 0 ? ` +${remaining}` : "";
-  return `${names.join(", ")}${tail}`;
+    ) as string[];
+
+  const entries: AttendeeEntry[] = filteredEmails.map((email) => {
+    const person = peopleLookup.get(email.toLowerCase());
+    return {
+      label: person?.name || email,
+      href: person ? `/people/${person.id}` : undefined,
+    };
+  });
+
+  return {
+    primary: entries.slice(0, 2),
+    overflow: entries.slice(2),
+  };
 }
 
 export default async function HomeDashboard({ day }: { day?: string }) {
@@ -114,6 +130,20 @@ export default async function HomeDashboard({ day }: { day?: string }) {
   const userId = session?.user?.id ?? null;
   const userSettings = userId ? await getUserSettings(userId) : null;
   const timeZone = userSettings?.timeZone || "UTC";
+  const peopleIndex =
+    userId &&
+    (await prisma.person.findMany({
+      where: { userId },
+      select: { id: true, email: true, name: true },
+    }));
+  const peopleLookup = new Map(
+    (peopleIndex || [])
+      .filter((p) => p.email)
+      .map((p) => [
+        p.email!.toLowerCase(),
+        { name: p.name || p.email!, id: p.id },
+      ]),
+  );
 
   const now = new Date();
   const targetDay =
@@ -380,9 +410,10 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                   const start = m.start ? new Date(m.start) : null;
                   const end = m.end ? new Date(m.end) : null;
                   const timeRange = formatTimeRange(start, end, timeZone);
-                  const attendeeLabel = formatAttendees(
+                  const attendeeDisplay = buildAttendeeDisplay(
                     m.attendees,
                     session?.user?.email ?? null,
+                    peopleLookup,
                   );
                   const meetingRow = byExternalId.get(m.id);
                   const latest = meetingRow?.briefs?.[0];
@@ -415,12 +446,13 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                                 </span>
                               </>
                             ) : null}
-                            {attendeeLabel ? (
+                            {attendeeDisplay.primary.length ? (
                               <>
                                 <br />
-                                <span className="text-muted-foreground">
-                                  with: {attendeeLabel}
-                                </span>
+                                <AttendeeList
+                                  primary={attendeeDisplay.primary}
+                                  overflow={attendeeDisplay.overflow}
+                                />
                               </>
                             ) : null}
                           </div>
