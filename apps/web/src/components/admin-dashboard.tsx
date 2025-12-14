@@ -397,7 +397,7 @@ export default function AdminDashboard() {
             <StatCard
               label="Total Users"
               value={formatNumber(data.sync.totalUsers)}
-              sub={`Users in the system`}
+              sub={`In the system`}
             />
             <StatCard
               label="Stale Users"
