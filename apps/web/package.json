@@ -31,6 +31,7 @@
     "googleapis": "^164.1.0",
     "humanize-duration": "3.33.1",
     "lucide-react": "0.556.0",
+    "newrelic": "^13.8.0",
     "next": "15.5.7",
     "next-auth": "^5.0.0-beta.30",
     "openai": "^6.7.0",
