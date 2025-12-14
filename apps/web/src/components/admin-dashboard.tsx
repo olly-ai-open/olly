@@ -406,8 +406,7 @@ export default function AdminDashboard() {
             />
             <StatCard
               label="Coverage (7d)"
-              value={`${formatNumber(data.briefs.coverage.briefs)}/
-                ${formatNumber(data.briefs.coverage.meetings)}`}
+              value={`${formatNumber(data.briefs.coverage.briefs)}/${formatNumber(data.briefs.coverage.meetings)}`}
               sub={`Briefs`}
             />
             <StatCard
