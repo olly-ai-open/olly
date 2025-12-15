@@ -75,7 +75,7 @@ export default async function Sidebar() {
       <div className="sticky top-6 space-y-4">
         <nav className="rounded-2xl border border-border/70 bg-card/80 p-2 shadow-card">
           {navItems
-            .filter(() => isAdmin)
+            .filter((item) => !item.adminOnly || isAdmin)
             .map((item) => (
               <NavLinkActive
                 key={item.path}

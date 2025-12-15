@@ -137,7 +137,7 @@ export default function MobileNav({
               {/* Navigation Links */}
               <div className="space-y-1">
                 {navItems
-                  .filter(() => isAdmin)
+                  .filter((item) => !item.adminOnly || isAdmin)
                   .map((item) => (
                     <NavLinkActive
                       key={item.path}
