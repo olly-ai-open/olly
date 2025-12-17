@@ -191,6 +191,7 @@ export async function POST(req: Request) {
     const actionItemsDb = await prisma.actionItem.findMany({
       where: {
         userId,
+        NOT: { status: "deleted" },
         OR: [{ status: null }, { status: { in: ["open", "todo"] } }],
       },
       include: {

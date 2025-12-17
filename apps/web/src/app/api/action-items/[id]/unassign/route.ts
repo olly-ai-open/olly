@@ -23,7 +23,7 @@ export async function POST(
 
   // Verify ownership
   const ai = await prisma.actionItem.findUnique({ where: { id } });
-  if (!ai || ai.userId !== session.user.id)
+  if (!ai || ai.userId !== session.user.id || ai.status === "deleted")
     return NextResponse.json(
       { ok: false, error: "not_found" },
       { status: 404 },

@@ -16,7 +16,7 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const completed = Boolean(body?.completed);
   const ai = await prisma.actionItem.findUnique({ where: { id } });
-  if (!ai || ai.userId !== session.user.id)
+  if (!ai || ai.userId !== session.user.id || ai.status === "deleted")
     return NextResponse.json(
       { ok: false, error: "not_found" },
       { status: 404 },

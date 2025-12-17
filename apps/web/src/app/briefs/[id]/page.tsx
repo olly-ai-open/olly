@@ -91,7 +91,11 @@ export default async function BriefDetail({
   const highlightedActionItems =
     isMorningBrief && highlightedIds.length
       ? await prisma.actionItem.findMany({
-          where: { userId: session.user.id, id: { in: highlightedIds } },
+          where: {
+            userId: session.user.id,
+            id: { in: highlightedIds },
+            NOT: { status: "deleted" },
+          },
           include: {
             assignees: { include: { person: true } },
             brief: {
@@ -253,6 +257,7 @@ export default async function BriefDetail({
                           ? new Date(ai.dueAt as any).toISOString()
                           : null
                       }
+                      timeZone={settings.timeZone || "UTC"}
                       briefId={ai.briefId || null}
                       assigned={assigned.map((p: any) => ({
                         id: p.id,
@@ -274,44 +279,47 @@ export default async function BriefDetail({
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <div className="mb-2 text-sm font-medium">Action Items</div>
             <ul className="space-y-1 text-sm">
-              {brief.actionItems.map((ai: any) => {
-                const assigned = (ai.assignees || [])
-                  .map((a: any) => a.person)
-                  .filter(Boolean) as any[];
-                const options = (brief.people || [])
-                  .map((bp: any) => bp.person)
-                  .filter(Boolean) as any[];
-                return (
-                  <li key={ai.id}>
-                    <ActionItemRow
-                      id={ai.id}
-                      title={ai.title}
-                      completedAt={
-                        ai.completedAt
-                          ? new Date(ai.completedAt as any).toISOString()
-                          : null
-                      }
-                      status={ai.status}
-                      dueAt={
-                        ai.dueAt
-                          ? new Date(ai.dueAt as any).toISOString()
-                          : null
-                      }
-                      briefId={brief.id}
-                      assigned={assigned.map((p: any) => ({
-                        id: p.id,
-                        name: p.name,
-                        email: p.email,
-                      }))}
-                      options={options.map((p: any) => ({
-                        id: p.id,
-                        name: p.name,
-                        email: p.email,
-                      }))}
-                    />
-                  </li>
-                );
-              })}
+              {brief.actionItems
+                .filter((ai: any) => ai?.status !== "deleted")
+                .map((ai: any) => {
+                  const assigned = (ai.assignees || [])
+                    .map((a: any) => a.person)
+                    .filter(Boolean) as any[];
+                  const options = (brief.people || [])
+                    .map((bp: any) => bp.person)
+                    .filter(Boolean) as any[];
+                  return (
+                    <li key={ai.id}>
+                      <ActionItemRow
+                        id={ai.id}
+                        title={ai.title}
+                        completedAt={
+                          ai.completedAt
+                            ? new Date(ai.completedAt as any).toISOString()
+                            : null
+                        }
+                        status={ai.status}
+                        dueAt={
+                          ai.dueAt
+                            ? new Date(ai.dueAt as any).toISOString()
+                            : null
+                        }
+                        timeZone={settings.timeZone || "UTC"}
+                        briefId={brief.id}
+                        assigned={assigned.map((p: any) => ({
+                          id: p.id,
+                          name: p.name,
+                          email: p.email,
+                        }))}
+                        options={options.map((p: any) => ({
+                          id: p.id,
+                          name: p.name,
+                          email: p.email,
+                        }))}
+                      />
+                    </li>
+                  );
+                })}
             </ul>
           </div>
         ) : null}

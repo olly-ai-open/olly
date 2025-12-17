@@ -260,7 +260,12 @@ export default async function HomeDashboard({ day }: { day?: string }) {
 
   const actionItems = userId
     ? await prisma.actionItem.findMany({
-        where: { userId, completedAt: null, dueAt: { not: null } },
+        where: {
+          userId,
+          completedAt: null,
+          dueAt: { not: null },
+          NOT: { status: "deleted" },
+        },
         orderBy: { dueAt: "asc" },
         take: 4,
         select: { id: true, title: true, dueAt: true },

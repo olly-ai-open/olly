@@ -44,7 +44,7 @@ export default async function ActionItemsPage({
     (Array.isArray(sp?.filter) ? sp.filter[0] : sp?.filter) || "due";
 
   const items = await prisma.actionItem.findMany({
-    where: { userId },
+    where: { userId, NOT: { status: "deleted" } },
     include: {
       brief: { include: { people: { include: { person: true } } } },
       assignees: { include: { person: true } },
@@ -112,6 +112,7 @@ export default async function ActionItemsPage({
             }
             status={ai.status}
             dueAt={ai.dueAt ? new Date(ai.dueAt as any).toISOString() : null}
+            timeZone={timeZone}
             briefId={ai.briefId || null}
             assigned={assigned.map((p: any) => ({
               id: p.id,
