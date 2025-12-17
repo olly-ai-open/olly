@@ -1,7 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  getAdminModeEnabled,
+  subscribeAdminModeEnabled,
+} from "@/lib/adminMode";
 
 export default function BriefActions({
   briefId,
@@ -11,9 +15,18 @@ export default function BriefActions({
   readAt: string | Date | null;
   isAdmin?: boolean;
 }) {
+  const [adminModeEnabled, setAdminModeEnabled] = useState(() =>
+    getAdminModeEnabled(),
+  );
   const [thumb, setThumb] = useState<"up" | "down" | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    return subscribeAdminModeEnabled(setAdminModeEnabled);
+  }, []);
+
+  const effectiveAdmin = isAdmin && adminModeEnabled;
 
   async function sendFeedback(v: "up" | "down") {
     setThumb(v);
@@ -58,7 +71,7 @@ export default function BriefActions({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {isAdmin && (
+      {effectiveAdmin && (
         <>
           <Link
             href={`/briefs/${briefId}/debug`}

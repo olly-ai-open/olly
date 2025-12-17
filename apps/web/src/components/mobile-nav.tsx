@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import NavLinkActive from "@/components/nav-link-active";
+import AdminNavLabel from "@/components/admin-nav-label";
 import {
   Calendar,
   Users,
@@ -145,7 +146,11 @@ export default function MobileNav({
                       className={itemCls}
                     >
                       <item.icon className="w-4 h-4 mr-2" />
-                      <span>{item.label}</span>
+                      {item.path === "/admin" ? (
+                        <AdminNavLabel />
+                      ) : (
+                        <span>{item.label}</span>
+                      )}
                     </NavLinkActive>
                   ))}
               </div>

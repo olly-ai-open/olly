@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import NavLinkActive from "@/components/nav-link-active";
+import AdminNavLabel from "@/components/admin-nav-label";
 import {
   Calendar,
   Users,
@@ -83,7 +84,11 @@ export default async function Sidebar() {
                 className={itemCls}
               >
                 <item.icon className="w-4 h-4 mr-2" />
-                <span>{item.label}</span>
+                {item.path === "/admin" ? (
+                  <AdminNavLabel />
+                ) : (
+                  <span>{item.label}</span>
+                )}
               </NavLinkActive>
             ))}
         </nav>
