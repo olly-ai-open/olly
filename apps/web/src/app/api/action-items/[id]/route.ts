@@ -86,6 +86,7 @@ export async function PATCH(
   }
 
   const next: { title?: string; dueAt?: Date | null } = {};
+  let changed = false;
 
   if (body.title !== undefined) {
     if (typeof body.title !== "string") {
@@ -101,7 +102,10 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    next.title = trimmed;
+    if (trimmed !== ai.title) {
+      next.title = trimmed;
+      changed = true;
+    }
   }
 
   if (body.dueDate !== undefined) {
@@ -109,7 +113,11 @@ export async function PATCH(
     const timeZone = settings.timeZone || "UTC";
 
     if (body.dueDate === null) {
-      next.dueAt = null;
+      const current = ai.dueAt ? ai.dueAt.toISOString() : null;
+      if (current !== null) {
+        next.dueAt = null;
+        changed = true;
+      }
     } else if (typeof body.dueDate !== "string") {
       return NextResponse.json(
         { ok: false, error: "dueDate must be YYYY-MM-DD or null" },
@@ -130,21 +138,34 @@ export async function PATCH(
           { status: 400 },
         );
       }
-      next.dueAt = dueAt;
+      const current = ai.dueAt ? ai.dueAt.toISOString() : null;
+      if (current !== dueAt.toISOString()) {
+        next.dueAt = dueAt;
+        changed = true;
+      }
     }
   }
 
-  if (!Object.keys(next).length) {
-    return NextResponse.json(
-      { ok: false, error: "no_changes" },
-      { status: 400 },
-    );
+  if (!changed) {
+    return NextResponse.json({ ok: true, item: ai });
   }
 
   const updated = await prisma.actionItem.update({
     where: { id },
     data: next,
   });
+
+  try {
+    await (prisma as any).actionItemEvent.create({
+      data: {
+        userId: session.user.id,
+        actionItemId: id,
+        type: "EDIT",
+      },
+    });
+  } catch {
+    // best-effort only
+  }
 
   return NextResponse.json({ ok: true, item: updated });
 }
@@ -174,6 +195,18 @@ export async function DELETE(
     where: { id },
     data: { status: "deleted" },
   });
+
+  try {
+    await (prisma as any).actionItemEvent.create({
+      data: {
+        userId: session.user.id,
+        actionItemId: id,
+        type: "DELETE",
+      },
+    });
+  } catch {
+    // best-effort only
+  }
 
   return NextResponse.json({ ok: true });
 }
