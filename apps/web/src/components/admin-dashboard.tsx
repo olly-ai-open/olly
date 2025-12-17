@@ -51,6 +51,8 @@ type MetricsResponse = {
     withDue: number;
     withoutDue: number;
     overdue: number;
+    edited: number;
+    deleted: number;
   };
 };
 
@@ -360,7 +362,7 @@ export default function AdminDashboard() {
       <div>
         <Title className="text-lg font-semibold">Action items</Title>
         <div className="mt-3 rounded-2xl shadow-lg ring-1">
-          <div className="grid gap-0 divide-x md:grid-cols-5 bg-card rounded-2xl">
+          <div className="grid gap-0 divide-x md:grid-cols-7 bg-card rounded-2xl">
             <StatCard
               label="Created"
               value={formatNumber(data.actionItems.created)}
@@ -369,6 +371,16 @@ export default function AdminDashboard() {
             <StatCard
               label="Resolved"
               value={formatNumber(data.actionItems.resolved)}
+              sub={`${range} day window`}
+            />
+            <StatCard
+              label="Edited"
+              value={formatNumber(data.actionItems.edited)}
+              sub={`${range} day window`}
+            />
+            <StatCard
+              label="Deleted"
+              value={formatNumber(data.actionItems.deleted)}
               sub={`${range} day window`}
             />
             <StatCard

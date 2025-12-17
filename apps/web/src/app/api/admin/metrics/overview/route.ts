@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
     syncRows,
     syncJobStatusRows,
     actionItemRows,
+    actionItemEventRows,
   ] = await prisma.$transaction([
     prisma.$queryRaw<{ pending: number; max_age_minutes: number | null }[]>`
       SELECT count(*)::int AS pending,
@@ -173,6 +174,12 @@ export async function GET(req: NextRequest) {
         count(*) FILTER (WHERE "dueAt" IS NOT NULL AND "dueAt" < now() AND "completedAt" IS NULL)::int AS overdue
       FROM "ActionItem"
     `,
+    prisma.$queryRaw<{ edited: number; deleted: number }[]>`
+      SELECT
+        count(*) FILTER (WHERE type = 'EDIT' AND "createdAt" >= ${since})::int AS edited,
+        count(*) FILTER (WHERE type = 'DELETE' AND "createdAt" >= ${since})::int AS deleted
+      FROM "ActionItemEvent"
+    `,
   ]);
 
   const backlog = backlogRows[0] || { pending: 0, max_age_minutes: 0 };
@@ -259,6 +266,8 @@ export async function GET(req: NextRequest) {
       withDue: toNumber(actionItemRows[0]?.with_due),
       withoutDue: toNumber(actionItemRows[0]?.without_due),
       overdue: toNumber(actionItemRows[0]?.overdue),
+      edited: toNumber(actionItemEventRows[0]?.edited),
+      deleted: toNumber(actionItemEventRows[0]?.deleted),
     },
   });
 }
