@@ -153,8 +153,22 @@ model ActionItem {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   brief Brief? @relation(fields: [briefId], references: [id], onDelete: SetNull)
   assignees ActionItemAssignee[]
+  events ActionItemEvent[]
 
   @@index([userId, status, dueAt])
+}
+
+model ActionItemEvent {
+  id           String   @id @default(cuid())
+  userId       String
+  actionItemId String
+  type         String   // EDIT | DELETE
+  createdAt    DateTime @default(now())
+
+  actionItem ActionItem @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt])
+  @@index([actionItemId, createdAt])
 }
 
 model Job {
