@@ -25,7 +25,7 @@ model User {
   preferences   Json?
   isAdmin       Boolean   @default(false)
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  updatedAt     DateTime  @default(now()) @updatedAt
   deletedAt     DateTime?
 
   accounts      Account[]
