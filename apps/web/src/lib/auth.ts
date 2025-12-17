@@ -9,6 +9,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Allows re-linking after a "soft delete" where we retain the User row
+      // (email remains unique) but the Account row may have been removed.
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           prompt: "consent",

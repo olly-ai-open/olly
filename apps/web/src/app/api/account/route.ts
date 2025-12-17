@@ -83,7 +83,21 @@ export async function DELETE() {
         tx.schedule.deleteMany({ where: { userId } }),
         tx.job.deleteMany({ where: { userId } }),
         tx.userSettings.deleteMany({ where: { userId } }),
-        tx.account.deleteMany({ where: { userId } }),
+        // Keep the Account row so re-sign-in works, but scrub tokens/scopes.
+        tx.account.updateMany({
+          where: { userId },
+          data: {
+            refresh_token: null,
+            access_token: null,
+            id_token: null,
+            expires_at: null,
+            token_type: null,
+            scope: null,
+            session_state: null,
+            oauth_token_secret: null,
+            oauth_token: null,
+          },
+        }),
         tx.session.deleteMany({ where: { userId } }),
       ]);
 
