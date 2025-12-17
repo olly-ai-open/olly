@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
 
 interface UserSettings {
   id: string;
@@ -93,6 +94,9 @@ export default function SettingsForm() {
     "America/New_York",
   ]);
   const [ignoredPatternsText, setIgnoredPatternsText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteMessage, setDeleteMessage] = useState("");
 
   // Load settings on mount
   useEffect(() => {
@@ -210,6 +214,26 @@ export default function SettingsForm() {
       setMessage("Failed to save schedules");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteMessage("");
+    setDeleting(true);
+    try {
+      const response = await fetch("/api/account", { method: "DELETE" });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        setDeleteMessage(error.error || "Failed to delete account");
+        setDeleting(false);
+        return;
+      }
+
+      setDeleteMessage("Account deleted. Signing you out...");
+      await signOut({ callbackUrl: "/" });
+    } catch {
+      setDeleteMessage("Failed to delete account");
+      setDeleting(false);
     }
   };
 
@@ -563,6 +587,45 @@ export default function SettingsForm() {
             Receive email notifications when briefs are ready
           </p>
         </div>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-medium">Delete Account</h2>
+        <p className="mt-1 text-sm">
+          Permanently delete your data. This cannot be undone.
+        </p>
+      </div>
+      <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-4">
+        <div className="grid gap-3 sm:grid-cols-[2fr,1fr]">
+          <label className="text-sm text-foreground">
+            Type <code>DELETE</code> to confirm
+            <input
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none focus:ring-1 focus:ring-destructive"
+              placeholder="DELETE"
+            />
+          </label>
+
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              disabled={
+                deleting ||
+                deleteConfirm.trim().toUpperCase() !== "DELETE" ||
+                loading
+              }
+              className="w-full rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 focus:outline-none focus:ring-2 focus:ring-destructive focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deleting ? "Deleting..." : "Delete account"}
+            </button>
+          </div>
+        </div>
+
+        {deleteMessage ? (
+          <p className="text-sm text-destructive">{deleteMessage}</p>
+        ) : null}
       </div>
 
       <div className="flex items-center justify-between border-t border-border pt-4">
