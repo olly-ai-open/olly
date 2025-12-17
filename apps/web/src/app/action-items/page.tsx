@@ -8,14 +8,6 @@ import { getUserSettings } from "@/lib/settings";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function isSameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
 function toDayKeyInTimeZone(d: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -93,8 +85,8 @@ export default async function ActionItemsPage({
   const noDueDate = incomplete.filter((it: any) => !it.dueAt);
 
   const tabs = [
-    { key: "due", label: "Due" },
-    { key: "completed", label: "Completed" },
+    { key: "due", label: "Due", count: incomplete.length },
+    { key: "completed", label: "Completed", count: completed.length },
   ];
 
   const activeTab = filter === "completed" ? "completed" : "due";
@@ -137,16 +129,29 @@ export default async function ActionItemsPage({
     </div>
   );
 
-  const renderSection = (title: string, list: any[]) => {
-    if (!list.length) return null;
+  const renderSection = (
+    title: string,
+    list: any[],
+    opts?: { emptyText?: string },
+  ) => {
+    const emptyText = opts?.emptyText ?? "No items.";
     return (
-      <section className="space-y-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <details
+        open={list.length > 0}
+        className="rounded-md border border-border bg-card/40"
+      >
+        <summary className="flex cursor-pointer list-none items-baseline justify-between px-3 py-2">
+          <span className="text-sm font-semibold text-foreground">{title}</span>
           <span className="text-xs text-muted-foreground">{list.length}</span>
+        </summary>
+        <div className="space-y-3 px-3 pb-3">
+          {list.length ? (
+            renderItems(list)
+          ) : (
+            <div className="text-sm text-muted-foreground">{emptyText}</div>
+          )}
         </div>
-        {renderItems(list)}
-      </section>
+      </details>
     );
   };
 
@@ -157,7 +162,7 @@ export default async function ActionItemsPage({
         <div className="flex-1">
           <h1 className="mb-4 text-2xl font-semibold">Action Items</h1>
           <div className="mb-4 flex items-center gap-2">
-            {tabs.map((t: { key: string; label: string }) => (
+            {tabs.map((t: { key: string; label: string; count: number }) => (
               <Link
                 key={t.key}
                 href={
@@ -171,7 +176,10 @@ export default async function ActionItemsPage({
                     : "border-border hover:bg-border/30"
                 }`}
               >
-                {t.label}
+                {t.label}{" "}
+                <span className="text-xs text-muted-foreground">
+                  ({t.count})
+                </span>
               </Link>
             ))}
           </div>
@@ -184,19 +192,25 @@ export default async function ActionItemsPage({
                 No completed action items yet.
               </div>
             )
-          ) : overdue.length ||
-            dueToday.length ||
-            upcoming.length ||
-            noDueDate.length ? (
-            <div className="space-y-8">
-              {renderSection("Overdue", overdue)}
-              {renderSection("Today", dueToday)}
-              {renderSection("Upcoming", upcoming)}
-              {renderSection("No due date", noDueDate)}
-            </div>
           ) : (
-            <div className="text-sm text-muted-foreground">
-              No action items due right now.
+            <div className="space-y-8">
+              {!incomplete.length ? (
+                <div className="text-sm text-muted-foreground">
+                  No open action items right now.
+                </div>
+              ) : null}
+              {renderSection("Overdue", overdue, {
+                emptyText: "No overdue items.",
+              })}
+              {renderSection("Today", dueToday, {
+                emptyText: "Nothing due today.",
+              })}
+              {renderSection("Upcoming", upcoming, {
+                emptyText: "No upcoming due dates.",
+              })}
+              {renderSection("No due date", noDueDate, {
+                emptyText: "No undated items.",
+              })}
             </div>
           )}
         </div>
