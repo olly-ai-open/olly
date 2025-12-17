@@ -60,3 +60,32 @@ export function shouldIgnoreEventByTitle(
 
   return false;
 }
+
+export type EventAttendee = {
+  email?: string | null;
+  responseStatus?: string | null;
+  self?: boolean | null;
+};
+
+export function didUserDeclineEvent(
+  attendees: EventAttendee[] | null | undefined,
+  opts?: { currentUserEmail?: string | null },
+): boolean {
+  if (!Array.isArray(attendees) || !attendees.length) return false;
+
+  const currentUserEmail = (opts?.currentUserEmail || "").trim().toLowerCase();
+
+  for (const attendee of attendees) {
+    if (!attendee) continue;
+    const response = (attendee.responseStatus || "").toLowerCase();
+    if (response !== "declined") continue;
+
+    const isSelf = attendee.self === true;
+    if (isSelf) return true;
+
+    const email = (attendee.email || "").trim().toLowerCase();
+    if (currentUserEmail && email && email === currentUserEmail) return true;
+  }
+
+  return false;
+}

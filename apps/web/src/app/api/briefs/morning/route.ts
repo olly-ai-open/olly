@@ -10,6 +10,7 @@ import {
   generateMorningBrief,
   S3DebugStorage,
   createBriefDebugContext,
+  didUserDeclineEvent,
 } from "@olly/core";
 import {
   generateMeetingBriefForEvent,
@@ -86,8 +87,23 @@ export async function POST(req: Request) {
     const token = await getAccessTokenFromAccount(account);
     const events = await listEventsByDayWithToken(token, dayISO, timeZone);
 
+    const userEmail =
+      (
+        await prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true },
+        })
+      )?.email ?? null;
+
+    const filteredEvents = userEmail
+      ? (events as any[]).filter(
+          (e: any) =>
+            !didUserDeclineEvent(e.attendees, { currentUserEmail: userEmail }),
+        )
+      : (events as any[]);
+
     // Look up existing meetings and their latest briefs (for goals)
-    const eventIds = events.map((e: any) => e.id as string);
+    const eventIds = filteredEvents.map((e: any) => e.id as string);
     const existingMeetings = await prisma.meeting.findMany({
       where: { userId, externalId: { in: eventIds } },
       include: {
@@ -129,7 +145,7 @@ export async function POST(req: Request) {
 
     // For events without a stored brief/goals, generate an in-memory brief
     // (no DB writes) to extract goals for the morning summary.
-    for (const evt of events as any[]) {
+    for (const evt of filteredEvents as any[]) {
       const externalId = evt.id as string;
       if (goalsByExternalId.has(externalId)) continue;
 
@@ -164,7 +180,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const meetingsForBrief = events.map((e: any) => ({
+    const meetingsForBriefFiltered = filteredEvents.map((e: any) => ({
       id: e.id as string,
       title: (e.title as string) || "(no title)",
       start: e.start || null,
@@ -232,7 +248,7 @@ export async function POST(req: Request) {
       {
         day: dayISO,
         timeZone,
-        meetings: meetingsForBrief,
+        meetings: meetingsForBriefFiltered,
         actionItems: actionItemsForBrief,
       },
       {

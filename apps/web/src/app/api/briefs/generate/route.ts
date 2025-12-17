@@ -98,7 +98,33 @@ export async function POST(req: Request) {
     });
 
     if (!briefId) {
-      throw new Error("brief_not_persisted");
+      const meeting = await prisma.meeting.findUnique({
+        where: {
+          userId_externalId: {
+            userId: session.user.id,
+            externalId: eventId,
+          },
+        },
+        select: { status: true },
+      });
+
+      if (meeting?.status === "declined") {
+        return NextResponse.json(
+          { ok: false, error: "event_declined" },
+          { status: 409 },
+        );
+      }
+      if (meeting?.status === "ignored") {
+        return NextResponse.json(
+          { ok: false, error: "event_ignored" },
+          { status: 409 },
+        );
+      }
+
+      return NextResponse.json(
+        { ok: false, error: "brief_not_persisted" },
+        { status: 409 },
+      );
     }
 
     debug.markSuccess(briefId, session.user.id);

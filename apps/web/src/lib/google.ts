@@ -176,6 +176,7 @@ export async function listUpcomingMeetingsWithToken(
       ? e.attendees.map((a: any) => ({
           email: a.email,
           responseStatus: a.responseStatus,
+          self: a.self === true,
         }))
       : [],
     hangoutLink:
@@ -274,6 +275,7 @@ export async function listEventsByDayWithToken(
       ? e.attendees.map((a: any) => ({
           email: a.email,
           responseStatus: a.responseStatus,
+          self: a.self === true,
         }))
       : [],
     hangoutLink:
@@ -299,6 +301,7 @@ export async function getEventDetailsWithToken(token: string, eventId: string) {
       ? e.attendees.map((a: any) => ({
           email: a.email,
           responseStatus: a.responseStatus,
+          self: a.self === true,
         }))
       : [],
     hangoutLink:

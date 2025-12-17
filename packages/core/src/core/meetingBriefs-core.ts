@@ -23,6 +23,7 @@ import type { DebugDataStructure } from "../s3-debug";
 import {
   normalizeIgnorePatterns,
   shouldIgnoreEventByTitle,
+  didUserDeclineEvent,
 } from "./eventFilters-core";
 
 function getHeaderValue(headers: any[], name: string): string | null {
@@ -97,6 +98,38 @@ export async function generateMeetingBriefForEventCore(
   addTimeline("EVENT_LOAD_START", { eventId });
   const event = await getEventDetailsWithToken(token, eventId);
   addTimeline("EVENT_LOAD_COMPLETE", { eventId });
+
+  const currentUserEmail =
+    (
+      await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true },
+      })
+    )?.email ?? null;
+
+  if (didUserDeclineEvent(event.attendees as any, { currentUserEmail })) {
+    addTimeline("EVENT_DECLINED", { eventId });
+
+    let meetingId: string | null = null;
+    if (persist) {
+      const meeting = await upsertMeetingFromEventCore(prisma, userId, {
+        id: event.id,
+        title: event.title || "(no title)",
+        start: event.start,
+        end: event.end,
+        attendees: event.attendees || [],
+        description: event.description || null,
+        status: "declined",
+      });
+      meetingId = meeting.id;
+    }
+
+    return {
+      meetingId,
+      briefId: null,
+      content: { brief_markdown: "" },
+    };
+  }
 
   if (
     ignorePatterns.length &&
