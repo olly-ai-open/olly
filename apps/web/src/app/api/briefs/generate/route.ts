@@ -32,12 +32,14 @@ export async function POST(req: Request) {
   let eventId: string | undefined;
   let wantsRedirect = false;
   let searchStrategy: QueryStrategy = QUERY_STRATEGY_LLM_ONLY;
+  let forceGenerate = false;
   let searchStrategyFromBody: QueryStrategy | null = null;
   const contentType = req.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const body = await req.json().catch(() => ({}));
     eventId = body?.eventId as string | undefined;
     wantsRedirect = Boolean(body?.redirect);
+    forceGenerate = Boolean(body?.force);
     if (typeof body?.searchStrategy === "string") {
       const candidate = body.searchStrategy as string;
       if (
@@ -61,6 +63,7 @@ export async function POST(req: Request) {
     const form = await req.formData();
     eventId = (form.get("eventId") as string) || undefined;
     wantsRedirect = (form.get("redirect") as string) === "1";
+    forceGenerate = (form.get("force") as string) === "1";
   }
   if (!eventId)
     return NextResponse.json(
@@ -97,6 +100,7 @@ export async function POST(req: Request) {
         debugData,
         addTimelineEntry,
       },
+      force: forceGenerate,
     });
 
     if (!briefId) {
@@ -110,13 +114,13 @@ export async function POST(req: Request) {
         select: { status: true },
       });
 
-      if (meeting?.status === "declined") {
+      if (!forceGenerate && meeting?.status === "declined") {
         return NextResponse.json(
           { ok: false, error: "event_declined" },
           { status: 409 },
         );
       }
-      if (meeting?.status === "ignored") {
+      if (!forceGenerate && meeting?.status === "ignored") {
         return NextResponse.json(
           { ok: false, error: "event_ignored" },
           { status: 409 },

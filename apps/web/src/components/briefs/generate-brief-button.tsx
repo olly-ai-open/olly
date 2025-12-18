@@ -25,6 +25,7 @@ export default function GenerateBriefButton({
         body: JSON.stringify({
           eventId,
           redirect: "1",
+          force: true,
         }),
       });
 

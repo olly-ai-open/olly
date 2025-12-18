@@ -16,6 +16,7 @@ export async function generateMeetingBriefForEvent(opts: {
   userSettings?: UserSettings;
   debug?: MeetingBriefDebugContext;
   persist?: boolean;
+  force?: boolean;
 }) {
   return generateMeetingBriefForEventCore(prisma, opts);
 }

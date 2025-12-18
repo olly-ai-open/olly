@@ -55,6 +55,7 @@ export async function generateMeetingBriefForEventCore(
     userSettings?: UserSettings;
     debug?: MeetingBriefDebugContext;
     persist?: boolean;
+    force?: boolean;
   },
 ): Promise<{
   meetingId: string | null;
@@ -69,7 +70,8 @@ export async function generateMeetingBriefForEventCore(
     userSettings,
     debug,
     persist = true,
-  } = opts as typeof opts & { persist?: boolean };
+    force = false,
+  } = opts as typeof opts & { persist?: boolean; force?: boolean };
 
   const debugData = debug?.debugData;
   const addTimeline =
@@ -107,7 +109,13 @@ export async function generateMeetingBriefForEventCore(
       })
     )?.email ?? null;
 
-  if (didUserDeclineEvent(event.attendees as any, { currentUserEmail })) {
+  const userDeclined = didUserDeclineEvent(event.attendees as any, {
+    currentUserEmail,
+  });
+  if (userDeclined && force) {
+    addTimeline("EVENT_DECLINED_OVERRIDDEN", { eventId });
+  }
+  if (userDeclined && !force) {
     addTimeline("EVENT_DECLINED", { eventId });
 
     let meetingId: string | null = null;
@@ -131,10 +139,16 @@ export async function generateMeetingBriefForEventCore(
     };
   }
 
-  if (
+  const matchesIgnorePattern =
     ignorePatterns.length &&
-    shouldIgnoreEventByTitle(event.title, ignorePatterns)
-  ) {
+    shouldIgnoreEventByTitle(event.title, ignorePatterns);
+  if (matchesIgnorePattern && force) {
+    addTimeline("EVENT_IGNORED_BY_PATTERN_OVERRIDDEN", {
+      eventId,
+      title: event.title,
+    });
+  }
+  if (matchesIgnorePattern && !force) {
     addTimeline("EVENT_IGNORED_BY_PATTERN", {
       eventId,
       title: event.title,

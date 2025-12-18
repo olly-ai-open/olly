@@ -507,7 +507,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {isDisabled ? null : latest ? (
+                          {latest ? (
                             <a
                               href={`/briefs/${latest.id}`}
                               className="rounded-md border border-border/80 bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground shadow-card hover:opacity-90"
