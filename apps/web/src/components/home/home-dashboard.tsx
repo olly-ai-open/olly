@@ -1,6 +1,11 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { type BriefJSON } from "@olly/core";
+import {
+  type BriefJSON,
+  didUserDeclineEvent,
+  normalizeIgnorePatterns,
+  shouldIgnoreEventByTitle,
+} from "@olly/core";
 import {
   getAccessTokenFromAccount,
   listEventsByDayWithToken,
@@ -133,6 +138,10 @@ export default async function HomeDashboard({ day }: { day?: string }) {
   const userId = session?.user?.id ?? null;
   const userSettings = userId ? await getUserSettings(userId) : null;
   const timeZone = userSettings?.timeZone || "UTC";
+  const ignorePatterns = userSettings
+    ? normalizeIgnorePatterns(userSettings)
+    : [];
+  const currentUserEmail = session?.user?.email ?? null;
   const peopleIndex =
     userId &&
     (await prisma.person.findMany({
@@ -427,10 +436,34 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                   const latest = meetingRow?.briefs?.[0];
                   const content = latest?.content as BriefJSON;
                   const bullets = content?.key_context || [];
+                  const derivedStatus =
+                    meetingRow?.status ||
+                    (didUserDeclineEvent(m.attendees as any, {
+                      currentUserEmail,
+                    })
+                      ? "declined"
+                      : ignorePatterns.length &&
+                          shouldIgnoreEventByTitle(m.title, ignorePatterns)
+                        ? "ignored"
+                        : null);
+                  const isDisabled =
+                    derivedStatus === "declined" || derivedStatus === "ignored";
+                  const statusLabel =
+                    derivedStatus === "declined"
+                      ? "Declined event"
+                      : derivedStatus === "ignored"
+                        ? "Ignored by pattern"
+                        : latest
+                          ? "Brief ready"
+                          : null;
                   return (
                     <div
                       key={m.id}
-                      className="rounded-2xl border border-border/60 bg-card/90 p-4 shadow-card ring-1 ring-border/40 hover:shadow-card-hover hover:border-secondary/30 transition-all duration-300"
+                      className={`rounded-2xl border border-border/60 bg-card/90 p-4 shadow-card ring-1 ring-border/40 transition-all duration-300 ${
+                        isDisabled
+                          ? "opacity-70 border-dashed"
+                          : "hover:shadow-card-hover hover:border-secondary/30"
+                      }`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-1">
@@ -438,9 +471,17 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                             <span className="text-lg font-semibold text-foreground">
                               {m.title}
                             </span>
-                            {latest ? (
-                              <span className="rounded-full bg-success/15 px-2 py-1 text-xs font-semibold text-success shadow-card">
-                                Brief ready
+                            {statusLabel ? (
+                              <span
+                                className={`rounded-full px-2 py-1 text-xs font-semibold shadow-card ${
+                                  derivedStatus === "declined"
+                                    ? "bg-muted text-muted-foreground"
+                                    : derivedStatus === "ignored"
+                                      ? "bg-muted text-muted-foreground"
+                                      : "bg-success/15 text-success"
+                                }`}
+                              >
+                                {statusLabel}
                               </span>
                             ) : null}
                           </div>
@@ -466,7 +507,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {latest ? (
+                          {isDisabled ? null : latest ? (
                             <a
                               href={`/briefs/${latest.id}`}
                               className="rounded-md border border-border/80 bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground shadow-card hover:opacity-90"
