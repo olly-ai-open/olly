@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import Sidebar from "@/components/sidebar";
-import AdminDashboard from "@/components/admin-dashboard";
+import Sidebar from "@/components/layout/sidebar";
+import AdminDashboard from "@/components/admin/admin-dashboard";
 
 export const dynamic = "force-dynamic";
 

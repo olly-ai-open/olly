@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Sidebar from "@/components/sidebar";
-import SettingsForm from "@/components/settings-form";
+import Sidebar from "@/components/layout/sidebar";
+import SettingsForm from "@/components/settings/settings-form";
 
 export const dynamic = "force-dynamic";
 

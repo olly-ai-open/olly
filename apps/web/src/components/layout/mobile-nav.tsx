@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import NavLinkActive from "@/components/nav-link-active";
-import AdminNavLabel from "@/components/admin-nav-label";
+import NavLinkActive from "@/components/layout/nav-link-active";
+import AdminNavLabel from "@/components/admin/admin-nav-label";
 import {
   Calendar,
   Users,

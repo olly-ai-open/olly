@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import Sidebar from "@/components/sidebar";
-import ActionItemRow from "@/components/action-item-row";
+import Sidebar from "@/components/layout/sidebar";
+import ActionItemRow from "@/components/action-items/action-item-row";
 import Link from "next/link";
 import { getUserSettings } from "@/lib/settings";
 

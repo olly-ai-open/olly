@@ -4,9 +4,9 @@ import { checkGoogleHealth } from "@/lib/google";
 import { checkSlackHealth } from "@/lib/slack";
 import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
-import Sidebar from "@/components/sidebar";
-import LoginHero from "@/components/login-hero";
-import DriveFolderManager from "@/components/drive-folder-manager";
+import Sidebar from "@/components/layout/sidebar";
+import LoginHero from "@/components/home/login-hero";
+import DriveFolderManager from "@/components/integrations/drive-folder-manager";
 import Script from "next/script";
 
 export const metadata: Metadata = {

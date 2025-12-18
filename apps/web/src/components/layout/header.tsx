@@ -3,10 +3,10 @@ import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { unstable_noStore as noStore } from "next/cache";
-import NavAuth from "@/components/nav-auth";
-import ThemeToggle from "@/components/theme-toggle";
-import MobileNav from "@/components/mobile-nav";
-import CommandPalette from "@/components/command-palette";
+import NavAuth from "@/components/layout/nav-auth";
+import ThemeToggle from "@/components/layout/theme-toggle";
+import MobileNav from "@/components/layout/mobile-nav";
+import CommandPalette from "@/components/debug/command-palette";
 import Image from "next/image";
 import mascot from "@/assets/olly-mascot.png";
 

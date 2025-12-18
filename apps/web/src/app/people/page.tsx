@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import Sidebar from "@/components/sidebar";
+import Sidebar from "@/components/layout/sidebar";
 import Link from "next/link";
-import PeopleSearch from "@/components/people-search";
-import ClientDateTime from "@/components/client-date-time";
+import PeopleSearch from "@/components/people/people-search";
+import ClientDateTime from "@/components/datetime/client-date-time";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

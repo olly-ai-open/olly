@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-import HomeGate from "@/components/home-gate";
+import HomeGate from "@/components/home/home-gate";
 
 export const metadata: Metadata = {
   title: "Olly - Dashboard",

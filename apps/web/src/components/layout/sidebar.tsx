@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth";
 import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import NavLinkActive from "@/components/nav-link-active";
-import AdminNavLabel from "@/components/admin-nav-label";
+import NavLinkActive from "@/components/layout/nav-link-active";
+import AdminNavLabel from "@/components/admin/admin-nav-label";
 import {
   Calendar,
   Users,

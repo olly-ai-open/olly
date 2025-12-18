@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
-import Sidebar from "@/components/sidebar";
-import HomeDashboard from "@/components/home-dashboard";
-import LoginHero from "@/components/login-hero";
+import Sidebar from "@/components/layout/sidebar";
+import HomeDashboard from "@/components/home/home-dashboard";
+import LoginHero from "@/components/home/login-hero";
 import ollyMascot from "@/assets/olly-mascot.png";
 import Image from "next/image";
 

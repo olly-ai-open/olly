@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import Sidebar from "@/components/sidebar";
+import Sidebar from "@/components/layout/sidebar";
 import Link from "next/link";
-import PersonEditor from "@/components/person-editor";
+import PersonEditor from "@/components/people/person-editor";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

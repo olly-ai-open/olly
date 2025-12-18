@@ -2,8 +2,8 @@ import { auth } from "@/lib/auth";
 import { getUserSettings } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 import { S3DebugStorage } from "@olly/core";
-import DebugDataViewer from "@/components/debug-data-viewer";
-import BackButton from "@/components/back-button";
+import DebugDataViewer from "@/components/debug/debug-data-viewer";
+import BackButton from "@/components/layout/back-button";
 import { notFound } from "next/navigation";
 
 export default async function BriefDebugPage({

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import BriefActions from "@/components/brief-actions";
-import BackButton from "@/components/back-button";
-import ActionItemRow from "@/components/action-item-row";
-import MarkdownView from "@/components/markdown-view";
+import BriefActions from "@/components/briefs/brief-actions";
+import BackButton from "@/components/layout/back-button";
+import ActionItemRow from "@/components/action-items/action-item-row";
+import MarkdownView from "@/components/briefs/markdown-view";
 import { getUserSettings } from "@/lib/settings";
 import { getBriefForUser } from "@/lib/briefs";
 

@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Script from "next/script";
 import Image from "next/image";
 import mascot from "@/assets/olly-mascot.png";
-import Header from "@/components/header";
+import Header from "@/components/layout/header";
 import "./globals.css";
 
 const geistSans = Geist({

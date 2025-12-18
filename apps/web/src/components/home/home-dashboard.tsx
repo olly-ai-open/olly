@@ -7,13 +7,16 @@ import {
   checkGoogleHealth,
 } from "@/lib/google";
 import { unstable_noStore as noStore } from "next/cache";
-import { AttendeeList, type AttendeeEntry } from "@/components/attendee-list";
+import {
+  AttendeeList,
+  type AttendeeEntry,
+} from "@/components/people/attendee-list";
 import Link from "next/link";
-import NextLocal from "@/components/next-local";
-import GenerateBriefButton from "@/components/generate-brief-button";
+import NextLocal from "@/components/datetime/next-local";
+import GenerateBriefButton from "@/components/briefs/generate-brief-button";
 import { getUserSettings } from "@/lib/settings";
-import GenerateMorningBriefButton from "@/components/generate-morning-brief-button";
-import GenerateEveningBriefButton from "@/components/generate-evening-brief-button";
+import GenerateMorningBriefButton from "@/components/briefs/generate-morning-brief-button";
+import GenerateEveningBriefButton from "@/components/briefs/generate-evening-brief-button";
 
 function formatMinutesHuman(mins: number) {
   if (!mins || mins < 0) return "0m";
