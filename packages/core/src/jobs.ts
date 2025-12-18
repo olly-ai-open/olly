@@ -18,6 +18,7 @@ import { S3DebugStorage, type DebugDataStructure } from "./s3-debug";
 import {
   normalizeIgnorePatterns,
   shouldIgnoreEventByTitle,
+  didUserDeclineEvent,
 } from "./core/eventFilters-core";
 
 export type JobKind =
@@ -139,7 +140,7 @@ async function dispatchJob(
           },
         },
       });
-      if (meeting?.status === "ignored") {
+      if (meeting?.status === "ignored" || meeting?.status === "declined") {
         return;
       }
 
@@ -154,36 +155,69 @@ async function dispatchJob(
           | "HEURISTIC_ONLY"
           | "LLM_AND_HEURISTIC") || "HEURISTIC_ONLY";
 
-      if (ignorePatterns.length) {
-        let title = meeting?.title || null;
-        let fetchedEvent: any = null;
+      // Pre-flight ignore/decline check with best available data (meeting record + fetched event)
+      let title = meeting?.title || null;
+      let attendees: any[] =
+        (Array.isArray(meeting?.attendees) ? (meeting?.attendees as any[]) : []) ||
+        [];
+      let fetchedEvent: any = null;
 
-        if (!title) {
-          const account = await prisma.account.findFirst({
-            where: { userId: job.userId, provider: "google" },
-          });
-          if (!account) throw new Error("no_account_for_meeting_brief");
-          const token = await getAccessTokenFromAccountCore(
-            prisma,
-            account as any,
-          );
-          fetchedEvent = await getEventDetailsWithToken(token, eventId);
-          title = fetchedEvent.title || null;
-        }
+      // Fetch event if we’re missing title/attendees or need organizer-derived context
+      const account = await prisma.account.findFirst({
+        where: { userId: job.userId, provider: "google" },
+      });
+      if (!account) throw new Error("no_account_for_meeting_brief");
+      const token = await getAccessTokenFromAccountCore(prisma, account as any);
 
-        if (title && shouldIgnoreEventByTitle(title, ignorePatterns)) {
-          const eventData = fetchedEvent || meeting;
-          await upsertMeetingFromEventCore(prisma, job.userId, {
-            id: eventId,
-            title: title || "(no title)",
-            start: eventData?.start,
-            end: eventData?.end,
-            attendees: eventData?.attendees || [],
-            description: eventData?.description || null,
-            status: "ignored",
-          });
-          return;
+      if (!title || attendees.length === 0) {
+        fetchedEvent = await getEventDetailsWithToken(token, eventId);
+        title = title || fetchedEvent.title || null;
+        if (attendees.length === 0 && Array.isArray(fetchedEvent.attendees)) {
+          attendees = fetchedEvent.attendees;
         }
+      }
+
+      const accountEmail = account.providerAccountId || null;
+      const userEmail =
+        (await prisma.user.findUnique({
+          where: { id: job.userId },
+          select: { email: true },
+        }))?.email || null;
+      const currentUserEmail = userEmail || accountEmail || null;
+
+      if (
+        currentUserEmail &&
+        didUserDeclineEvent(attendees as any, { currentUserEmail })
+      ) {
+        const eventData = fetchedEvent || meeting;
+        await upsertMeetingFromEventCore(prisma, job.userId, {
+          id: eventId,
+          title: title || "(no title)",
+          start: eventData?.start,
+          end: eventData?.end,
+          attendees: eventData?.attendees || [],
+          description: eventData?.description || null,
+          status: "declined",
+        });
+        return;
+      }
+
+      if (
+        ignorePatterns.length &&
+        title &&
+        shouldIgnoreEventByTitle(title, ignorePatterns)
+      ) {
+        const eventData = fetchedEvent || meeting;
+        await upsertMeetingFromEventCore(prisma, job.userId, {
+          id: eventId,
+          title: title || "(no title)",
+          start: eventData?.start,
+          end: eventData?.end,
+          attendees: eventData?.attendees || [],
+          description: eventData?.description || null,
+          status: "ignored",
+        });
+        return;
       }
 
       const start = Date.now();
