@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
   let eventId: string | undefined;
   let wantsRedirect = false;
-  let searchStrategy: QueryStrategy = QUERY_STRATEGY_HEURISTIC_ONLY;
+  let searchStrategy: QueryStrategy = QUERY_STRATEGY_LLM_ONLY;
   let searchStrategyFromBody: QueryStrategy | null = null;
   const contentType = req.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
@@ -79,8 +79,10 @@ export async function POST(req: Request) {
       searchStrategy = QUERY_STRATEGY_LLM_ONLY;
     } else if (savedSearchStrategy === "LLM_AND_HEURISTIC") {
       searchStrategy = QUERY_STRATEGY_LLM_AND_HEURISTIC;
-    } else {
+    } else if (savedSearchStrategy === "HEURISTIC_ONLY") {
       searchStrategy = QUERY_STRATEGY_HEURISTIC_ONLY;
+    } else {
+      searchStrategy = QUERY_STRATEGY_LLM_ONLY;
     }
 
     // Preload user settings so we don't re-fetch inside helper
