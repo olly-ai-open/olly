@@ -44,7 +44,7 @@ function copyForKind(kind: BriefNotificationKind) {
   if (kind === "EVENING_BRIEF") {
     return {
       title: "End-of-day summary is ready",
-      body: "Your end-of-day brief is ready.",
+      body: "Your end-of-day summary is ready.",
       tag: "olly-evening-brief",
     };
   }
