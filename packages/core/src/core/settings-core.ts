@@ -25,6 +25,7 @@ export async function getUserSettingsCore(
         endOfDayBriefSystemPrompt: null,
         timeZone: null,
         emailNotifications: true,
+        webNotificationsEnabled: false,
         ignoredEventPatterns: [],
       },
     });

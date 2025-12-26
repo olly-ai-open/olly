@@ -82,6 +82,7 @@ export async function DELETE() {
         tx.integration.deleteMany({ where: { userId } }),
         tx.schedule.deleteMany({ where: { userId } }),
         tx.job.deleteMany({ where: { userId } }),
+        tx.webPushSubscription.deleteMany({ where: { userId } }),
         tx.userSettings.deleteMany({ where: { userId } }),
         // Keep the Account row so re-sign-in works, but scrub tokens/scopes.
         tx.account.updateMany({

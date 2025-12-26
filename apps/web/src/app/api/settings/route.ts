@@ -25,6 +25,7 @@ export async function GET() {
           queryPlannerSystemPrompt: null,
           endOfDayBriefSystemPrompt: null,
           emailNotifications: true,
+          webNotificationsEnabled: false,
           ignoredEventPatterns: [],
         } as any,
       });
@@ -53,6 +54,7 @@ export async function PUT(req: Request) {
     const {
       searchTimeframeDays,
       emailNotifications,
+      webNotificationsEnabled,
       searchStrategy,
       briefSystemPrompt,
       queryPlannerSystemPrompt,
@@ -81,6 +83,17 @@ export async function PUT(req: Request) {
     ) {
       return NextResponse.json(
         { error: "emailNotifications must be a boolean" },
+        { status: 400 },
+      );
+    }
+
+    // Validate webNotificationsEnabled
+    if (
+      webNotificationsEnabled !== undefined &&
+      typeof webNotificationsEnabled !== "boolean"
+    ) {
+      return NextResponse.json(
+        { error: "webNotificationsEnabled must be a boolean" },
         { status: 400 },
       );
     }
@@ -211,6 +224,9 @@ export async function PUT(req: Request) {
       update: {
         ...(searchTimeframeDays !== undefined && { searchTimeframeDays }),
         ...(emailNotifications !== undefined && { emailNotifications }),
+        ...(webNotificationsEnabled !== undefined && {
+          webNotificationsEnabled,
+        }),
         ...(nextSearchStrategy !== undefined && {
           searchStrategy: nextSearchStrategy,
         }),
@@ -246,6 +262,7 @@ export async function PUT(req: Request) {
             ? null
             : timeZone.trim() || null,
         emailNotifications: emailNotifications ?? true,
+        webNotificationsEnabled: webNotificationsEnabled ?? false,
         ignoredEventPatterns: nextIgnoredEventPatterns ?? [],
       } as any,
     });

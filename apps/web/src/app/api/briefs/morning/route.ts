@@ -11,6 +11,7 @@ import {
   S3DebugStorage,
   createBriefDebugContext,
   didUserDeclineEvent,
+  sendBriefReadyWebPush,
 } from "@olly/core";
 import {
   generateMeetingBriefForEvent,
@@ -64,6 +65,7 @@ export async function POST(req: Request) {
     const form = await req.formData();
     body = { day: form.get("day") as string | null };
   }
+  const scheduled = body?.scheduled === true;
 
   try {
     const settings = await getUserSettings(userId);
@@ -287,6 +289,16 @@ export async function POST(req: Request) {
         } as any,
       },
     });
+
+    if (scheduled) {
+      sendBriefReadyWebPush(prisma, {
+        userId,
+        briefId: saved.id,
+        kind: "MORNING_BRIEF",
+      }).catch((err) => {
+        console.error("Failed to send morning brief web push", err);
+      });
+    }
 
     debug.markSuccess(saved.id, userId);
     addTimelineEntry("MORNING_BRIEF_SAVED", { briefId: saved.id });

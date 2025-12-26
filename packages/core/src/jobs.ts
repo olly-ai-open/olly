@@ -20,6 +20,7 @@ import {
   shouldIgnoreEventByTitle,
   didUserDeclineEvent,
 } from "./core/eventFilters-core";
+import { sendBriefReadyWebPush } from "./core/webPush-core";
 
 export type JobKind =
   | "MORNING_BRIEF"
@@ -115,6 +116,15 @@ async function dispatchJob(
         dayISO,
         debugCtx ?? undefined,
       );
+      if (briefId) {
+        sendBriefReadyWebPush(prisma, {
+          userId: job.userId,
+          briefId,
+          kind: "MORNING_BRIEF",
+        }).catch((err) => {
+          console.error("Failed to send morning brief web push", err);
+        });
+      }
       if (debugCtx && briefId) {
         if (!debugCtx.debugData.summary.totalDuration) {
           markDebugSuccess(debugCtx.debugData, briefId, start);
@@ -257,6 +267,15 @@ async function dispatchJob(
           debugCtx.debugData,
         );
       }
+      if (result.briefId) {
+        sendBriefReadyWebPush(prisma, {
+          userId: job.userId,
+          briefId: result.briefId,
+          kind: "MEETING_BRIEF",
+        }).catch((err) => {
+          console.error("Failed to send meeting brief web push", err);
+        });
+      }
       return;
     }
     case "EVENING_BRIEF": {
@@ -279,6 +298,15 @@ async function dispatchJob(
         debug: debugCtx ?? undefined,
       });
 
+      if (result.briefId) {
+        sendBriefReadyWebPush(prisma, {
+          userId: job.userId,
+          briefId: result.briefId,
+          kind: "EVENING_BRIEF",
+        }).catch((err) => {
+          console.error("Failed to send evening brief web push", err);
+        });
+      }
       if (debugCtx && result.briefId) {
         debugCtx.debugData.summary.briefId = result.briefId;
         debugCtx.debugData.summary.userId = job.userId;

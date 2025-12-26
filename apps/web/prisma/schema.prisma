@@ -39,6 +39,7 @@ model User {
   people        Person[]
   driveFolders  DriveFolder[]
   settings      UserSettings?
+  webPushSubscriptions WebPushSubscription[]
 }
 
 model Account {
@@ -313,10 +314,26 @@ model UserSettings {
   
   // Notification preferences
   emailNotifications Boolean @default(true)
+  webNotificationsEnabled Boolean @default(false)
 
   // Event ignore settings (e.g., titles to skip for briefs)
   ignoredEventPatterns Json?
   
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WebPushSubscription {
+  id       String   @id @default(cuid())
+  userId   String
+  endpoint String   @unique
+  p256dh   String
+  auth     String
+  userAgent String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

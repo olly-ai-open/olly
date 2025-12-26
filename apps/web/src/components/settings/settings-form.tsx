@@ -1,7 +1,7 @@
 "use client";
 
 import { signOut } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface UserSettings {
   id: string;
@@ -13,6 +13,7 @@ interface UserSettings {
   morningBriefSystemPrompt?: string | null;
   timeZone?: string | null;
   emailNotifications: boolean;
+  webNotificationsEnabled: boolean;
   ignoredEventPatterns?: Array<string | { type?: string; value?: string }>;
   createdAt: string;
   updatedAt: string;
@@ -97,6 +98,13 @@ export default function SettingsForm() {
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteMessage, setDeleteMessage] = useState("");
+  const [webPushSupported, setWebPushSupported] = useState(false);
+  const [webPushWorking, setWebPushWorking] = useState(false);
+  const [webPushError, setWebPushError] = useState("");
+  const [notificationPermission, setNotificationPermission] = useState<
+    NotificationPermission | "unsupported"
+  >("unsupported");
+  const autoDisableInFlight = useRef(false);
 
   // Load settings on mount
   useEffect(() => {
@@ -155,6 +163,170 @@ export default function SettingsForm() {
     }
   }, []);
 
+  useEffect(() => {
+    const supported =
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      "serviceWorker" in navigator &&
+      "PushManager" in window;
+    setWebPushSupported(supported);
+    if (supported) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      !settings ||
+      notificationPermission !== "denied" ||
+      !settings.webNotificationsEnabled ||
+      autoDisableInFlight.current
+    ) {
+      return;
+    }
+
+    autoDisableInFlight.current = true;
+    saveWebNotificationPreference(false)
+      .catch(() => {})
+      .finally(() => {
+        autoDisableInFlight.current = false;
+      });
+  }, [notificationPermission, settings]);
+
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding)
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; i += 1) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const saveWebNotificationPreference = async (enabled: boolean) => {
+    const response = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ webNotificationsEnabled: enabled }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to update notification settings");
+    }
+    const updated = await response.json();
+    setSettings(updated);
+  };
+
+  const enableWebPush = async () => {
+    if (!webPushSupported) {
+      throw new Error("This browser does not support web notifications");
+    }
+    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!publicKey) {
+      throw new Error("Missing VAPID public key");
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+    if (permission === "denied") {
+      throw new Error("notifications_permission_denied");
+    }
+    if (permission !== "granted") {
+      throw new Error("notifications_permission_default");
+    }
+
+    await navigator.serviceWorker.register("/sw.js");
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+
+    const response = await fetch("/api/notifications/web-push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to save notification subscription");
+    }
+  };
+
+  const disableWebPush = async () => {
+    if (webPushSupported) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = registration
+        ? await registration.pushManager.getSubscription()
+        : null;
+      if (subscription) {
+        await subscription.unsubscribe().catch(() => {});
+        await fetch("/api/notifications/web-push", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+      } else {
+        await fetch("/api/notifications/web-push", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+      }
+    }
+  };
+
+  const handleWebPushToggle = async (enabled: boolean) => {
+    if (!settings) return;
+    setWebPushError("");
+    setWebPushWorking(true);
+    try {
+      if (enabled) {
+        await enableWebPush();
+      } else {
+        await disableWebPush();
+      }
+      await saveWebNotificationPreference(enabled);
+    } catch (error: any) {
+      const message =
+        error?.message === "notifications_permission_denied"
+          ? "Notifications are blocked for this site. Click the lock icon in your address bar, open Site settings, and allow Notifications."
+          : error?.message === "notifications_permission_default"
+            ? "Browser notifications are not enabled yet. Allow notifications when prompted to receive alerts."
+            : error?.message || "Failed to update web notifications";
+      setWebPushError(message);
+    } finally {
+      setWebPushWorking(false);
+    }
+  };
+
+  const handleWebPushPermissionRetry = async () => {
+    if (!settings) return;
+    setWebPushError("");
+    setWebPushWorking(true);
+    try {
+      await enableWebPush();
+      if (!settings.webNotificationsEnabled) {
+        await saveWebNotificationPreference(true);
+      }
+    } catch (error: any) {
+      const message =
+        error?.message === "notifications_permission_denied"
+          ? "Notifications are blocked for this site. Click the lock icon in your address bar, open Site settings, and allow Notifications."
+          : error?.message === "notifications_permission_default"
+            ? "Browser notifications are not enabled yet. Allow notifications when prompted to receive alerts."
+            : error?.message || "Failed to enable web notifications";
+      setWebPushError(message);
+    } finally {
+      setWebPushWorking(false);
+    }
+  };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!settings) return;
@@ -170,6 +342,7 @@ export default function SettingsForm() {
           searchTimeframeDays: settings.searchTimeframeDays,
           timeZone: settings.timeZone ?? "UTC",
           emailNotifications: settings.emailNotifications,
+          webNotificationsEnabled: settings.webNotificationsEnabled,
           ignoredEventPatterns: parseIgnoredPatterns(ignoredPatternsText),
         }),
       });
@@ -586,6 +759,53 @@ export default function SettingsForm() {
           <p className="text-xs text-muted-foreground ml-7">
             Receive email notifications when briefs are ready
           </p>
+          <div className="flex items-center space-x-3">
+            <input
+              id="webNotificationsEnabled"
+              type="checkbox"
+              checked={settings.webNotificationsEnabled}
+              onChange={(e) => handleWebPushToggle(e.target.checked)}
+              disabled={webPushWorking || !webPushSupported}
+              className="h-4 w-4 rounded border border-border text-primary focus:ring-primary disabled:cursor-not-allowed"
+            />
+            <label
+              htmlFor="webNotificationsEnabled"
+              className="text-sm font-medium text-foreground"
+            >
+              Browser notifications
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground ml-7">
+            Receive browser notifications when scheduled briefs are ready
+          </p>
+          {!webPushSupported ? (
+            <p className="text-xs text-muted-foreground ml-7">
+              This browser does not support web notifications.
+            </p>
+          ) : null}
+          {settings.webNotificationsEnabled &&
+          notificationPermission !== "granted" ? (
+            <p className="text-xs text-destructive ml-7">
+              {notificationPermission === "denied"
+                ? "Notifications are blocked for this site. Click the lock icon in your address bar, open Site settings, and allow Notifications."
+                : "Browser notifications are not enabled yet. Allow notifications when prompted to receive alerts."}
+            </p>
+          ) : null}
+          {webPushSupported && notificationPermission === "default" ? (
+            <div className="ml-7">
+              <button
+                type="button"
+                onClick={handleWebPushPermissionRetry}
+                disabled={webPushWorking}
+                className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-border/40 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Enable in browser
+              </button>
+            </div>
+          ) : null}
+          {webPushError ? (
+            <p className="text-xs text-destructive ml-7">{webPushError}</p>
+          ) : null}
         </div>
       </div>
 

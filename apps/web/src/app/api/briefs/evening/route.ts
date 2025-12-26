@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateEndOfDayBriefForUser } from "@/lib/endOfDayBriefs";
-import { createBriefDebugContext } from "@olly/core";
+import { prisma } from "@/lib/prisma";
+import { createBriefDebugContext, sendBriefReadyWebPush } from "@olly/core";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
   } catch {
     body = {};
   }
+  const scheduled = body?.scheduled === true;
 
   const briefTimeInput =
     typeof body?.briefTime === "string" ? body.briefTime : undefined;
@@ -43,6 +45,16 @@ export async function POST(req: Request) {
         addTimelineEntry,
       },
     });
+
+    if (scheduled && result.briefId) {
+      sendBriefReadyWebPush(prisma, {
+        userId: session.user.id,
+        briefId: result.briefId,
+        kind: "EVENING_BRIEF",
+      }).catch((err) => {
+        console.error("Failed to send evening brief web push", err);
+      });
+    }
 
     return NextResponse.json({
       ok: true,

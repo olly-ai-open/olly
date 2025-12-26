@@ -60,6 +60,11 @@ export async function initializeServerEnvironment(): Promise<void> {
       `SUPABASE_URL`,
       `SUPABASE_ANON_KEY`,
       `SUPABASE_SERVICE_KEY`,
+
+      // Vapid
+      `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+      `VAPID_PUBLIC_KEY`,
+      `VAPID_PRIVATE_KEY`,
     ].map((key) => `/olly/${stage}/${key}`);
 
     const response = await ssmClient.send(

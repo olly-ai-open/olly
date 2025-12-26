@@ -12,6 +12,7 @@ export * from "./core/meetings-core";
 export * from "./core/people-core";
 export * from "./core/settings-core";
 export * from "./core/eventFilters-core";
+export * from "./core/webPush-core";
 export * from "./core/workspaceSearch-core";
 export * from "./core/endOfDayBriefs-core";
 export * from "./core/briefQueries-core";

@@ -44,6 +44,9 @@ PARAMETERS=(
     "/olly/$STAGE/SUPABASE_SERVICE_KEY"
     "/olly/$STAGE/SLACK_CLIENT_ID"
     "/olly/$STAGE/SLACK_CLIENT_SECRET"
+    "/olly/$STAGE/NEXT_PUBLIC_VAPID_PUBLIC_KEY"
+    "/olly/$STAGE/VAPID_PUBLIC_KEY"
+    "/olly/$STAGE/VAPID_PRIVATE_KEY"
 )
 
 # Create temporary file for parameters

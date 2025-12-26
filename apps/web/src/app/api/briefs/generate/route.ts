@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { S3DebugStorage, createBriefDebugContext } from "@olly/core";
+import {
+  S3DebugStorage,
+  createBriefDebugContext,
+  sendBriefReadyWebPush,
+} from "@olly/core";
 import { getUserSearchStrategy, getUserSettings } from "@/lib/settings";
 import {
   generateMeetingBriefForEvent,
@@ -34,12 +38,14 @@ export async function POST(req: Request) {
   let searchStrategy: QueryStrategy = QUERY_STRATEGY_LLM_ONLY;
   let forceGenerate = false;
   let searchStrategyFromBody: QueryStrategy | null = null;
+  let scheduled = false;
   const contentType = req.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const body = await req.json().catch(() => ({}));
     eventId = body?.eventId as string | undefined;
     wantsRedirect = Boolean(body?.redirect);
     forceGenerate = Boolean(body?.force);
+    scheduled = body?.scheduled === true;
     if (typeof body?.searchStrategy === "string") {
       const candidate = body.searchStrategy as string;
       if (
@@ -141,6 +147,16 @@ export async function POST(req: Request) {
     });
     if (!saved) {
       throw new Error("brief_not_found");
+    }
+
+    if (scheduled) {
+      sendBriefReadyWebPush(prisma, {
+        userId: session.user.id,
+        briefId: saved.id,
+        kind: "MEETING_BRIEF",
+      }).catch((err) => {
+        console.error("Failed to send meeting brief web push", err);
+      });
     }
 
     // Mark success and calculate final duration
