@@ -3,6 +3,7 @@ export * from "./prisma-lambda";
 export * from "./scheduling";
 export * from "./google-http";
 export * from "./slack-http";
+export * from "./slack";
 export * from "./searchHeuristics";
 export * from "./s3-debug";
 export * from "./llm";
@@ -22,3 +23,15 @@ export * from "./prompts/meetingBriefPrompt";
 export * from "./prompts/morningBriefPrompt";
 export * from "./prompts/endOfDayBriefPrompt";
 export * from "./prompts/queryPlannerPrompt";
+
+// Agent system exports
+export * from "./agents/base/Agent";
+export * from "./agents/base/Tool";
+export * from "./agents/base/Memory";
+export * from "./agents/personas/MeetingPrepAgent";
+
+// Agent tools exports
+export * from "./agents/tools/CalendarTool";
+export * from "./agents/tools/EmailTool";
+export * from "./agents/tools/DriveTool";
+export * from "./agents/tools/SlackTool";

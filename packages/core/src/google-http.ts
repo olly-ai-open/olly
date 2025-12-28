@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { getPrisma } from "./prisma-lambda";
 
 export type GoogleAccountLike = {
   access_token: string | null;
@@ -18,6 +19,86 @@ export function getOAuthClient(redirectUri?: string) {
     clientSecret,
     redirectUri || defaultRedirectUri,
   );
+}
+
+/**
+ * Get a Google client configured for a specific user
+ * Fetches the user's Google account tokens from the database and creates authenticated clients
+ */
+export async function getGoogleClient(userId: string) {
+  const prisma = await getPrisma();
+  
+  try {
+    // Check if user has Google integration
+    const integration = await prisma.integration.findFirst({
+      where: {
+        userId,
+        provider: 'google_workspace',
+        status: 'connected'
+      }
+    });
+    
+    if (!integration) {
+      return null;
+    }
+    
+    // Get the Google account with tokens
+    const account = await prisma.account.findFirst({
+      where: {
+        userId,
+        provider: 'google'
+      }
+    });
+    
+    if (!account || !account.access_token) {
+      return null;
+    }
+    
+    // Create OAuth client and set credentials
+    const oauth2Client = getOAuthClient();
+    const expiresAt = account.expires_at ? account.expires_at * 1000 : undefined;
+    const now = Date.now();
+    const isExpired = expiresAt ? now >= expiresAt : false;
+
+    oauth2Client.setCredentials({
+      access_token: account.access_token,
+      refresh_token: account.refresh_token,
+      id_token: account.id_token || undefined,
+      expiry_date: account.expires_at ? account.expires_at * 1000 : undefined,
+      token_type: account.token_type,
+      scope: account.scope || undefined,
+    });
+    
+    if (isExpired || !account.access_token) {
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      if (account.id && credentials.access_token) {
+        const newExpiresAt = credentials.expiry_date
+          ? Math.floor(credentials.expiry_date / 1000)
+          : null;
+
+        await prisma.account.update({
+          where: { id: account.id },
+          data: {
+            access_token: credentials.access_token,
+            expires_at: newExpiresAt,
+            token_type: credentials.token_type || account.token_type,
+            scope: credentials.scope || account.scope,
+            id_token: credentials.id_token || account.id_token,
+          },
+        });
+      }
+    }
+    
+    // Return authenticated Google service clients
+    return {
+      calendar: google.calendar({ version: 'v3', auth: oauth2Client }),
+      gmail: google.gmail({ version: 'v1', auth: oauth2Client }),
+      drive: google.drive({ version: 'v3', auth: oauth2Client }),
+    };
+  } catch (error) {
+    console.error('Error getting Google client:', error);
+    return null;
+  }
 }
 
 function getUtcRangeForLocalDay(dayISO: string, timeZone?: string | null) {

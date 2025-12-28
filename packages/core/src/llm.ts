@@ -23,7 +23,7 @@ export type BriefJSON = {
   key_context?: Array<string>;
 };
 
-function safeParseBriefJSON(s: string): BriefJSON | null {
+export function safeParseBriefJSON(s: string): BriefJSON | null {
   try {
     return JSON.parse(s) as BriefJSON;
   } catch {}
