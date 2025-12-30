@@ -14,7 +14,12 @@ import {
 interface AdminUserSettings {
   id: string;
   userId: string;
-  searchStrategy?: "LLM_ONLY" | "HEURISTIC_ONLY" | "LLM_AND_HEURISTIC" | null;
+  searchStrategy?:
+    | "LLM_ONLY"
+    | "HEURISTIC_ONLY"
+    | "LLM_AND_HEURISTIC"
+    | "AGENT"
+    | null;
   briefSystemPrompt?: string | null;
   queryPlannerSystemPrompt?: string | null;
   morningBriefSystemPrompt?: string | null;
@@ -185,10 +190,14 @@ export default function AdminSettingsForm() {
                   <option value="LLM_AND_HEURISTIC">
                     LLM + heuristic (combine both)
                   </option>
+                  <option value="AGENT">
+                    Agent (autonomous AI with tools)
+                  </option>
                 </select>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Controls how Olly searches Gmail and Drive before generating a
-                  brief.
+                  brief. Agent mode uses autonomous AI that can make decisions
+                  and use tools.
                 </p>
               </div>
             </div>

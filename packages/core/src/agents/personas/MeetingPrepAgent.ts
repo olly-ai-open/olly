@@ -232,36 +232,4 @@ Focus on:
     
     return messages;
   }
-  
-  /**
-   * Parse briefs from unstructured content
-   * In production, we'd use structured output from the LLM
-   */
-  private parseBriefsFromContent(content: string): Array<{
-    meetingId: string;
-    title: string;
-    brief: string;
-  }> {
-    // This is a placeholder - in reality, we'd have the LLM return structured JSON
-    // or use a more sophisticated parsing approach
-    
-    const briefs: Array<{ meetingId: string; title: string; brief: string }> = [];
-    
-    // Simple parsing logic - would be replaced with proper implementation
-    const sections = content.split(/Meeting Brief:/gi);
-    for (const section of sections.slice(1)) {
-      const lines = section.trim().split('\n');
-      if (lines.length > 0) {
-        const title = lines[0].trim();
-        const brief = lines.slice(1).join('\n').trim();
-        briefs.push({
-          meetingId: `meeting-${Date.now()}-${Math.random()}`,
-          title,
-          brief,
-        });
-      }
-    }
-    
-    return briefs;
-  }
 }

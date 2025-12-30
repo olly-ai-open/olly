@@ -128,6 +128,8 @@ export async function POST(req: Request) {
       searchStrategy = "LLM_ONLY";
     } else if (savedSearchStrategy === "LLM_AND_HEURISTIC") {
       searchStrategy = "LLM_AND_HEURISTIC";
+    } else if (savedSearchStrategy === "AGENT") {
+      searchStrategy = "AGENT";
     }
 
     const goalsByExternalId = new Map<string, string[]>();

@@ -305,7 +305,7 @@ model UserSettings {
   
   // Search settings
   searchTimeframeDays Int @default(30) // How far back to search (1-180 days)
-  searchStrategy      String? // Optional: LLM_ONLY, HEURISTIC_ONLY, LLM_AND_HEURISTIC
+  searchStrategy      String? // Optional: LLM_ONLY, HEURISTIC_ONLY, LLM_AND_HEURISTIC, AGENT
   briefSystemPrompt   String? @db.Text // Optional override for brief generation system prompt
   queryPlannerSystemPrompt String? @db.Text // Optional override for query planner system prompt
   morningBriefSystemPrompt String? @db.Text // Optional override for morning brief generation prompt

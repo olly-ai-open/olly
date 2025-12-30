@@ -45,7 +45,8 @@ export async function getUserSearchTimeframeCore(
 export type SearchStrategySetting =
   | "LLM_ONLY"
   | "HEURISTIC_ONLY"
-  | "LLM_AND_HEURISTIC";
+  | "LLM_AND_HEURISTIC"
+  | "AGENT";
 
 export async function getUserSearchStrategyCore(
   prisma: PrismaClient,
@@ -56,7 +57,8 @@ export async function getUserSearchStrategyCore(
   if (
     value === "LLM_ONLY" ||
     value === "HEURISTIC_ONLY" ||
-    value === "LLM_AND_HEURISTIC"
+    value === "LLM_AND_HEURISTIC" ||
+    value === "AGENT"
   ) {
     return value;
   }

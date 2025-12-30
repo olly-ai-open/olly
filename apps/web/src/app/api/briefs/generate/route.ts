@@ -31,6 +31,7 @@ export async function POST(req: Request) {
   const QUERY_STRATEGY_LLM_ONLY = "LLM_ONLY" as const;
   const QUERY_STRATEGY_HEURISTIC_ONLY = "HEURISTIC_ONLY" as const;
   const QUERY_STRATEGY_LLM_AND_HEURISTIC = "LLM_AND_HEURISTIC" as const;
+  const QUERY_STRATEGY_AGENT = "AGENT" as const;
   type QueryStrategy = MeetingBriefSearchStrategy;
 
   let eventId: string | undefined;
@@ -51,7 +52,8 @@ export async function POST(req: Request) {
       if (
         candidate === QUERY_STRATEGY_LLM_ONLY ||
         candidate === QUERY_STRATEGY_HEURISTIC_ONLY ||
-        candidate === QUERY_STRATEGY_LLM_AND_HEURISTIC
+        candidate === QUERY_STRATEGY_LLM_AND_HEURISTIC ||
+        candidate === QUERY_STRATEGY_AGENT
       ) {
         searchStrategyFromBody = candidate as QueryStrategy;
       } else {
@@ -62,6 +64,8 @@ export async function POST(req: Request) {
           searchStrategyFromBody = QUERY_STRATEGY_LLM_AND_HEURISTIC;
         } else if (candidate === "heuristic") {
           searchStrategyFromBody = QUERY_STRATEGY_HEURISTIC_ONLY;
+        } else if (candidate === "agent") {
+          searchStrategyFromBody = QUERY_STRATEGY_AGENT;
         }
       }
     }
@@ -90,6 +94,8 @@ export async function POST(req: Request) {
       searchStrategy = QUERY_STRATEGY_LLM_AND_HEURISTIC;
     } else if (savedSearchStrategy === "HEURISTIC_ONLY") {
       searchStrategy = QUERY_STRATEGY_HEURISTIC_ONLY;
+    } else if (savedSearchStrategy === "AGENT") {
+      searchStrategy = QUERY_STRATEGY_AGENT;
     } else {
       searchStrategy = QUERY_STRATEGY_LLM_ONLY;
     }

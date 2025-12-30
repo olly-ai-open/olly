@@ -118,12 +118,17 @@ export async function PUT(req: Request) {
     };
 
     if (searchStrategy !== undefined) {
-      const allowed = ["LLM_ONLY", "HEURISTIC_ONLY", "LLM_AND_HEURISTIC"];
+      const allowed = [
+        "LLM_ONLY",
+        "HEURISTIC_ONLY",
+        "LLM_AND_HEURISTIC",
+        "AGENT",
+      ];
       if (!allowed.includes(searchStrategy)) {
         return NextResponse.json(
           {
             error:
-              "searchStrategy must be one of LLM_ONLY, HEURISTIC_ONLY, LLM_AND_HEURISTIC",
+              "searchStrategy must be one of LLM_ONLY, HEURISTIC_ONLY, LLM_AND_HEURISTIC, AGENT",
           },
           { status: 400 },
         );
