@@ -8,6 +8,8 @@ import { getUserSettings } from "@/lib/settings";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const PAGE_SIZE = 20;
+
 function toDayKeyInTimeZone(d: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -42,16 +44,36 @@ export default async function ActionItemsPage({
   const sp = await searchParams;
   const filter =
     (Array.isArray(sp?.filter) ? sp.filter[0] : sp?.filter) || "due";
+  const pageParam = Array.isArray(sp?.page) ? sp.page[0] : sp?.page;
+  const page = Math.max(1, Number(pageParam) || 1);
 
-  const items = await prisma.actionItem.findMany({
-    where: { userId, NOT: { status: "deleted" } },
-    include: {
-      brief: { include: { people: { include: { person: true } } } },
-      assignees: { include: { person: true } },
-    },
-    orderBy: [{ completedAt: "asc" }, { dueAt: "asc" }, { createdAt: "desc" }],
-    take: 200,
-  });
+  const activeTab = filter === "completed" ? "completed" : "due";
+  const baseWhere = { userId, NOT: { status: "deleted" as const } };
+
+  const [dueCount, completedCount, items] = await Promise.all([
+    prisma.actionItem.count({
+      where: { ...baseWhere, completedAt: null },
+    }),
+    prisma.actionItem.count({
+      where: { ...baseWhere, completedAt: { not: null } },
+    }),
+    prisma.actionItem.findMany({
+      where:
+        activeTab === "completed"
+          ? { ...baseWhere, completedAt: { not: null } }
+          : { ...baseWhere, completedAt: null },
+      include: {
+        brief: { include: { people: { include: { person: true } } } },
+        assignees: { include: { person: true } },
+      },
+      orderBy:
+        activeTab === "completed"
+          ? [{ completedAt: "desc" }, { createdAt: "desc" }]
+          : [{ dueAt: "asc" }, { createdAt: "desc" }],
+      take: PAGE_SIZE,
+      skip: (page - 1) * PAGE_SIZE,
+    }),
+  ]);
 
   const now = new Date();
   const settings = await getUserSettings(userId);
@@ -59,13 +81,7 @@ export default async function ActionItemsPage({
   const todayKey = toDayKeyInTimeZone(now, timeZone);
 
   const incomplete = items.filter((it: any) => !it.completedAt);
-  const completed = items
-    .filter((it: any) => !!it.completedAt)
-    .sort(
-      (a: any, b: any) =>
-        new Date(b.completedAt as any).getTime() -
-        new Date(a.completedAt as any).getTime(),
-    );
+  const completed = items.filter((it: any) => !!it.completedAt);
 
   const overdue = incomplete.filter((it: any) => {
     if (!it.dueAt) return false;
@@ -85,11 +101,9 @@ export default async function ActionItemsPage({
   const noDueDate = incomplete.filter((it: any) => !it.dueAt);
 
   const tabs = [
-    { key: "due", label: "Due", count: incomplete.length },
-    { key: "completed", label: "Completed", count: completed.length },
+    { key: "due", label: "Due", count: dueCount },
+    { key: "completed", label: "Completed", count: completedCount },
   ];
-
-  const activeTab = filter === "completed" ? "completed" : "due";
 
   const renderItems = (list: any[]) => (
     <div className="space-y-3">
@@ -156,6 +170,18 @@ export default async function ActionItemsPage({
     );
   };
 
+  const totalForTab = activeTab === "completed" ? completedCount : dueCount;
+  const totalPages = Math.max(1, Math.ceil(totalForTab / PAGE_SIZE));
+  const prevPage = page > 1 ? page - 1 : null;
+  const nextPage = page < totalPages ? page + 1 : null;
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams();
+    if (activeTab === "completed") params.set("filter", "completed");
+    if (targetPage > 1) params.set("page", String(targetPage));
+    const qs = params.toString();
+    return qs ? `/action-items?${qs}` : "/action-items";
+  };
+
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="flex gap-6">
@@ -186,13 +212,40 @@ export default async function ActionItemsPage({
           </div>
 
           {activeTab === "completed" ? (
-            completed.length ? (
-              renderItems(completed)
-            ) : (
-              <div className="text-sm text-muted-foreground">
-                No completed action items yet.
-              </div>
-            )
+            <div className="space-y-6">
+              {completed.length ? (
+                renderItems(completed)
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  No completed action items yet.
+                </div>
+              )}
+              {totalPages > 1 ? (
+                <div className="flex items-center justify-between text-sm">
+                  <div className="text-muted-foreground">
+                    Page {page} of {totalPages}
+                  </div>
+                  <div className="flex gap-2">
+                    {prevPage ? (
+                      <Link
+                        href={pageHref(prevPage)}
+                        className="rounded-md border border-border px-3 py-1 hover:bg-border/30"
+                      >
+                        Previous
+                      </Link>
+                    ) : null}
+                    {nextPage ? (
+                      <Link
+                        href={pageHref(nextPage)}
+                        className="rounded-md border border-border px-3 py-1 hover:bg-border/30"
+                      >
+                        Next
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           ) : (
             <div className="space-y-8">
               {!incomplete.length ? (
@@ -212,6 +265,31 @@ export default async function ActionItemsPage({
               {renderSection("No due date", noDueDate, {
                 emptyText: "No undated items.",
               })}
+              {totalPages > 1 ? (
+                <div className="flex items-center justify-between text-sm">
+                  <div className="text-muted-foreground">
+                    Page {page} of {totalPages}
+                  </div>
+                  <div className="flex gap-2">
+                    {prevPage ? (
+                      <Link
+                        href={pageHref(prevPage)}
+                        className="rounded-md border border-border px-3 py-1 hover:bg-border/30"
+                      >
+                        Previous
+                      </Link>
+                    ) : null}
+                    {nextPage ? (
+                      <Link
+                        href={pageHref(nextPage)}
+                        className="rounded-md border border-border px-3 py-1 hover:bg-border/30"
+                      >
+                        Next
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
