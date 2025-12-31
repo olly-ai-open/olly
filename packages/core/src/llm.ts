@@ -1,6 +1,5 @@
 import OpenAI from "openai";
 import { MEETING_BRIEF_PROMPT } from "./prompts/meetingBriefPrompt";
-import { MORNING_BRIEF_PROMPT } from "./prompts/morningBriefPrompt";
 import { END_OF_DAY_BRIEF_PROMPT } from "./prompts/endOfDayBriefPrompt";
 import { QUERY_PLANNER_PROMPT } from "./prompts/queryPlannerPrompt";
 
@@ -59,12 +58,12 @@ function safeParseSearchQueriesJSON(s: string): SearchQueriesJSON | null {
   return null;
 }
 
-type MorningBriefJSON = {
+export type MorningBriefJSON = {
   brief_markdown: string;
   highlighted_action_item_ids?: string[];
 };
 
-function safeParseMorningBriefJSON(s: string): MorningBriefJSON | null {
+export function safeParseMorningBriefJSON(s: string): MorningBriefJSON | null {
   try {
     return JSON.parse(s) as MorningBriefJSON;
   } catch {}
@@ -385,159 +384,6 @@ export async function generateSearchQueriesForEvent(
     driveQueries,
     gmailQueries,
     slackQueries,
-  };
-}
-
-export async function generateMorningBrief(
-  input: {
-    day: string; // YYYY-MM-DD (local day)
-    timeZone: string;
-    meetings: {
-      id: string;
-      title: string;
-      start?: string | null;
-      goals?: string[];
-    }[];
-    actionItems: {
-      id: string;
-      title: string;
-      dueAt?: string | null;
-      status?: string | null;
-      relatedMeetings?: string[];
-      relatedPeople?: { name?: string | null; email?: string | null }[];
-    }[];
-  },
-  opts?: { systemPromptOverride?: string },
-): Promise<{
-  brief_markdown: string;
-  highlightedActionItemIds: string[];
-  llmContext: {
-    systemPrompt: string;
-    userPrompt: string;
-    response: string;
-    model: string;
-    temperature: number;
-  };
-}> {
-  const openai = getOpenAI();
-  if (!openai) {
-    const placeholder = `# Morning Brief\n\n_No OpenAI key configured. Placeholder morning brief for ${input.day} in ${input.timeZone}._`;
-    return {
-      brief_markdown: placeholder,
-      highlightedActionItemIds: [],
-      llmContext: {
-        systemPrompt: "No OpenAI key configured",
-        userPrompt: `Placeholder morning brief for: ${input.day}`,
-        response: placeholder,
-        model: "none",
-        temperature: 0,
-      },
-    };
-  }
-
-  const system =
-    opts?.systemPromptOverride && opts.systemPromptOverride.trim().length
-      ? opts.systemPromptOverride
-      : MORNING_BRIEF_PROMPT;
-
-  const meetingsBlock =
-    input.meetings.length === 0
-      ? "None"
-      : input.meetings
-          .map((m) => {
-            const goals =
-              Array.isArray(m.goals) && m.goals.length
-                ? `\n    Goals:\n${m.goals
-                    .slice(0, 5)
-                    .map((g) => `      - ${g}`)
-                    .join("\n")}`
-                : "";
-            return `- [${m.id}] ${m.title}${
-              m.start ? ` @ ${m.start}` : ""
-            }${goals}`;
-          })
-          .join("\n");
-
-  const actionItemsBlock =
-    input.actionItems.length === 0
-      ? "None"
-      : input.actionItems
-          .map((ai) => {
-            const relMeetings =
-              Array.isArray(ai.relatedMeetings) && ai.relatedMeetings.length
-                ? ` meetings: ${ai.relatedMeetings.join(", ")}`
-                : "";
-            const relPeople =
-              Array.isArray(ai.relatedPeople) && ai.relatedPeople.length
-                ? ` people: ${ai.relatedPeople
-                    .map((p) => p.name || p.email || "")
-                    .filter(Boolean)
-                    .join(", ")}`
-                : "";
-            const metaParts = [relMeetings, relPeople]
-              .map((s) => s.trim())
-              .filter(Boolean);
-            const meta =
-              metaParts.length || ai.dueAt || ai.status
-                ? ` (${[
-                    ai.dueAt ? `due: ${ai.dueAt}` : "",
-                    ai.status ? `status: ${ai.status}` : "",
-                    ...metaParts,
-                  ]
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                    .join("; ")})`
-                : "";
-            // Note: include the internal ID in a machine-readable way,
-            // but the prompt instructs the model not to surface these IDs
-            // in the human-facing brief_markdown.
-            return `- ${ai.title}${meta} (ID: ${ai.id})`;
-          })
-          .join("\n");
-
-  const user = [
-    `Day: ${input.day}`,
-    `Time zone: ${input.timeZone}`,
-    "",
-    "Meetings today:",
-    meetingsBlock,
-    "",
-    "Candidate action items:",
-    actionItemsBlock,
-  ].join("\n");
-
-  const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-4.1",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
-  });
-
-  const raw = completion.choices[0]?.message?.content ?? "";
-  const parsed = safeParseMorningBriefJSON(raw);
-  const brief: MorningBriefJSON = parsed ?? {
-    brief_markdown: raw,
-    highlighted_action_item_ids: [],
-  };
-
-  const highlightedIds = Array.isArray(brief.highlighted_action_item_ids)
-    ? brief.highlighted_action_item_ids.filter(
-        (x) => typeof x === "string" && x.trim(),
-      )
-    : [];
-
-  return {
-    brief_markdown: brief.brief_markdown,
-    highlightedActionItemIds: highlightedIds,
-    llmContext: {
-      systemPrompt: system,
-      userPrompt: user,
-      response: raw,
-      model: process.env.OPENAI_MODEL || "gpt-4.1",
-      temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
-    },
   };
 }
 

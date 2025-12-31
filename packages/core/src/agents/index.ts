@@ -15,3 +15,4 @@ export { DriveTool } from './tools/DriveTool';
 
 // Agent Personas
 export { MeetingPrepAgent } from './personas/MeetingPrepAgent';
+export { MorningBriefAgent } from './personas/MorningBriefAgent';

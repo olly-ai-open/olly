@@ -11,7 +11,7 @@ import {
   listEventsInRangeWithToken,
   getEventDetailsWithToken,
 } from "./google-http";
-import { generateMorningBrief } from "./llm";
+import { MorningBriefAgent } from "./agents/personas/MorningBriefAgent";
 import { generateEndOfDayBriefForUserCore } from "./core/endOfDayBriefs-core";
 import { getPrisma } from "./prisma-lambda";
 import { S3DebugStorage, type DebugDataStructure } from "./s3-debug";
@@ -21,6 +21,7 @@ import {
   didUserDeclineEvent,
 } from "./core/eventFilters-core";
 import { sendBriefReadyWebPush } from "./core/webPush-core";
+import { safeParseMorningBriefJSON, type MorningBriefJSON } from "@olly/core";
 
 export type JobKind =
   | "MORNING_BRIEF"
@@ -436,25 +437,20 @@ async function generateMorningBriefForUser(
     addTimeline("ACTION_ITEMS_FETCHED", { count: actionItemsForBrief.length });
   }
 
-  const morning = await generateMorningBrief(
-    {
-      day: dayISO,
+  const agent = new MorningBriefAgent();
+  const rawBrief = await agent.generateMorningBrief(userId, {
+      date: dayISO,
       timeZone,
-      meetings: meetingsForBrief,
       actionItems: actionItemsForBrief,
     },
-    {
-      systemPromptOverride: settings.morningBriefSystemPrompt ?? undefined,
-    },
   );
-  if (debugData) {
-    debugData.llmContext = morning.llmContext;
-    debugData.searchResults.drive.included =
-      debugData.searchResults.drive.results.length;
-    debugData.searchResults.gmail.included =
-      debugData.searchResults.gmail.results.length;
-    debugData.summary.apiCalls += 1;
-  }
+  const fullJson = JSON.parse(rawBrief);
+  const parsed = safeParseMorningBriefJSON(rawBrief);
+  const morning: MorningBriefJSON = parsed ?? {
+    brief_markdown: rawBrief,
+    highlighted_action_item_ids: [],
+  };
+
   addTimeline("LLM_MORNING_BRIEF_COMPLETE");
 
   const externalId = `morning:${dayISO}`;
@@ -480,8 +476,12 @@ async function generateMorningBriefForUser(
       meetingId: morningMeeting.id,
       content: {
         brief_markdown: morning.brief_markdown,
-        highlighted_action_item_ids: morning.highlightedActionItemIds,
-      } as any,
+        highlighted_action_item_ids: morning.highlighted_action_item_ids,
+      },
+      confidence: fullJson.sources?.length >= 3 ? "high" : fullJson.sources?.length > 0 ? "medium" : "low",
+      sources: fullJson.sources?.map((src: any) => {
+        return `${src.type}: ${src.title} -> ${src.url}`;
+      }),
     },
   });
 

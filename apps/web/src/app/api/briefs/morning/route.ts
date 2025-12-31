@@ -7,16 +7,17 @@ import {
 } from "@/lib/google";
 import { getUserSearchStrategy, getUserSettings } from "@/lib/settings";
 import {
-  generateMorningBrief,
   S3DebugStorage,
   createBriefDebugContext,
   didUserDeclineEvent,
   sendBriefReadyWebPush,
+  MorningBriefAgent,
 } from "@olly/core";
 import {
   generateMeetingBriefForEvent,
   type MeetingBriefSearchStrategy,
 } from "@/lib/meetingBriefs";
+import { safeParseMorningBriefJSON, type MorningBriefJSON } from "@olly/core";
 
 function toDayInTimeZone(now: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
@@ -249,18 +250,19 @@ export async function POST(req: Request) {
       };
     });
 
-    const morning = await generateMorningBrief(
-      {
-        day: dayISO,
-        timeZone,
-        meetings: meetingsForBriefFiltered,
-        actionItems: actionItemsForBrief,
-      },
-      {
-        systemPromptOverride: settings.morningBriefSystemPrompt ?? undefined,
-      },
-    );
-    debugData.llmContext = morning.llmContext;
+    const agent = new MorningBriefAgent();
+    const rawBrief = await agent.generateMorningBrief(userId, {
+      date: dayISO,
+      timeZone,
+      actionItems: actionItemsForBrief,
+    });
+    const fullJson = JSON.parse(rawBrief);
+    const parsed = safeParseMorningBriefJSON(rawBrief);
+    const morning: MorningBriefJSON = parsed ?? {
+      brief_markdown: rawBrief,
+      highlighted_action_item_ids: [],
+    };
+
     debugData.summary.apiCalls += 1;
 
     // Create a synthetic "meeting" to host the morning brief
@@ -287,8 +289,17 @@ export async function POST(req: Request) {
         meetingId: morningMeeting.id,
         content: {
           brief_markdown: morning.brief_markdown,
-          highlighted_action_item_ids: morning.highlightedActionItemIds,
-        } as any,
+          highlighted_action_item_ids: morning.highlighted_action_item_ids,
+        },
+        confidence:
+          fullJson.sources?.length >= 3
+            ? "high"
+            : fullJson.sources?.length > 0
+              ? "medium"
+              : "low",
+        sources: fullJson.sources?.map((src: any) => {
+          return `${src.type}: ${src.title} -> ${src.url}`;
+        }),
       },
     });
 
@@ -335,7 +346,6 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       briefId: saved.id,
-      highlightedActionItemIds: morning.highlightedActionItemIds,
     });
   } catch (error: any) {
     console.error("Failed to generate morning brief:", error);

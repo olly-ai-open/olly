@@ -29,6 +29,7 @@ export * from "./agents/base/Agent";
 export * from "./agents/base/Tool";
 export * from "./agents/base/Memory";
 export * from "./agents/personas/MeetingPrepAgent";
+export * from "./agents/personas/MorningBriefAgent";
 
 // Agent tools exports
 export * from "./agents/tools/CalendarTool";
