@@ -171,13 +171,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const meetingsForBriefFiltered = filteredEvents.map((e: any) => ({
-      id: e.id as string,
-      title: (e.title as string) || "(no title)",
-      start: e.start || null,
-      goals: goalsByExternalId.get(e.id as string) ?? [],
-    }));
-
     // Candidate action items: open/self tasks, limited set
     const actionItemsDb = await prisma.actionItem.findMany({
       where: {

@@ -29,8 +29,6 @@ export async function POST(req: Request) {
       ? body.windowHours
       : 24;
 
-  const start = Date.now();
-
   try {
     const result = await generateEndOfDayBriefForUser({
       userId: session.user.id,
