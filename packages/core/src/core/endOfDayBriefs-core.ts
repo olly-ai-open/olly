@@ -1,5 +1,4 @@
 import type { PrismaClient } from "@prisma/client";
-import { S3DebugStorage, type DebugDataStructure } from "../s3-debug";
 import { getUserSettingsCore } from "./settings-core";
 import { generateEndOfDaySummary } from "../llm";
 import { runWorkspaceQueryPlan } from "./briefQueries-core";
@@ -70,23 +69,12 @@ export async function generateEndOfDayBriefForUserCore(
   opts?: {
     briefTime?: Date;
     windowHours?: number;
-    debug?: {
-      debugData: DebugDataStructure;
-      addTimelineEntry: (action: string, details?: any) => void;
-    };
   },
 ) {
   const briefTime = opts?.briefTime ?? new Date();
   const windowHours = opts?.windowHours ?? 24;
   const windowEnd = briefTime;
   const windowStart = new Date(windowEnd.getTime() - windowHours * 60 * 60 * 1000);
-  const startedAt = Date.now();
-  const debugData = opts?.debug?.debugData ?? null;
-  const addTimeline =
-    opts?.debug?.addTimelineEntry ??
-    (() => {
-      /* noop */
-    });
 
   const settings = await getUserSettingsCore(prisma, userId);
   const timeZone = settings.timeZone || "UTC";
@@ -128,7 +116,6 @@ export async function generateEndOfDayBriefForUserCore(
       windowEnd,
       maxResults: 25,
     },
-    { debugData, addTimelineEntry: addTimeline },
   );
 
   const docs: NormalizedDoc[] = [];
@@ -197,23 +184,6 @@ export async function generateEndOfDayBriefForUserCore(
   }
 
   const deduped = dedupeDocs(docs);
-  addTimeline("DOCS_DEDUPED", { count: deduped.length });
-  if (debugData?.searchResults?.drive) {
-    debugData.searchResults.drive.included = deduped.filter(
-      (d) => d.source === "google_drive",
-    ).length;
-  }
-  if (debugData?.searchResults?.gmail) {
-    debugData.searchResults.gmail.included = deduped.filter(
-      (d) => d.source === "gmail",
-    ).length;
-  }
-  if (debugData?.searchResults?.slack) {
-    debugData.searchResults.slack.included = deduped.filter(
-      (d) => d.source === "slack",
-    ).length;
-  }
-
   const summary = await generateEndOfDaySummary({
     briefTime: briefTime.toISOString(),
     windowHours,
@@ -228,16 +198,6 @@ export async function generateEndOfDayBriefForUserCore(
     })),
     assigneeLabel: "user",
     systemPromptOverride: (settings as any)?.endOfDayBriefSystemPrompt ?? undefined,
-  });
-  if (debugData?.summary) debugData.summary.apiCalls += 1;
-  if (debugData) {
-    debugData.llmContext = summary.llmContext;
-  }
-  addTimeline("LLM_COMPLETE", {
-    highlights: summary.highlights.length,
-    risks: summary.risks.length,
-    actions: summary.actionItems.length,
-    docs: summary.docs.length,
   });
 
   const briefMarkdown = formatEndOfDayMarkdown({
@@ -283,7 +243,6 @@ export async function generateEndOfDayBriefForUserCore(
       }),
     },
   });
-  addTimeline("BRIEF_SAVED", { briefId: savedBrief.id });
 
   for (const ai of summary.actionItems) {
     const dueAt = parseDueDate(ai.dueDate);
@@ -305,51 +264,11 @@ export async function generateEndOfDayBriefForUserCore(
       });
     }
   }
-  addTimeline("ACTION_ITEMS_CREATED", { count: summary.actionItems.length });
-
-  if (debugData) {
-    debugData.summary.briefId = savedBrief.id;
-    debugData.summary.userId = userId;
-    debugData.summary.success = true;
-    debugData.summary.totalDuration = Date.now() - startedAt;
-    addTimeline("COMPLETE", { duration: debugData.summary.totalDuration });
-
-    if (S3DebugStorage.isEnabled()) {
-      try {
-        const s3Storage = new S3DebugStorage();
-        const upload = await s3Storage.uploadDebugData(
-          savedBrief.id,
-          userId,
-          debugData,
-        );
-        if (upload.success && upload.s3Key) {
-          await prisma.brief.update({
-            where: { id: savedBrief.id },
-            data: {
-              debugS3Key: upload.s3Key,
-              debugCapturedAt: new Date(),
-              debugMetadata: {
-                totalDuration: debugData.summary.totalDuration,
-                apiCalls: debugData.summary.apiCalls,
-                driveResults: debugData.searchResults.drive.totalFound,
-                gmailResults: debugData.searchResults.gmail.totalFound,
-                slackResults: debugData.searchResults.slack.totalFound,
-                timelineEvents: debugData.timeline.length,
-              },
-            },
-          });
-        }
-      } catch {
-        // swallow
-      }
-    }
-  }
 
   return {
     meetingId: meeting.id as string,
     briefId: savedBrief.id as string,
     summary,
     briefMarkdown,
-    debugData,
   };
 }

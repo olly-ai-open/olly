@@ -1,12 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import {
   generateMeetingBriefForEventCore,
-  type MeetingBriefDebugContext,
   type MeetingBriefSearchStrategy,
 } from "@olly/core";
 import type { UserSettings } from "@/lib/settings";
 
-export type { MeetingBriefSearchStrategy, MeetingBriefDebugContext };
+export type { MeetingBriefSearchStrategy };
 
 export async function generateMeetingBriefForEvent(opts: {
   userId: string;
@@ -14,7 +13,6 @@ export async function generateMeetingBriefForEvent(opts: {
   searchStrategy: MeetingBriefSearchStrategy;
   token?: string;
   userSettings?: UserSettings;
-  debug?: MeetingBriefDebugContext;
   persist?: boolean;
   force?: boolean;
 }) {

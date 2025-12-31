@@ -74,19 +74,10 @@ export class MeetingPrepAgent extends BaseAgent {
     userId: string,
     options?: {
       token?: string;
-      debugContext?: {
-        debugData?: any;
-        addTimelineEntry?: (action: string, details?: any) => void;
-      };
       searchTimeframeDays?: number;
     }
   ): Promise<string> {
-    const { debugContext, searchTimeframeDays = 30 } = options || {};
-
-    // Add timeline entry if debug context is provided
-    if (debugContext?.addTimelineEntry) {
-      debugContext.addTimelineEntry('AGENT_PREPARING_BRIEF', { meetingId, userId });
-    }
+    const { searchTimeframeDays = 30 } = options || {};
     
     const prompt = `Prepare a comprehensive brief for meeting ID: ${meetingId}.
     
@@ -112,57 +103,6 @@ Focus on:
     
     const result = await this.execute(prompt, { userId, sessionId: `meeting-${meetingId}` });
     
-    // Log tool calls to debug context if provided
-    if (debugContext?.addTimelineEntry && result.toolCalls) {
-      debugContext.addTimelineEntry('AGENT_TOOL_CALLS', {
-        toolsUsed: result.toolCalls.map(tc => tc.toolName),
-        toolCallCount: result.toolCalls.length
-      });
-      
-      // Add detailed tool call information to debug data
-      if (debugContext.debugData) {
-        debugContext.debugData.agentToolCalls = result.toolCalls.map(tc => ({
-          tool: tc.toolName,
-          args: tc.args,
-          hasResult: !!tc.result
-        }));
-      }
-    }
-    
-    // Parse the JSON response and add debug data
-    try {
-      const parsedResult = JSON.parse(result.text);
-      
-      if (debugContext?.debugData) {
-        // Add sources to debug data
-        if (parsedResult.sources) {
-          debugContext.debugData.sources = parsedResult.sources;
-        }
-        
-        // Add agent metadata
-        debugContext.debugData.agentMetadata = {
-          model: this.model,
-          temperature: this.temperature,
-          maxToolRoundtrips: this.maxToolRoundtrips,
-          executionSteps: result.metadata?.steps?.length || 0
-        };
-      }
-      
-      if (debugContext?.addTimelineEntry) {
-        debugContext.addTimelineEntry('AGENT_BRIEF_GENERATED', {
-          sourcesCount: parsedResult.sources?.length || 0,
-          goalsCount: parsedResult.goals?.length || 0,
-          keyContextCount: parsedResult.key_context?.length || 0
-        });
-      }
-    } catch (e) {
-      // If parsing fails, log the error but continue
-      if (debugContext?.addTimelineEntry) {
-        debugContext.addTimelineEntry('AGENT_PARSE_ERROR', { 
-          error: e instanceof Error ? e.message : 'Unknown error'
-        });
-      }
-    }
     
     // Store the brief in memory for future reference
     this.memory.setLongTerm(`brief-${meetingId}`, result.text);

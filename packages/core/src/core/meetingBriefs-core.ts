@@ -19,7 +19,6 @@ import {
   type UserSettings,
 } from "./settings-core";
 import { getAccessTokenFromAccountCore } from "./google-core";
-import type { DebugDataStructure } from "../s3-debug";
 import {
   normalizeIgnorePatterns,
   shouldIgnoreEventByTitle,
@@ -42,10 +41,6 @@ export type MeetingBriefSearchStrategy =
   | "LLM_AND_HEURISTIC"
   | "AGENT";
 
-export interface MeetingBriefDebugContext {
-  debugData?: DebugDataStructure;
-  addTimelineEntry?: (action: string, details?: any) => void;
-}
 
 export async function generateMeetingBriefForEventCore(
   prisma: PrismaClient,
@@ -55,7 +50,6 @@ export async function generateMeetingBriefForEventCore(
     searchStrategy: MeetingBriefSearchStrategy;
     token?: string;
     userSettings?: UserSettings;
-    debug?: MeetingBriefDebugContext;
     persist?: boolean;
     force?: boolean;
   },
@@ -70,17 +64,10 @@ export async function generateMeetingBriefForEventCore(
     searchStrategy,
     token: tokenOverride,
     userSettings,
-    debug,
     persist = true,
     force = false,
   } = opts as typeof opts & { persist?: boolean; force?: boolean };
 
-  const debugData = debug?.debugData;
-  const addTimeline =
-    debug?.addTimelineEntry ??
-    (() => {
-      /* noop */
-    });
 
   let settings = userSettings;
   if (!settings) {
@@ -99,9 +86,7 @@ export async function generateMeetingBriefForEventCore(
     token = await getAccessTokenFromAccountCore(prisma, account);
   }
 
-  addTimeline("EVENT_LOAD_START", { eventId });
   const event = await getEventDetailsWithToken(token, eventId);
-  addTimeline("EVENT_LOAD_COMPLETE", { eventId });
 
   const currentUserEmail =
     (
@@ -114,12 +99,7 @@ export async function generateMeetingBriefForEventCore(
   const userDeclined = didUserDeclineEvent(event.attendees as any, {
     currentUserEmail,
   });
-  if (userDeclined && force) {
-    addTimeline("EVENT_DECLINED_OVERRIDDEN", { eventId });
-  }
   if (userDeclined && !force) {
-    addTimeline("EVENT_DECLINED", { eventId });
-
     let meetingId: string | null = null;
     if (persist) {
       const meeting = await upsertMeetingFromEventCore(prisma, userId, {
@@ -145,16 +125,8 @@ export async function generateMeetingBriefForEventCore(
     ignorePatterns.length &&
     shouldIgnoreEventByTitle(event.title, ignorePatterns);
   if (matchesIgnorePattern && force) {
-    addTimeline("EVENT_IGNORED_BY_PATTERN_OVERRIDDEN", {
-      eventId,
-      title: event.title,
-    });
   }
   if (matchesIgnorePattern && !force) {
-    addTimeline("EVENT_IGNORED_BY_PATTERN", {
-      eventId,
-      title: event.title,
-    });
 
     let meetingId: string | null = null;
     if (persist) {
@@ -204,13 +176,6 @@ export async function generateMeetingBriefForEventCore(
       event.title,
     );
     inferredAttendees = inferred.inferredAttendees;
-    if (inferred.inferredAttendees.length) {
-      addTimeline("INFERRED_ATTENDEES", {
-        eventId,
-        namesFromTitle: inferred.namesFromTitle,
-        inferredAttendees,
-      });
-    }
   }
 
   const effectiveAttendees =
@@ -225,8 +190,6 @@ export async function generateMeetingBriefForEventCore(
 
   // Use agent-based generation if specified
   if (searchStrategy === "AGENT") {
-    addTimeline("AGENT_GENERATION_START", { eventId });
-    
     // Create the agent with the user's custom prompt if provided
     const agent = new MeetingPrepAgent({
       systemPrompt: briefSystemPromptOverride || undefined,
@@ -239,7 +202,6 @@ export async function generateMeetingBriefForEventCore(
         userId,
         {
           token,
-          debugContext: debug,
           searchTimeframeDays,
         }
       );
@@ -257,23 +219,7 @@ export async function generateMeetingBriefForEventCore(
           return `${src.type}: ${src.title} -> ${src.url}`;
         })
       };
-
-      if (debugData) {
-        debugData.summary.apiCalls += 1;
-        // Add agent-specific debug info
-        (debugData as any).agentContext = {
-          strategy: "AGENT",
-          agentUsed: "MeetingPrepAgent",
-        };
-      }
-
-      addTimeline("AGENT_GENERATION_COMPLETE", { eventId });
     } catch (agentError: any) {
-      addTimeline("AGENT_GENERATION_FAILED", { 
-        eventId, 
-        error: agentError.message 
-      });
-      
       // Fall back to LLM_AND_HEURISTIC strategy
       console.error("Agent generation failed, falling back to LLM_AND_HEURISTIC:", agentError);
       
@@ -318,7 +264,6 @@ export async function generateMeetingBriefForEventCore(
       prisma,
       userId,
       { driveQueries, gmailQueries, slackQueries },
-      { debugData, addTimelineEntry: addTimeline },
     );
     drive.push(...driveRes);
     const allGmail = gmailRes.map((m: any) => {
@@ -339,13 +284,6 @@ export async function generateMeetingBriefForEventCore(
         text: (m.text as string).trim(),
       }));
 
-    addTimeline("LLM_GENERATION_START", {
-      eventId,
-      driveResults: drive.length,
-      gmailResults: allGmail.length,
-      slackResults: slackMessages.length,
-    });
-
     briefResult = await generateBriefFromContext(
       {
         meeting: {
@@ -362,13 +300,6 @@ export async function generateMeetingBriefForEventCore(
         systemPromptOverride: briefSystemPromptOverride ?? undefined,
       },
     );
-
-    if (debugData) {
-      debugData.summary.apiCalls += 1;
-      debugData.llmContext = briefResult.llmContext;
-    }
-
-    addTimeline("LLM_GENERATION_COMPLETE", { eventId });
   }
 
   let meetingId: string | null = null;
@@ -400,12 +331,6 @@ export async function generateMeetingBriefForEventCore(
     const personIds = personRows.map((p: any) => p.id);
     await linkMeetingParticipantsCore(prisma, meeting.id, personIds);
     await linkBriefParticipantsCore(prisma, saved.id, personIds);
-
-    addTimeline("BRIEF_SAVED", { briefId: saved.id, eventId });
-
-    if (debugData) {
-      debugData.summary.briefId = saved.id;
-    }
 
     briefId = saved.id;
   }

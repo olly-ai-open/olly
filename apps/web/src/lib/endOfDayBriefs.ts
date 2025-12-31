@@ -5,15 +5,10 @@ export async function generateEndOfDayBriefForUser(opts: {
   userId: string;
   briefTime?: Date;
   windowHours?: number;
-  debug?: {
-    debugData: any;
-    addTimelineEntry: (action: string, details?: any) => void;
-  };
 }) {
-  const { userId, briefTime, windowHours, debug } = opts;
+  const { userId, briefTime, windowHours } = opts;
   return generateEndOfDayBriefForUserCore(prisma, userId, {
     briefTime,
     windowHours,
-    debug,
   });
 }

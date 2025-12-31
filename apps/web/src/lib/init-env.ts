@@ -52,10 +52,6 @@ export async function initializeServerEnvironment(): Promise<void> {
       `OPENAI_MODEL`,
       `OPENAI_TEMPERATURE`,
 
-      // AWS/S3
-      `S3_DEBUG_BUCKET`,
-      `ENABLE_DEBUG_CAPTURE`,
-
       // Supabase
       `SUPABASE_URL`,
       `SUPABASE_ANON_KEY`,

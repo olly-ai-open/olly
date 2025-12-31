@@ -34,9 +34,6 @@ export async function initializeEnvironment(): Promise<void> {
       `OPENAI_MODEL`,
       `OPENAI_TEMPERATURE`,
       
-      // AWS/S3 (Optional)
-      `S3_DEBUG_BUCKET`,
-      `ENABLE_DEBUG_CAPTURE`,
     ].map(key => `/olly/${stage}/${key}`);
     
     const response = await ssmClient.send(

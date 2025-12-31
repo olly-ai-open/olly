@@ -2,11 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import {
-  S3DebugStorage,
-  createBriefDebugContext,
-  sendBriefReadyWebPush,
-} from "@olly/core";
+import { sendBriefReadyWebPush } from "@olly/core";
 import { getUserSearchStrategy, getUserSettings } from "@/lib/settings";
 import {
   generateMeetingBriefForEvent,
@@ -14,19 +10,12 @@ import {
 } from "@/lib/meetingBriefs";
 
 export async function POST(req: Request) {
-  const debug = createBriefDebugContext();
-  const debugData = debug.debugData;
-  const addTimelineEntry = debug.addTimelineEntry.bind(debug);
-  addTimelineEntry("START", { details: "Brief generation initiated" });
-
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json(
       { ok: false, error: "unauthorized" },
       { status: 401 },
     );
-
-  debugData.summary.userId = session.user.id;
 
   const QUERY_STRATEGY_LLM_ONLY = "LLM_ONLY" as const;
   const QUERY_STRATEGY_HEURISTIC_ONLY = "HEURISTIC_ONLY" as const;
@@ -81,8 +70,6 @@ export async function POST(req: Request) {
       { status: 400 },
     );
 
-  addTimelineEntry("EVENT_LOADED", { details: `Event ID: ${eventId}` });
-
   try {
     // Resolve search strategy: request override > user setting > default
     const savedSearchStrategy = await getUserSearchStrategy(session.user.id);
@@ -108,10 +95,6 @@ export async function POST(req: Request) {
       eventId,
       searchStrategy,
       userSettings,
-      debug: {
-        debugData,
-        addTimelineEntry,
-      },
       force: forceGenerate,
     });
 
@@ -145,9 +128,6 @@ export async function POST(req: Request) {
       );
     }
 
-    debug.markSuccess(briefId, session.user.id);
-    addTimelineEntry("BRIEF_SAVED", { briefId });
-
     const saved = await prisma.brief.findUnique({
       where: { id: briefId },
     });
@@ -165,36 +145,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // Mark success and calculate final duration
-    addTimelineEntry("COMPLETE", {
-      details: "Brief generation completed successfully",
-      totalDuration: debugData.summary.totalDuration,
-    });
-
-    // Upload debug data to S3 if enabled
-    if (S3DebugStorage.isEnabled()) {
-      try {
-        const uploadResult = await debug.uploadIfEnabled(
-          saved.id,
-          session.user.id,
-        );
-
-        if (uploadResult.success && uploadResult.s3Key) {
-          await prisma.brief.update({
-            where: { id: saved.id },
-            data: {
-              debugS3Key: uploadResult.s3Key,
-              debugCapturedAt: new Date(),
-              debugMetadata: debug.getMetadata(),
-            },
-          });
-          console.log(`Debug data saved to S3 for brief ${saved.id}`);
-        }
-      } catch (s3Error) {
-        console.error("Failed to save debug data to S3:", s3Error);
-      }
-    }
-
     // Revalidate dashboard; detail page is a fresh navigation
     try {
       revalidatePath("/");
@@ -207,21 +157,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ ok: true, brief: saved });
   } catch (err: any) {
-    // Capture error in debug data
-    debug.markError(err, { userId: session.user.id });
-    addTimelineEntry("ERROR", {
-      error: err?.message || "unknown error",
-      stack: err?.stack,
-    });
-
-    if (S3DebugStorage.isEnabled() && debugData.summary.briefId) {
-      try {
-        await debug.uploadIfEnabled(debugData.summary.briefId, session.user.id);
-      } catch (s3Error) {
-        console.error("Failed to save error debug data to S3:", s3Error);
-      }
-    }
-
+    console.error("Failed to generate meeting brief:", err);
     return NextResponse.json(
       { ok: false, error: err?.message || "failed" },
       { status: 500 },

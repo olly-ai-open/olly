@@ -7,8 +7,6 @@ import {
 } from "@/lib/google";
 import { getUserSearchStrategy, getUserSettings } from "@/lib/settings";
 import {
-  S3DebugStorage,
-  createBriefDebugContext,
   didUserDeclineEvent,
   sendBriefReadyWebPush,
   MorningBriefAgent,
@@ -41,13 +39,6 @@ export async function POST(req: Request) {
   // no Meeting/Brief rows are created or updated.
   const USE_EPHEMERAL_MEETING_BRIEFS_FOR_MORNING = true;
 
-  const debug = createBriefDebugContext();
-  const debugData = debug.debugData;
-  const addTimelineEntry = debug.addTimelineEntry.bind(debug);
-  addTimelineEntry("START", {
-    details: "Morning brief generation initiated",
-  });
-
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json(
@@ -56,7 +47,6 @@ export async function POST(req: Request) {
     );
   }
   const userId = session.user.id;
-  debugData.summary.userId = userId;
 
   let body: any = {};
   const contentType = req.headers.get("content-type") || "";
@@ -162,10 +152,6 @@ export async function POST(req: Request) {
           token,
           userSettings: settings,
           persist: !USE_EPHEMERAL_MEETING_BRIEFS_FOR_MORNING ? true : false,
-          debug: {
-            debugData,
-            addTimelineEntry,
-          },
         });
         const content: any = result.content as any;
         const goals: string[] = Array.isArray(content?.goals)
@@ -263,8 +249,6 @@ export async function POST(req: Request) {
       highlighted_action_item_ids: [],
     };
 
-    debugData.summary.apiCalls += 1;
-
     // Create a synthetic "meeting" to host the morning brief
     const externalId = `morning:${dayISO}`;
     const morningMeeting = await prisma.meeting.upsert({
@@ -313,61 +297,12 @@ export async function POST(req: Request) {
       });
     }
 
-    debug.markSuccess(saved.id, userId);
-    addTimelineEntry("MORNING_BRIEF_SAVED", { briefId: saved.id });
-    addTimelineEntry("COMPLETE", {
-      details: "Morning brief generation completed successfully",
-      totalDuration: debugData.summary.totalDuration,
-    });
-
-    if (S3DebugStorage.isEnabled()) {
-      try {
-        const uploadResult = await debug.uploadIfEnabled(saved.id, userId);
-
-        if (uploadResult.success && uploadResult.s3Key) {
-          await prisma.brief.update({
-            where: { id: saved.id },
-            data: {
-              debugS3Key: uploadResult.s3Key,
-              debugCapturedAt: new Date(),
-              debugMetadata: debug.getMetadata(),
-            },
-          });
-          console.log(`Debug data saved to S3 for morning brief ${saved.id}`);
-        }
-      } catch (s3Error) {
-        console.error(
-          "Failed to save morning brief debug data to S3:",
-          s3Error,
-        );
-      }
-    }
-
     return NextResponse.json({
       ok: true,
       briefId: saved.id,
     });
   } catch (error: any) {
     console.error("Failed to generate morning brief:", error);
-    debug.markError(error, { userId });
-    addTimelineEntry("ERROR", {
-      error: error?.message || "unknown error",
-      stack: error?.stack,
-    });
-
-    if (S3DebugStorage.isEnabled() && debugData.summary.briefId) {
-      try {
-        await debug.uploadIfEnabled(
-          debugData.summary.briefId,
-          debugData.summary.userId,
-        );
-      } catch (s3Error) {
-        console.error(
-          "Failed to save error debug data for morning brief:",
-          s3Error,
-        );
-      }
-    }
     return NextResponse.json(
       { ok: false, error: error?.message || "failed" },
       { status: 500 },

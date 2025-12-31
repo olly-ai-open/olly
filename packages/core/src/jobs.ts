@@ -14,7 +14,6 @@ import {
 import { MorningBriefAgent } from "./agents/personas/MorningBriefAgent";
 import { generateEndOfDayBriefForUserCore } from "./core/endOfDayBriefs-core";
 import { getPrisma } from "./prisma-lambda";
-import { S3DebugStorage, type DebugDataStructure } from "./s3-debug";
 import {
   normalizeIgnorePatterns,
   shouldIgnoreEventByTitle,
@@ -46,18 +45,13 @@ export async function runJobById(jobId: string): Promise<RunJobResult> {
     return { jobId, status: "SKIPPED", error: "job_not_runnable" };
   }
 
-  const debugCtx = S3DebugStorage.isEnabled()
-    ? createDebugContext(job.userId || "")
-    : null;
-  const startedAt = Date.now();
-
   try {
     await prisma.job.update({
       where: { id: job.id },
       data: { status: "RUNNING", attempts: job.attempts + 1 },
     });
 
-    await dispatchJob(prisma, job, debugCtx ?? undefined);
+    await dispatchJob(prisma, job);
 
     await prisma.job.update({
       where: { id: job.id },
@@ -72,33 +66,13 @@ export async function runJobById(jobId: string): Promise<RunJobResult> {
       data: { status: "FAILED", lastError: message },
     });
 
-    if (debugCtx) {
-      markDebugFailure(debugCtx.debugData, startedAt, message);
-      const targetId =
-        debugCtx.debugData.summary.briefId || job.id || "unknown";
-      debugCtx.debugData.summary.briefId =
-        debugCtx.debugData.summary.briefId || targetId;
-      await uploadDebugData(
-        prisma,
-        targetId,
-        job.userId || "",
-        debugCtx.debugData,
-        false,
-      ).catch((e) => {
-        console.error("Failed to upload debug data on job failure", e);
-      });
-    }
     return { jobId: job.id, status: "FAILED", error: message };
   }
 }
 
 async function dispatchJob(
   prisma: PrismaClient,
-  job: Job,
-  debugCtx?: {
-    debugData: DebugDataStructure;
-    addTimelineEntry: (action: string, details?: any) => void;
-  },
+  job: Job
 ): Promise<void> {
   const kind = job.kind as JobKind;
   const payload = (job.payload ?? {}) as any;
@@ -110,12 +84,10 @@ async function dispatchJob(
       }
       const dayISO =
         typeof payload.dayISO === "string" ? payload.dayISO : undefined;
-      const start = Date.now();
       const { briefId } = await generateMorningBriefForUser(
         prisma,
         job.userId,
-        dayISO,
-        debugCtx ?? undefined,
+        dayISO
       );
       if (briefId) {
         sendBriefReadyWebPush(prisma, {
@@ -125,12 +97,6 @@ async function dispatchJob(
         }).catch((err) => {
           console.error("Failed to send morning brief web push", err);
         });
-      }
-      if (debugCtx && briefId) {
-        if (!debugCtx.debugData.summary.totalDuration) {
-          markDebugSuccess(debugCtx.debugData, briefId, start);
-        }
-        await uploadDebugData(prisma, briefId, job.userId, debugCtx.debugData);
       }
       return;
     }
@@ -173,7 +139,7 @@ async function dispatchJob(
         [];
       let fetchedEvent: any = null;
 
-      // Fetch event if we’re missing title/attendees or need organizer-derived context
+      // Fetch event if we're missing title/attendees or need organizer-derived context
       const account = await prisma.account.findFirst({
         where: { userId: job.userId, provider: "google" },
       });
@@ -231,43 +197,14 @@ async function dispatchJob(
         return;
       }
 
-      const start = Date.now();
       const result = await generateMeetingBriefForEventCore(prisma, {
         userId: job.userId,
         eventId,
         searchStrategy,
         userSettings: settings,
         persist: true,
-        debug: debugCtx
-          ? {
-              debugData: debugCtx.debugData,
-              addTimelineEntry: debugCtx.addTimelineEntry,
-            }
-          : undefined,
       });
-      if (debugCtx && result.briefId) {
-        debugCtx.debugData.summary.briefId = result.briefId;
-        debugCtx.debugData.summary.userId = job.userId;
-        markDebugSuccess(debugCtx.debugData, result.briefId, start);
-        await uploadDebugData(
-          prisma,
-          result.briefId,
-          job.userId,
-          debugCtx.debugData,
-        );
-      } else if (debugCtx && debugCtx.debugData.summary.briefId) {
-        markDebugSuccess(
-          debugCtx.debugData,
-          debugCtx.debugData.summary.briefId,
-          start,
-        );
-        await uploadDebugData(
-          prisma,
-          debugCtx.debugData.summary.briefId,
-          job.userId,
-          debugCtx.debugData,
-        );
-      }
+      
       if (result.briefId) {
         sendBriefReadyWebPush(prisma, {
           userId: job.userId,
@@ -290,13 +227,11 @@ async function dispatchJob(
           ? payload.windowHours
           : 24;
 
-      const start = Date.now();
       const result = await generateEndOfDayBriefForUserCore(prisma, job.userId, {
         briefTime: Number.isNaN(briefTime.getTime())
           ? new Date()
           : briefTime,
         windowHours,
-        debug: debugCtx ?? undefined,
       });
 
       if (result.briefId) {
@@ -307,17 +242,6 @@ async function dispatchJob(
         }).catch((err) => {
           console.error("Failed to send evening brief web push", err);
         });
-      }
-      if (debugCtx && result.briefId) {
-        debugCtx.debugData.summary.briefId = result.briefId;
-        debugCtx.debugData.summary.userId = job.userId;
-        markDebugSuccess(debugCtx.debugData, result.briefId, start);
-        await uploadDebugData(
-          prisma,
-          result.briefId,
-          job.userId,
-          debugCtx.debugData,
-        );
       }
       return;
     }
@@ -332,8 +256,7 @@ async function dispatchJob(
       await syncCalendarForUser(
         prisma,
         job.userId,
-        lookaheadHours,
-        debugCtx ?? undefined,
+        lookaheadHours
       );
       return;
     }
@@ -345,16 +268,8 @@ async function dispatchJob(
 async function generateMorningBriefForUser(
   prisma: PrismaClient,
   userId: string,
-  dayISOOverride?: string,
-  debugCtx?: {
-    debugData: DebugDataStructure;
-    addTimelineEntry: (action: string, details?: any) => void;
-  },
+  dayISOOverride?: string
 ): Promise<{ briefId: string }> {
-  const addTimeline = debugCtx?.addTimelineEntry ?? (() => {});
-  const debugData = debugCtx?.debugData;
-  const start = Date.now();
-
   const settings = await getUserSettingsCore(prisma, userId);
   const timeZone = settings.timeZone || "UTC";
   const ignorePatterns = normalizeIgnorePatterns(settings);
@@ -369,13 +284,10 @@ async function generateMorningBriefForUser(
     throw new Error("no_account");
   }
 
-  addTimeline("ACCOUNT_FOUND", { userId, provider: "google" });
-
   const token = await getAccessTokenFromAccountCore(
     prisma,
     account as any,
   );
-  addTimeline("ACCESS_TOKEN_RETRIEVED");
 
   const events = await listEventsByDayWithToken(token, dayISO, timeZone);
   const filteredEvents = ignorePatterns.length
@@ -383,18 +295,6 @@ async function generateMorningBriefForUser(
         shouldIgnoreEventByTitle(evt.title, ignorePatterns) ? false : true,
       )
     : events;
-  if (events.length !== filteredEvents.length) {
-    addTimeline("CAL_EVENTS_IGNORED", {
-      skipped: events.length - filteredEvents.length,
-    });
-  }
-  if (debugData) {
-    debugData.summary.apiCalls += 1;
-  }
-  addTimeline("CAL_EVENTS_FETCHED", {
-    count: filteredEvents.length,
-    dayISO,
-  });
 
   const meetingsForBrief = filteredEvents.map((event) => ({
     id: event.id,
@@ -404,15 +304,6 @@ async function generateMorningBriefForUser(
     status: (event as any).status || null,
     description: event.description || null,
   }));
-  if (debugData) {
-    debugData.searchResults.drive.queries.push("calendar:events");
-    debugData.searchResults.drive.totalFound += 0;
-    debugData.searchResults.gmail.queries.push("calendar:events");
-    debugData.searchResults.gmail.totalFound += 0;
-    addTimeline("CAL_EVENTS_CAPTURED", {
-      count: meetingsForBrief.length,
-    });
-  }
 
   const actionItems = await prisma.actionItem.findMany({
     where: {
@@ -423,9 +314,6 @@ async function generateMorningBriefForUser(
       },
     },
   });
-  if (debugData) {
-    debugData.summary.apiCalls += 1;
-  }
 
   const actionItemsForBrief = actionItems.map((ai) => ({
     id: ai.id,
@@ -433,25 +321,19 @@ async function generateMorningBriefForUser(
     dueAt: ai.dueAt ? ai.dueAt.toISOString() : null,
     status: ai.status as string,
   }));
-  if (debugData) {
-    addTimeline("ACTION_ITEMS_FETCHED", { count: actionItemsForBrief.length });
-  }
 
   const agent = new MorningBriefAgent();
   const rawBrief = await agent.generateMorningBrief(userId, {
-      date: dayISO,
-      timeZone,
-      actionItems: actionItemsForBrief,
-    },
-  );
+    date: dayISO,
+    timeZone,
+    actionItems: actionItemsForBrief,
+  });
   const fullJson = JSON.parse(rawBrief);
   const parsed = safeParseMorningBriefJSON(rawBrief);
   const morning: MorningBriefJSON = parsed ?? {
     brief_markdown: rawBrief,
     highlighted_action_item_ids: [],
   };
-
-  addTimeline("LLM_MORNING_BRIEF_COMPLETE");
 
   const externalId = `morning:${dayISO}`;
   const morningMeeting = await prisma.meeting.upsert({
@@ -485,17 +367,6 @@ async function generateMorningBriefForUser(
     },
   });
 
-  if (debugData && savedBrief) {
-    debugData.summary.briefId = savedBrief.id;
-    debugData.summary.userId = userId;
-    debugData.summary.success = true;
-    debugData.summary.totalDuration = Date.now() - start;
-    addTimeline("MORNING_BRIEF_SAVED", { briefId: savedBrief.id });
-    addTimeline("COMPLETE", {
-      totalDuration: debugData.summary.totalDuration,
-    });
-  }
-
   return { briefId: savedBrief ? savedBrief.id : "" };
 }
 
@@ -514,131 +385,11 @@ function toDayInTimeZone(now: Date, timeZone: string): string {
   return `${obj.year}-${obj.month}-${obj.day}`;
 }
 
-function createDebugContext(userId: string): {
-  debugData: DebugDataStructure;
-  addTimelineEntry: (action: string, details?: any) => void;
-} {
-  const startedAt = Date.now();
-  const debugData: DebugDataStructure = {
-    version: "1.0",
-    summary: {
-      briefId: "",
-      userId,
-      timestamp: new Date().toISOString(),
-      totalDuration: 0,
-      apiCalls: 0,
-      success: false,
-    },
-    timeline: [
-      {
-        action: 'START',
-        duration: 0,
-        timestamp: startedAt,
-      }
-    ],
-    searchResults: {
-      drive: { queries: [], totalFound: 0, included: 0, results: [] },
-      gmail: { queries: [], totalFound: 0, included: 0, results: [] },
-      slack: { queries: [], totalFound: 0, included: 0, results: [] },
-    },
-    llmContext: {
-      systemPrompt: "",
-      userPrompt: "",
-      model: "",
-      temperature: 0,
-      response: "",
-    },
-  };
-
-  const addTimelineEntry = (action: string, details?: any) => {
-    debugData.timeline.push({
-      timestamp: Date.now() - startedAt,
-      action,
-      ...details,
-    });
-  };
-
-  return { debugData, addTimelineEntry };
-}
-
-async function uploadDebugData(
-  prisma: PrismaClient,
-  briefId: string,
-  userId: string,
-  debugData: DebugDataStructure,
-  updateBriefMeta = true,
-) {
-  if (!S3DebugStorage.isEnabled()) return;
-  const s3Storage = new S3DebugStorage();
-  const uploadResult = await s3Storage.uploadDebugData(
-    briefId,
-    userId,
-    debugData,
-  );
-
-  if (uploadResult.success && uploadResult.s3Key && updateBriefMeta) {
-    await prisma.brief.update({
-      where: { id: briefId },
-      data: {
-        debugS3Key: uploadResult.s3Key,
-        debugCapturedAt: new Date(),
-        debugMetadata: {
-          totalDuration: debugData.summary.totalDuration,
-          apiCalls: debugData.summary.apiCalls,
-          driveResults: debugData.searchResults.drive.totalFound,
-          gmailResults: debugData.searchResults.gmail.totalFound,
-          slackResults: debugData.searchResults.slack.totalFound,
-          timelineEvents: debugData.timeline.length,
-        },
-      },
-    });
-  }
-}
-
-function markDebugSuccess(
-  debugData: DebugDataStructure,
-  briefId: string,
-  startMs: number,
-) {
-  debugData.summary.briefId = briefId;
-  debugData.summary.success = true;
-  debugData.summary.totalDuration = Date.now() - startMs;
-  debugData.timeline.push({
-    timestamp: debugData.summary.totalDuration,
-    action: "COMPLETE",
-    duration: debugData.summary.totalDuration,
-  });
-}
-
-function markDebugFailure(
-  debugData: DebugDataStructure,
-  startMs: number,
-  error: string,
-) {
-  debugData.summary.success = false;
-  debugData.summary.error = error;
-  debugData.summary.totalDuration = Date.now() - startMs;
-  debugData.timeline.push({
-    timestamp: debugData.summary.totalDuration,
-    action: "ERROR",
-    duration: debugData.summary.totalDuration,
-    error,
-  });
-}
-
 async function syncCalendarForUser(
   prisma: PrismaClient,
   userId: string,
-  lookaheadHours: number,
-  debugCtx?: {
-    debugData: DebugDataStructure;
-    addTimelineEntry: (action: string, details?: any) => void;
-  },
+  lookaheadHours: number
 ): Promise<void> {
-  const addTimeline = debugCtx?.addTimelineEntry ?? (() => {});
-  const debugData = debugCtx?.debugData;
-  const start = Date.now();
-
   const settings = await getUserSettingsCore(prisma, userId);
   const timeZone = settings.timeZone || "UTC";
 
@@ -649,15 +400,11 @@ async function syncCalendarForUser(
     throw new Error("no_account_for_calendar_sync");
   }
 
-  addTimeline("SYNC_ACCOUNT_FOUND", { userId, provider: "google" });
-
   if (!account.access_token && !account.refresh_token) {
-    addTimeline("SYNC_ACCOUNT_SKIPPED_NO_TOKEN", { userId });
     return;
   }
 
   const token = await getAccessTokenFromAccountCore(prisma, account as any);
-  addTimeline("SYNC_ACCESS_TOKEN_RETRIEVED");
 
   const now = new Date();
   const timeMin = now;
@@ -673,23 +420,11 @@ async function syncCalendarForUser(
   }> = [];
   try {
     events = await listEventsInRangeWithToken(token, timeMin, timeMax);
-    if (debugData) {
-      debugData.summary.apiCalls += 1;
-    }
   } catch (err: any) {
-    addTimeline("SYNC_EVENTS_FETCH_ERROR", {
-      error: err?.message || "unknown_error",
-    });
     return;
   }
   const ignorePatterns = normalizeIgnorePatterns(settings);
   let ignoredCount = 0;
-
-  addTimeline("SYNC_EVENTS_FETCHED", {
-    count: events.length,
-    timeMin: timeMin.toISOString(),
-    timeMax: timeMax.toISOString(),
-  });
 
   let upserted = 0;
   for (const event of events) {
@@ -708,15 +443,5 @@ async function syncCalendarForUser(
       status: isIgnored ? "ignored" : null,
     });
     upserted += 1;
-  }
-
-  if (ignoredCount > 0) {
-    addTimeline("SYNC_EVENTS_IGNORED", { skipped: ignoredCount });
-  }
-
-  addTimeline("SYNC_MEETINGS_UPSERTED", { count: upserted });
-
-  if (debugData) {
-    debugData.summary.totalDuration = Date.now() - start;
   }
 }

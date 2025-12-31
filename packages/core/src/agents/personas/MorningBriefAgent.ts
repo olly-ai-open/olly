@@ -74,10 +74,6 @@ export class MorningBriefAgent extends BaseAgent {
         dueAt?: string | null;
         status?: string | null;
       }>;
-      debugContext?: {
-        debugData?: any;
-        addTimelineEntry?: (action: string, details?: any) => void;
-      };
       searchTimeframeDays?: number;
     }
   ): Promise<string> {
@@ -85,19 +81,8 @@ export class MorningBriefAgent extends BaseAgent {
       date = new Date().toISOString().split('T')[0], 
       timeZone = 'UTC',
       actionItems = [],
-      debugContext,
       searchTimeframeDays = 7
     } = options || {};
-    
-    // Add timeline entry if debug context is provided
-    if (debugContext?.addTimelineEntry) {
-      debugContext.addTimelineEntry('AGENT_GENERATING_MORNING_BRIEF', { 
-        userId, 
-        date,
-        timeZone,
-        actionItemCount: actionItems.length 
-      });
-    }
     
     // Format action items for the prompt
     const actionItemsText = actionItems.length > 0
@@ -136,63 +121,6 @@ Focus on answering:
       sessionId: `morning-brief-${date}` 
     });
     
-    // Log tool calls to debug context if provided
-    if (debugContext?.addTimelineEntry && result.toolCalls) {
-      debugContext.addTimelineEntry('AGENT_TOOL_CALLS', {
-        toolsUsed: result.toolCalls.map(tc => tc.toolName),
-        toolCallCount: result.toolCalls.length
-      });
-      
-      // Add detailed tool call information to debug data
-      if (debugContext.debugData) {
-        debugContext.debugData.agentToolCalls = result.toolCalls.map(tc => ({
-          tool: tc.toolName,
-          args: tc.args,
-          hasResult: !!tc.result
-        }));
-      }
-    }
-    
-    // Parse the JSON response and add debug data
-    try {
-      const parsedResult = JSON.parse(result.text);
-      
-      if (debugContext?.debugData) {
-        // Add sources to debug data
-        if (parsedResult.sources) {
-          debugContext.debugData.sources = parsedResult.sources;
-        }
-        
-        // Add key meetings to debug data
-        if (parsedResult.key_meetings) {
-          debugContext.debugData.keyMeetings = parsedResult.key_meetings;
-        }
-        
-        // Add agent metadata
-        debugContext.debugData.agentMetadata = {
-          model: this.model,
-          temperature: this.temperature,
-          date: date,
-          timeZone: timeZone,
-          executionSteps: result.metadata?.steps?.length || 0
-        };
-      }
-      
-      if (debugContext?.addTimelineEntry) {
-        debugContext.addTimelineEntry('AGENT_MORNING_BRIEF_GENERATED', {
-          sourcesCount: parsedResult.sources?.length || 0,
-          meetingsCount: parsedResult.key_meetings?.length || 0,
-          highlightedItemsCount: parsedResult.highlighted_action_item_ids?.length || 0
-        });
-      }
-    } catch (e) {
-      // If parsing fails, log the error but continue
-      if (debugContext?.addTimelineEntry) {
-        debugContext.addTimelineEntry('AGENT_PARSE_ERROR', { 
-          error: e instanceof Error ? e.message : 'Unknown error'
-        });
-      }
-    }
     
     // Store the brief in memory for future reference
     this.memory.setLongTerm(`morning-brief-${date}`, result.text);

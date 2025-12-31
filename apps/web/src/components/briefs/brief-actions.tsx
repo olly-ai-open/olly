@@ -73,12 +73,6 @@ export default function BriefActions({
     <div className="flex flex-wrap items-center gap-3">
       {effectiveAdmin && (
         <>
-          <Link
-            href={`/briefs/${briefId}/debug`}
-            className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 cursor-pointer"
-          >
-            View Debug
-          </Link>
           <button
             disabled={isDeleting}
             onClick={deleteBrief}

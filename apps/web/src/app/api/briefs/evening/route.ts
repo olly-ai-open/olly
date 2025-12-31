@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateEndOfDayBriefForUser } from "@/lib/endOfDayBriefs";
 import { prisma } from "@/lib/prisma";
-import { createBriefDebugContext, sendBriefReadyWebPush } from "@olly/core";
+import { sendBriefReadyWebPush } from "@olly/core";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -30,20 +30,12 @@ export async function POST(req: Request) {
       : 24;
 
   const start = Date.now();
-  const debug = createBriefDebugContext(session.user.id);
-  const debugData = debug.debugData;
-  const addTimelineEntry = debug.addTimelineEntry.bind(debug);
-  addTimelineEntry("START", { details: "Evening brief generation initiated" });
 
   try {
     const result = await generateEndOfDayBriefForUser({
       userId: session.user.id,
       briefTime: Number.isNaN(briefTime.getTime()) ? new Date() : briefTime,
       windowHours,
-      debug: {
-        debugData,
-        addTimelineEntry,
-      },
     });
 
     if (scheduled && result.briefId) {
@@ -62,10 +54,6 @@ export async function POST(req: Request) {
       meetingId: result.meetingId,
     });
   } catch (error: any) {
-    debugData.summary.success = false;
-    debugData.summary.error = error?.message || "failed";
-    debugData.summary.totalDuration = Date.now() - start;
-    addTimelineEntry("ERROR", { error: error?.message || "failed" });
     console.error("Failed to generate evening brief:", error);
     return NextResponse.json(
       { ok: false, error: error?.message || "failed" },
