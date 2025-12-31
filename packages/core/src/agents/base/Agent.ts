@@ -73,7 +73,7 @@ export abstract class BaseAgent {
     });
     this.languageModel = this.openai(this.model);
 
-    const DEBUG_AI_SDK = true;
+    const DEBUG_AI_SDK = process.env.DEBUG_AI_SDK === 'true';
     if (DEBUG_AI_SDK) {
       this.languageModel = wrapLanguageModel({
         model: this.openai(this.model),
