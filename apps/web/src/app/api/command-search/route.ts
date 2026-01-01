@@ -36,7 +36,6 @@ export async function GET(req: Request) {
     prisma.meeting.findMany({
       where: {
         userId,
-        status: { not: "ignored" },
         title: { contains: q, mode: "insensitive" },
       },
       include: {

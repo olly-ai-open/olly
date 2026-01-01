@@ -106,9 +106,11 @@ export async function handler(): Promise<void> {
         gt: now,
         lte: meetingWindowEnd,
       },
-      status: {
-        notIn: ["ignored", "declined"],
-      }
+      // Include meetings with null status OR status not in ignored/declined
+      OR: [
+        { status: null },
+        { status: { notIn: ["ignored", "declined"] } }
+      ]
     },
     orderBy: { startsAt: "asc" },
     take: 200,
