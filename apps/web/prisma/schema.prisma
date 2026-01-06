@@ -341,3 +341,37 @@ model WebPushSubscription {
 
   @@index([userId])
 }
+
+model AgentMetricsDaily {
+  id               String   @id @default(cuid())
+  day              DateTime
+  agentName        String
+  runs             Int      @default(0)
+  successes        Int      @default(0)
+  errors           Int      @default(0)
+  totalDurationMs  Int      @default(0)
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([day, agentName])
+  @@index([day])
+}
+
+model ToolMetricsDaily {
+  id              String   @id @default(cuid())
+  day             DateTime
+  toolName        String
+  operation       String
+  calls           Int      @default(0)
+  successes       Int      @default(0)
+  errors          Int      @default(0)
+  totalDurationMs Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([day, toolName, operation])
+  @@index([day])
+}
