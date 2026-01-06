@@ -22,6 +22,7 @@ import GenerateBriefButton from "@/components/briefs/generate-brief-button";
 import { getUserSettings } from "@/lib/settings";
 import GenerateMorningBriefButton from "@/components/briefs/generate-morning-brief-button";
 import GenerateEveningBriefButton from "@/components/briefs/generate-evening-brief-button";
+import BriefActionPill from "@/components/briefs/brief-action-pill";
 
 function formatMinutesHuman(mins: number) {
   if (!mins || mins < 0) return "0m";
@@ -38,6 +39,43 @@ function toLocalISODate(d: Date) {
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(date);
+  const lookup: Record<string, number> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      lookup[part.type] = Number(part.value);
+    }
+  }
+  const asUtc = Date.UTC(
+    lookup.year,
+    lookup.month - 1,
+    lookup.day,
+    lookup.hour,
+    lookup.minute,
+    lookup.second,
+  );
+  return asUtc - date.getTime();
+}
+
+function getDayBounds(day: string, timeZone: string) {
+  const [year, month, date] = day.split("-").map(Number);
+  const utcMidnight = new Date(Date.UTC(year, month - 1, date, 0, 0, 0));
+  const offset = getTimeZoneOffsetMs(utcMidnight, timeZone);
+  const start = new Date(utcMidnight.getTime() - offset);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
 }
 
 function formatDueLabel(due: Date) {
@@ -255,7 +293,9 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           },
         })
       : null;
-  const morningBriefId = (morningMeeting as any)?.briefs?.[0]?.id ?? null;
+  const morningBrief = (morningMeeting as any)?.briefs?.[0] ?? null;
+  const morningBriefId = morningBrief?.id ?? null;
+  const isMorningBriefNew = !!morningBriefId && !morningBrief?.readAt;
 
   const eveningExternalId = `evening:${targetDay}`;
   const eveningMeeting =
@@ -267,8 +307,20 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           },
         })
       : null;
-  const eveningBriefId = (eveningMeeting as any)?.briefs?.[0]?.id ?? null;
+  const eveningBrief = (eveningMeeting as any)?.briefs?.[0] ?? null;
+  const eveningBriefId = eveningBrief?.id ?? null;
+  const isEveningBriefNew = !!eveningBriefId && !eveningBrief?.readAt;
   const eveningBriefTimeIso = `${targetDay}T23:59:59Z`;
+  const dayBounds = getDayBounds(targetDay, timeZone);
+  const unreadBriefsToday = userId
+    ? await prisma.brief.count({
+        where: {
+          meeting: { userId },
+          readAt: null,
+          generatedAt: { gte: dayBounds.start, lt: dayBounds.end },
+        },
+      })
+    : 0;
 
   const actionItems = userId
     ? await prisma.actionItem.findMany({
@@ -301,6 +353,11 @@ export default async function HomeDashboard({ day }: { day?: string }) {
             </div>
             <div className="mt-2 text-sm text-muted-foreground">
               {briefsReady} briefs ready
+              {unreadBriefsToday ? (
+                <span className="ml-2 inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">
+                  {unreadBriefsToday} unread
+                </span>
+              ) : null}
             </div>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-card bg-gradient-brand-light">
@@ -384,9 +441,11 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                 <GenerateMorningBriefButton
                   day={targetDay}
                   existingBriefId={morningBriefId}
+                  isNew={isMorningBriefNew}
                 />
                 <GenerateEveningBriefButton
                   existingBriefId={eveningBriefId}
+                  isNew={isEveningBriefNew}
                   briefTime={eveningBriefTimeIso}
                   windowHours={24}
                 />
@@ -448,13 +507,14 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                         : null);
                   const isDisabled =
                     derivedStatus === "declined" || derivedStatus === "ignored";
+                  const isNewBrief = !!latest?.id && !latest?.readAt;
                   const statusLabel =
                     derivedStatus === "declined"
                       ? "Declined event"
                       : derivedStatus === "ignored"
                         ? "Ignored by pattern"
                         : latest
-                          ? "Brief ready"
+                          ? "View Brief"
                           : null;
                   return (
                     <div
@@ -471,19 +531,6 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                             <span className="text-lg font-semibold text-foreground">
                               {m.title}
                             </span>
-                            {statusLabel ? (
-                              <span
-                                className={`rounded-full px-2 py-1 text-xs font-semibold shadow-card ${
-                                  derivedStatus === "declined"
-                                    ? "bg-muted text-muted-foreground"
-                                    : derivedStatus === "ignored"
-                                      ? "bg-muted text-muted-foreground"
-                                      : "bg-success/15 text-success"
-                                }`}
-                              >
-                                {statusLabel}
-                              </span>
-                            ) : null}
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {timeRange ? (
@@ -507,13 +554,18 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {latest ? (
-                            <a
+                          {isDisabled ? (
+                            <BriefActionPill
+                              label={statusLabel ?? ""}
+                              tone="muted"
+                              disabled
+                            />
+                          ) : latest ? (
+                            <BriefActionPill
                               href={`/briefs/${latest.id}`}
-                              className="rounded-md border border-border/80 bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground shadow-card hover:opacity-90"
-                            >
-                              View Full Brief
-                            </a>
+                              label={statusLabel ?? "View Brief"}
+                              isNew={isNewBrief}
+                            />
                           ) : (
                             <GenerateBriefButton eventId={m.id} />
                           )}

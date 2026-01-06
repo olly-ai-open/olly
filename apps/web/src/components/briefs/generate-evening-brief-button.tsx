@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import BriefActionPill from "@/components/briefs/brief-action-pill";
 
 interface GenerateEveningBriefButtonProps {
   existingBriefId?: string | null;
+  isNew?: boolean;
   briefTime?: string;
   windowHours?: number;
 }
 
 export default function GenerateEveningBriefButton({
   existingBriefId,
+  isNew,
   briefTime,
   windowHours,
 }: GenerateEveningBriefButtonProps) {
@@ -51,47 +54,21 @@ export default function GenerateEveningBriefButton({
 
   if (existingBriefId) {
     return (
-      <button
-        type="button"
-        onClick={() => router.push(`/briefs/${existingBriefId}`)}
-        className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent cursor-pointer"
-      >
-        View end of day summary
-      </button>
+      <BriefActionPill
+        href={`/briefs/${existingBriefId}`}
+        label="View end of day summary"
+        isNew={isNew}
+      />
     );
   }
 
   return (
-    <button
+    <BriefActionPill
+      label="Generate end of day summary"
+      loadingLabel="Generating..."
       onClick={handleGenerate}
       disabled={isGenerating}
-      className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-    >
-      {isGenerating ? (
-        <>
-          <svg
-            className="w-4 h-4 animate-spin"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <circle
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeDasharray="31.416"
-              strokeDashoffset="31.416"
-              className="animate-spin"
-            />
-          </svg>
-          Generating...
-        </>
-      ) : (
-        "Generate end of day summary"
-      )}
-    </button>
+      isLoading={isGenerating}
+    />
   );
 }
