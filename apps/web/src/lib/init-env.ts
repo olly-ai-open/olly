@@ -61,6 +61,11 @@ export async function initializeServerEnvironment(): Promise<void> {
       `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
       `VAPID_PUBLIC_KEY`,
       `VAPID_PRIVATE_KEY`,
+
+      // Langfuse
+      "LANGFUSE_SECRET_KEY",
+      "LANGFUSE_PUBLIC_KEY",
+      "LANGFUSE_BASE_URL",
     ].map((key) => `/olly/${stage}/${key}`);
 
     const response = await ssmClient.send(
