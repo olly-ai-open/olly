@@ -47,6 +47,9 @@ PARAMETERS=(
     "/olly/$STAGE/NEXT_PUBLIC_VAPID_PUBLIC_KEY"
     "/olly/$STAGE/VAPID_PUBLIC_KEY"
     "/olly/$STAGE/VAPID_PRIVATE_KEY"
+    "/olly/$STAGE/LANGFUSE_SECRET_KEY"
+    "/olly/$STAGE/LANGFUSE_PUBLIC_KEY"
+    "/olly/$STAGE/LANGFUSE_BASE_URL"
 )
 
 # Create temporary file for parameters
