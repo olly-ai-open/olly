@@ -54,6 +54,30 @@ type MetricsResponse = {
     edited: number;
     deleted: number;
   };
+  ai: {
+    totals: {
+      runs: number;
+      successRate: number;
+      avgDurationMs: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+    agents: {
+      name: string;
+      runs: number;
+      successRate: number;
+      avgDurationMs: number;
+      totalTokens: number;
+    }[];
+    tools: {
+      name: string;
+      operation: string;
+      calls: number;
+      errorRate: number;
+      avgDurationMs: number;
+    }[];
+  };
 };
 
 const rangeOptions = [
@@ -69,6 +93,12 @@ function formatPercent(value: number): string {
 
 function formatNumber(value: number): string {
   return value.toLocaleString("en-US");
+}
+
+function formatDurationMs(value: number): string {
+  if (!Number.isFinite(value)) return "0s";
+  if (value < 1000) return `${Math.round(value)}ms`;
+  return `${(value / 1000).toFixed(1)}s`;
 }
 
 const palette = [
@@ -435,6 +465,103 @@ export default function AdminDashboard() {
               sub={`minutes`}
             />
           </div>
+        </div>
+      </div>
+
+      <div>
+        <Title className="text-lg font-semibold">AI Agents</Title>
+        <div className="mt-3 rounded-2xl shadow-lg ring-1">
+          <div className="grid gap-0 divide-x md:grid-cols-4 bg-card rounded-2xl">
+            <StatCard
+              label="Agent runs"
+              value={formatNumber(data.ai.totals.runs)}
+              sub={`${range} day window`}
+            />
+            <StatCard
+              label="Success rate"
+              value={formatPercent(data.ai.totals.successRate)}
+              sub="All agent runs"
+            />
+            <StatCard
+              label="Total tokens"
+              value={formatNumber(data.ai.totals.totalTokens)}
+              sub="Prompt + completion"
+            />
+            <StatCard
+              label="Avg duration"
+              value={formatDurationMs(data.ai.totals.avgDurationMs)}
+              sub="Per run"
+            />
+          </div>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <Card className="rounded-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <Title>Top agents</Title>
+              {data.ai.agents.length === 0 && (
+                <Badge color="gray">No data</Badge>
+              )}
+            </div>
+            {data.ai.agents.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                No agent activity in this range.
+              </div>
+            ) : (
+              <div className="space-y-2 text-sm">
+                {data.ai.agents.slice(0, 5).map((row) => (
+                  <div
+                    key={row.name}
+                    className="flex items-center justify-between border-b border-border pb-2 last:border-b-0 last:pb-0"
+                  >
+                    <div>
+                      <div className="font-medium">{row.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatNumber(row.runs)} runs ·{" "}
+                        {formatPercent(row.successRate)} success
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground">
+                      <div>{formatNumber(row.totalTokens)} tokens</div>
+                      <div>{formatDurationMs(row.avgDurationMs)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+          <Card className="rounded-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <Title>Top tools</Title>
+              {data.ai.tools.length === 0 && (
+                <Badge color="gray">No data</Badge>
+              )}
+            </div>
+            {data.ai.tools.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                No tool activity in this range.
+              </div>
+            ) : (
+              <div className="space-y-2 text-sm">
+                {data.ai.tools.slice(0, 5).map((row) => (
+                  <div
+                    key={`${row.name}:${row.operation}`}
+                    className="flex items-center justify-between border-b border-border pb-2 last:border-b-0 last:pb-0"
+                  >
+                    <div>
+                      <div className="font-medium">{row.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {row.operation} · {formatNumber(row.calls)} calls
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground">
+                      <div>{formatPercent(1 - row.errorRate)} success</div>
+                      <div>{formatDurationMs(row.avgDurationMs)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">

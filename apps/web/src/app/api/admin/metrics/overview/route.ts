@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { subDays } from "date-fns";
+import { startOfDay, subDays } from "date-fns";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
 
   const rangeDays = parseRangeDays(req);
   const since = subDays(new Date(), rangeDays);
+  const sinceDay = startOfDay(since);
   const now = new Date();
   const sevenDaysAgo = subDays(now, 7);
 
@@ -65,6 +66,8 @@ export async function GET(req: NextRequest) {
     syncJobStatusRows,
     actionItemRows,
     actionItemEventRows,
+    agentMetricRows,
+    toolMetricRows,
   ] = await prisma.$transaction([
     prisma.$queryRaw<{ pending: number; max_age_minutes: number | null }[]>`
       SELECT count(*)::int AS pending,
@@ -180,6 +183,12 @@ export async function GET(req: NextRequest) {
         count(*) FILTER (WHERE type = 'DELETE' AND "createdAt" >= ${since})::int AS deleted
       FROM "ActionItemEvent"
     `,
+    prisma.agentMetricsDaily.findMany({
+      where: { day: { gte: sinceDay } },
+    }),
+    prisma.toolMetricsDaily.findMany({
+      where: { day: { gte: sinceDay } },
+    }),
   ]);
 
   const backlog = backlogRows[0] || { pending: 0, max_age_minutes: 0 };
@@ -206,6 +215,98 @@ export async function GET(req: NextRequest) {
     total_users: toNumber(syncRows[0]?.total_users),
     stale_users: toNumber(syncRows[0]?.stale_users),
   };
+
+  const agentTotals = {
+    runs: 0,
+    successes: 0,
+    errors: 0,
+    totalDurationMs: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+  };
+  const agentByName = new Map<
+    string,
+    {
+      name: string;
+      runs: number;
+      successes: number;
+      errors: number;
+      totalDurationMs: number;
+      totalTokens: number;
+    }
+  >();
+  for (const row of agentMetricRows) {
+    const name = row.agentName;
+    const entry = agentByName.get(name) || {
+      name,
+      runs: 0,
+      successes: 0,
+      errors: 0,
+      totalDurationMs: 0,
+      totalTokens: 0,
+    };
+    entry.runs += toNumber(row.runs);
+    entry.successes += toNumber(row.successes);
+    entry.errors += toNumber(row.errors);
+    entry.totalDurationMs += toNumber(row.totalDurationMs);
+    entry.totalTokens += toNumber(row.totalTokens);
+    agentByName.set(name, entry);
+
+    agentTotals.runs += toNumber(row.runs);
+    agentTotals.successes += toNumber(row.successes);
+    agentTotals.errors += toNumber(row.errors);
+    agentTotals.totalDurationMs += toNumber(row.totalDurationMs);
+    agentTotals.promptTokens += toNumber(row.promptTokens);
+    agentTotals.completionTokens += toNumber(row.completionTokens);
+    agentTotals.totalTokens += toNumber(row.totalTokens);
+  }
+
+  const toolByKey = new Map<
+    string,
+    {
+      name: string;
+      operation: string;
+      calls: number;
+      successes: number;
+      errors: number;
+      totalDurationMs: number;
+    }
+  >();
+  for (const row of toolMetricRows) {
+    const key = `${row.toolName}:${row.operation}`;
+    const entry = toolByKey.get(key) || {
+      name: row.toolName,
+      operation: row.operation,
+      calls: 0,
+      successes: 0,
+      errors: 0,
+      totalDurationMs: 0,
+    };
+    entry.calls += toNumber(row.calls);
+    entry.successes += toNumber(row.successes);
+    entry.errors += toNumber(row.errors);
+    entry.totalDurationMs += toNumber(row.totalDurationMs);
+    toolByKey.set(key, entry);
+  }
+
+  const agents = Array.from(agentByName.values()).map((row) => ({
+    name: row.name,
+    runs: row.runs,
+    successRate: row.runs === 0 ? 0 : row.successes / row.runs,
+    avgDurationMs: row.runs === 0 ? 0 : row.totalDurationMs / row.runs,
+    totalTokens: row.totalTokens,
+  }));
+  agents.sort((a, b) => b.runs - a.runs);
+
+  const tools = Array.from(toolByKey.values()).map((row) => ({
+    name: row.name,
+    operation: row.operation,
+    calls: row.calls,
+    errorRate: row.calls === 0 ? 0 : row.errors / row.calls,
+    avgDurationMs: row.calls === 0 ? 0 : row.totalDurationMs / row.calls,
+  }));
+  tools.sort((a, b) => b.calls - a.calls);
 
   return NextResponse.json({
     ok: true,
@@ -268,6 +369,22 @@ export async function GET(req: NextRequest) {
       overdue: toNumber(actionItemRows[0]?.overdue),
       edited: toNumber(actionItemEventRows[0]?.edited),
       deleted: toNumber(actionItemEventRows[0]?.deleted),
+    },
+    ai: {
+      totals: {
+        runs: agentTotals.runs,
+        successRate:
+          agentTotals.runs === 0 ? 0 : agentTotals.successes / agentTotals.runs,
+        avgDurationMs:
+          agentTotals.runs === 0
+            ? 0
+            : agentTotals.totalDurationMs / agentTotals.runs,
+        promptTokens: agentTotals.promptTokens,
+        completionTokens: agentTotals.completionTokens,
+        totalTokens: agentTotals.totalTokens,
+      },
+      agents,
+      tools,
     },
   });
 }
