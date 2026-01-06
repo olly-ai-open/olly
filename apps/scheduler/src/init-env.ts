@@ -1,4 +1,5 @@
-import { SSMClient, GetParametersCommand } from "@aws-sdk/client-ssm";
+import { SSMClient } from "@aws-sdk/client-ssm";
+import { fetchSsmParameters } from "@olly/core";
 
 /**
  * Initialize environment variables from AWS SSM Parameter Store
@@ -31,15 +32,14 @@ export async function initializeEnvironment(): Promise<void> {
 
     ].map(key => `/olly/${stage}/${key}`);
     
-    const response = await ssmClient.send(
-      new GetParametersCommand({
-        Names: parameterNames,
-        WithDecryption: true,
-      })
-    );
-    
+    const allParameters = await fetchSsmParameters({
+      parameterNames,
+      region,
+      client: ssmClient,
+    });
+
     // Inject parameters into process.env
-    response.Parameters?.forEach(param => {
+    allParameters.forEach((param) => {
       if (param.Name && param.Value) {
         // Extract the key name from the parameter path
         const key = param.Name.split("/").pop();
@@ -50,8 +50,8 @@ export async function initializeEnvironment(): Promise<void> {
     });
     
     // Log missing parameters (optional ones might not exist)
-    const foundParams = response.Parameters?.map(p => p.Name) || [];
-    const missingParams = parameterNames.filter(name => !foundParams.includes(name));
+    const foundParams = allParameters.map((p) => p.Name);
+    const missingParams = parameterNames.filter((name) => !foundParams.includes(name));
     
     const requiredParams = [
       `/olly/${stage}/PRISMA_DATABASE_URL`,

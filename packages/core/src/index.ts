@@ -21,6 +21,7 @@ export * from "./prompts/meetingBriefPrompt";
 export * from "./prompts/morningBriefPrompt";
 export * from "./prompts/endOfDayBriefPrompt";
 export * from "./prompts/queryPlannerPrompt";
+export * from "./ssm/ssm-parameters";
 
 // Agent system exports
 export * from "./agents/base/Agent";
