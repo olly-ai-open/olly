@@ -23,6 +23,12 @@ export async function initializeEnvironment(): Promise<void> {
       // Database & Encryption
       `PRISMA_DATABASE_URL`,
       `PRISMA_FIELD_ENCRYPTION_KEY`,
+
+      // Supabase
+      `SUPABASE_URL`,
+      `SUPABASE_ANON_KEY`,
+      `SUPABASE_SERVICE_KEY`,
+
     ].map(key => `/olly/${stage}/${key}`);
     
     const response = await ssmClient.send(

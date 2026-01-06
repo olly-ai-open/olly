@@ -33,7 +33,21 @@ export async function initializeEnvironment(): Promise<void> {
       `OPENAI_API_KEY`,
       `OPENAI_MODEL`,
       `OPENAI_TEMPERATURE`,
+
+      // Supabase
+      `SUPABASE_URL`,
+      `SUPABASE_ANON_KEY`,
+      `SUPABASE_SERVICE_KEY`,
       
+      // Vapid
+      `VAPID_PUBLIC_KEY`,
+      `VAPID_PRIVATE_KEY`,
+
+      // Langfuse
+      "LANGFUSE_SECRET_KEY",
+      "LANGFUSE_PUBLIC_KEY",
+      "LANGFUSE_BASE_URL",
+
     ].map(key => `/olly/${stage}/${key}`);
     
     const response = await ssmClient.send(
