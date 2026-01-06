@@ -27,7 +27,9 @@ export function ensureLangfuseInitialized(): boolean {
   initialized = true;
   if (!canEnable()) return false;
   try {
-    const shouldExportSpan: ShouldExportSpan | undefined = ({ otelSpan }) => {
+    const shouldExportSpan: ShouldExportSpan = ({ otelSpan }) => {
+      const scopeName = otelSpan.instrumentationScope?.name || "";
+      if (scopeName.startsWith("langfuse")) return true;
       const attrs = otelSpan.attributes || {};
       const asString = JSON.stringify(attrs);
       return asString.includes('"source":"olly-agent"');
