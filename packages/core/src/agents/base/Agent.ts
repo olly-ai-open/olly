@@ -4,6 +4,8 @@ import { AgentMemory, InMemoryAgentMemory } from './Memory';
 import { OllyTool, ToolContext, toAITool } from './Tool';
 import { wrapLanguageModel } from 'ai';
 import { devToolsMiddleware } from '@ai-sdk/devtools';
+import { startLangfuseObservation, withLangfuseTrace } from '../../telemetry/langfuse';
+import { recordAgentAggregate } from '../../telemetry/metrics-aggregates';
 
 /**
  * Message type for conversation history
@@ -119,9 +121,16 @@ export abstract class BaseAgent {
    * Execute the agent with a given prompt
    */
   async execute(prompt: string, context?: ToolContext): Promise<AgentResult> {
-    const toolContext = context || {
+    const baseContext = context || {
       userId: 'system',
       sessionId: `session-${Date.now()}`,
+    };
+    const toolContext: ToolContext = {
+      ...baseContext,
+      metadata: {
+        ...(baseContext.metadata || {}),
+        agentName: this.name,
+      },
     };
     
     // Load memory before execution
@@ -149,32 +158,84 @@ export abstract class BaseAgent {
     });
     
     // Execute using ToolLoopAgent
-    const result = await agent.generate({
-      prompt: fullPrompt,
-    });
+    const startedAt = Date.now();
+    try {
+      const result = await withLangfuseTrace(
+        {
+          name: this.name,
+          userId: toolContext.userId,
+          sessionId: toolContext.sessionId,
+          input: fullPrompt,
+          metadata: {
+            agent: this.name,
+            model: this.model,
+          },
+        },
+        async (span) => {
+          const generation = startLangfuseObservation({
+            name: `${this.name} generation`,
+            input: [{ role: 'user', content: fullPrompt }],
+            metadata: { agent: this.name },
+            model: this.model,
+            asType: 'generation',
+          });
+          const response = await agent.generate({
+            prompt: fullPrompt,
+          });
+          const usage = extractUsage(response);
+          generation?.update({
+            output: response.text,
+            usageDetails: formatUsageDetails(usage),
+          });
+          generation?.end();
+          span?.update({ output: response.text });
+          return response;
+        },
+      );
 
-    // Process and store results in memory
-    await this.processResult(result);
-    
-    // Save memory after execution
-    await this.memory.save();
-    
-    // Extract tool calls from steps
-    const toolCalls = result.steps
-      ?.filter((step: any) => step.type === 'tool-call')
-      ?.map((step: any) => ({
-        toolName: step.toolName || step.tool?.name,
-        args: step.args || step.tool?.args || {},
-        result: step.result || null,
-      })) || [];
-    
-    return {
-      text: result.text,
-      toolCalls,
-      metadata: {
-        steps: result.steps,
-      },
-    };
+      const durationMs = Date.now() - startedAt;
+      const usage = extractUsage(result);
+
+      await recordAgentAggregate({
+        agentName: this.name,
+        durationMs,
+        success: true,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+        totalTokens: usage.totalTokens,
+      });
+
+      // Process and store results in memory
+      await this.processResult(result);
+      
+      // Save memory after execution
+      await this.memory.save();
+      
+      // Extract tool calls from steps
+      const toolCalls = result.steps
+        ?.filter((step: any) => step.type === 'tool-call')
+        ?.map((step: any) => ({
+          toolName: step.toolName || step.tool?.name,
+          args: step.args || step.tool?.args || {},
+          result: step.result || null,
+        })) || [];
+      
+      return {
+        text: result.text,
+        toolCalls,
+        metadata: {
+          steps: result.steps,
+        },
+      };
+    } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      await recordAgentAggregate({
+        agentName: this.name,
+        durationMs,
+        success: false,
+      });
+      throw error;
+    }
   }
    
   /**
@@ -268,4 +329,43 @@ export abstract class BaseAgent {
     
     return messages;
   }
+}
+
+function extractUsage(result: any): {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+} {
+  const usage =
+    result?.usage ||
+    result?.response?.usage ||
+    result?.raw?.usage ||
+    result?.metadata?.usage;
+
+  if (!usage || typeof usage !== 'object') return {};
+  return {
+    promptTokens: usage.promptTokens ?? usage.prompt_tokens ?? usage.input_tokens,
+    completionTokens:
+      usage.completionTokens ??
+      usage.completion_tokens ??
+      usage.output_tokens,
+    totalTokens: usage.totalTokens ?? usage.total_tokens ?? usage.total,
+  };
+}
+
+function formatUsageDetails(usage: {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}) {
+  if (!usage.promptTokens && !usage.completionTokens && !usage.totalTokens) {
+    return undefined;
+  }
+  return {
+    input: usage.promptTokens ?? 0,
+    output: usage.completionTokens ?? 0,
+    total:
+      usage.totalTokens ??
+      (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0),
+  };
 }
