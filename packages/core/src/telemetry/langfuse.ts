@@ -31,8 +31,7 @@ export function ensureLangfuseInitialized(): boolean {
       const scopeName = otelSpan.instrumentationScope?.name || "";
       if (scopeName.startsWith("langfuse")) return true;
       const attrs = otelSpan.attributes || {};
-      const asString = JSON.stringify(attrs);
-      return asString.includes('"source":"olly-agent"');
+      return attrs["olly.source"] === "olly-agent";
     };
     sdk = new NodeSDK({
       spanProcessors: [new LangfuseSpanProcessor({ shouldExportSpan })],
@@ -65,6 +64,7 @@ export async function withLangfuseTrace<T>(
       {
         userId: params.userId,
         sessionId: params.sessionId,
+        "olly.source": "olly-agent",
         metadata: {
           ...(params.metadata || {}),
           source: "olly-agent",
@@ -107,6 +107,7 @@ export function startLangfuseObservation(params: {
   if (!ensureLangfuseInitialized()) return null;
   const attributes: Record<string, any> = {
     input: params.input,
+    "olly.source": "olly-agent",
     metadata: {
       ...(params.metadata || {}),
       source: "olly-agent",
@@ -121,4 +122,13 @@ export function startLangfuseObservation(params: {
       : undefined;
   const observation = startObservation(params.name, attributes, options);
   return observation as Observation;
+}
+
+export async function flushLangfuse(): Promise<void> {
+  if (!sdk || !enabled) return;
+  try {
+    await sdk.forceFlush();
+  } catch (error) {
+    console.warn("Langfuse telemetry flush failed", error);
+  }
 }

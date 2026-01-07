@@ -21,6 +21,7 @@ import {
 } from "./core/eventFilters-core";
 import { sendBriefReadyWebPush } from "./core/webPush-core";
 import { safeParseMorningBriefJSON, type MorningBriefJSON } from "@olly/core";
+import { flushLangfuse } from "./telemetry/langfuse";
 
 export type JobKind =
   | "MORNING_BRIEF"
@@ -45,6 +46,7 @@ export async function runJobById(jobId: string): Promise<RunJobResult> {
     return { jobId, status: "SKIPPED", error: "job_not_runnable" };
   }
 
+  let result: RunJobResult;
   try {
     await prisma.job.update({
       where: { id: job.id },
@@ -58,7 +60,7 @@ export async function runJobById(jobId: string): Promise<RunJobResult> {
       data: { status: "DONE", lastError: null },
     });
 
-    return { jobId: job.id, status: "DONE" };
+    result = { jobId: job.id, status: "DONE" };
   } catch (err: any) {
     const message = err?.message || "unknown_error";
     await prisma.job.update({
@@ -66,8 +68,11 @@ export async function runJobById(jobId: string): Promise<RunJobResult> {
       data: { status: "FAILED", lastError: message },
     });
 
-    return { jobId: job.id, status: "FAILED", error: message };
+    result = { jobId: job.id, status: "FAILED", error: message };
+  } finally {
+    await flushLangfuse();
   }
+  return result;
 }
 
 async function dispatchJob(
