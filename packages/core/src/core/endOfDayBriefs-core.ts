@@ -1,17 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { getUserSettingsCore } from "./settings-core";
-import { generateEndOfDaySummary } from "../llm";
-import { runWorkspaceQueryPlan } from "./briefQueries-core";
-
-type NormalizedDoc = {
-  id: string;
-  title: string;
-  source: string;
-  updatedAt: string;
-  link?: string | null;
-  docType?: string | null;
-  text: string;
-};
+import { EndOfDayBriefAgent } from "../agents/personas/EndOfDayBriefAgent";
 
 function toDayInTimeZone(d: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
@@ -52,17 +41,6 @@ function formatEndOfDayMarkdown(input: {
   return lines.join("\n");
 }
 
-function dedupeDocs(docs: NormalizedDoc[]): NormalizedDoc[] {
-  const seen = new Map<string, NormalizedDoc>();
-  for (const d of docs) {
-    const key =
-      (d.title || "").toLowerCase().replace(/\s+/g, " ").trim() ||
-      d.id;
-    if (!seen.has(key)) seen.set(key, d);
-  }
-  return Array.from(seen.values());
-}
-
 export async function generateEndOfDayBriefForUserCore(
   prisma: PrismaClient,
   userId: string,
@@ -73,8 +51,6 @@ export async function generateEndOfDayBriefForUserCore(
 ) {
   const briefTime = opts?.briefTime ?? new Date();
   const windowHours = opts?.windowHours ?? 24;
-  const windowEnd = briefTime;
-  const windowStart = new Date(windowEnd.getTime() - windowHours * 60 * 60 * 1000);
 
   const settings = await getUserSettingsCore(prisma, userId);
   const timeZone = settings.timeZone || "UTC";
@@ -103,101 +79,19 @@ export async function generateEndOfDayBriefForUserCore(
     }
   }
 
-  const slackWindowQueries = ["status", "update", "decision", "action item"];
-
-  const { drive, gmail, slack } = await runWorkspaceQueryPlan(
-    prisma,
-    userId,
-    {
-      driveQueries: [],
-      gmailQueries: [],
-      slackQueries: slackWindowQueries,
-      windowStart,
-      windowEnd,
-      maxResults: 25,
-    },
-  );
-
-  const docs: NormalizedDoc[] = [];
-  for (const f of drive as any[]) {
-    if (!f?.text?.trim()) continue;
-    docs.push({
-      id: f.id as string,
-      title: (f.name as string) || "(untitled)",
-      source: "google_drive",
-      updatedAt: f.modifiedTime || windowEnd.toISOString(),
-      link: (f as any).webViewLink || null,
-      docType: (f as any).mimeType || null,
-      text: (f.text as string).trim(),
-    });
-  }
-  for (const m of gmail as any[]) {
-    if (!m?.text?.trim()) continue;
-    const headers = Array.isArray(m.payload?.headers) ? m.payload.headers : [];
-    const subject =
-      headers.find(
-        (h: any) => h.name?.toLowerCase() === "subject",
-      )?.value ||
-      m.snippet ||
-      "(no subject)";
-    const from =
-      headers.find((h: any) => h.name?.toLowerCase() === "from")?.value ||
-      "(unknown sender)";
-    const to =
-      headers.find((h: any) => h.name?.toLowerCase() === "to")?.value ||
-      "(unknown recipients)";
-    const headerBlock = `From: ${from}\nTo: ${to}\n\n`;
-    docs.push({
-      id: m.id as string,
-      title: subject,
-      source: "gmail",
-      updatedAt: m.internalDate
-        ? new Date(Number(m.internalDate)).toISOString()
-        : windowEnd.toISOString(),
-      link: `https://mail.google.com/mail/u/0/#inbox/${m.id}`,
-      docType: "email",
-      text: `${headerBlock}${(m.text as string).trim()}`,
-    });
-  }
-  for (const m of slack as any[]) {
-    if (!m?.text || !String(m.text).trim()) continue;
-    const tsMs =
-      typeof m.ts === "string" && !Number.isNaN(Number(m.ts))
-        ? Math.floor(Number(m.ts) * 1000)
-        : null;
-    const updatedAt =
-      tsMs && Number.isFinite(tsMs)
-        ? new Date(tsMs).toISOString()
-        : windowEnd.toISOString();
-    const channelLabel = m.channel?.name ? `#${m.channel.name}` : "Slack";
-    docs.push({
-      id: (m.id as string) || `${m.channel?.id || "slack"}-${m.ts || "msg"}`,
-      title:
-        String(m.text).trim().slice(0, 120) ||
-        `${channelLabel} message (${updatedAt})`,
-      source: "slack",
-      updatedAt,
-      link: (m.permalink as string) || null,
-      docType: channelLabel,
-      text: `${channelLabel}\n${String(m.text).trim()}`,
-    });
-  }
-
-  const deduped = dedupeDocs(docs);
-  const summary = await generateEndOfDaySummary({
+  const systemPromptOverride =
+    typeof (settings as any)?.endOfDayBriefSystemPrompt === "string" &&
+    (settings as any).endOfDayBriefSystemPrompt.trim().length
+      ? (settings as any).endOfDayBriefSystemPrompt.trim()
+      : undefined;
+  const agent = new EndOfDayBriefAgent({
+    systemPrompt: systemPromptOverride,
+  });
+  const summary = await agent.generateEndOfDaySummaryFromWorkspace(userId, {
     briefTime: briefTime.toISOString(),
     windowHours,
-    documents: deduped.map((d) => ({
-      id: d.id,
-      title: d.title,
-      source: d.source,
-      updatedAt: d.updatedAt,
-      link: d.link,
-      docType: d.docType,
-      text: d.text,
-    })),
+    timeZone,
     assigneeLabel: "user",
-    systemPromptOverride: (settings as any)?.endOfDayBriefSystemPrompt ?? undefined,
   });
 
   const briefMarkdown = formatEndOfDayMarkdown({

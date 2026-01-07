@@ -17,6 +17,8 @@ export * from "./core/workspaceSearch-core";
 export * from "./core/endOfDayBriefs-core";
 export * from "./core/briefQueries-core";
 export * from "./core/slack-core";
+export * from "./types/endOfDay";
+export * from "./types/briefs";
 export * from "./prompts/meetingBriefPrompt";
 export * from "./prompts/morningBriefPrompt";
 export * from "./prompts/endOfDayBriefPrompt";
@@ -29,6 +31,7 @@ export * from "./agents/base/Tool";
 export * from "./agents/base/Memory";
 export * from "./agents/personas/MeetingPrepAgent";
 export * from "./agents/personas/MorningBriefAgent";
+export * from "./agents/personas/EndOfDayBriefAgent";
 
 // Agent tools exports
 export * from "./agents/tools/CalendarTool";

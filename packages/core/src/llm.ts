@@ -1,6 +1,9 @@
 import OpenAI from "openai";
 import { MEETING_BRIEF_PROMPT } from "./prompts/meetingBriefPrompt";
 import { END_OF_DAY_BRIEF_PROMPT } from "./prompts/endOfDayBriefPrompt";
+import { EndOfDayBriefAgent } from "./agents/personas/EndOfDayBriefAgent";
+import type { BriefJSON, MorningBriefJSON } from "./types/briefs";
+import type { EndOfDayActionItem, EndOfDayDocInput } from "./types/endOfDay";
 import { QUERY_PLANNER_PROMPT } from "./prompts/queryPlannerPrompt";
 
 export function getOpenAI() {
@@ -8,19 +11,6 @@ export function getOpenAI() {
   if (!key) return null;
   return new OpenAI({ apiKey: key });
 }
-
-export type BriefJSON = {
-  brief_markdown: string;
-  goals?: string[];
-  // Legacy: kept for backwards compatibility but no longer used for new meeting briefs
-  action_items?: Array<{
-    description: string;
-    assignee?: string | null;
-    due_date?: string | null;
-    priority?: "high" | "medium" | "low" | string | null;
-  }>;
-  key_context?: Array<string>;
-};
 
 export function safeParseBriefJSON(s: string): BriefJSON | null {
   try {
@@ -58,11 +48,6 @@ function safeParseSearchQueriesJSON(s: string): SearchQueriesJSON | null {
   return null;
 }
 
-export type MorningBriefJSON = {
-  brief_markdown: string;
-  highlighted_action_item_ids?: string[];
-};
-
 export function safeParseMorningBriefJSON(s: string): MorningBriefJSON | null {
   try {
     return JSON.parse(s) as MorningBriefJSON;
@@ -78,61 +63,8 @@ export function safeParseMorningBriefJSON(s: string): MorningBriefJSON | null {
   return null;
 }
 
-export interface EndOfDayDocInput {
-  id: string;
-  title: string;
-  source: string;
-  updatedAt: string;
-  link?: string | null;
-  docType?: string | null;
-  tags?: string[];
-  meetingId?: string | null;
-  isCleanedSummary?: boolean | null;
-  summaryOfId?: string | null;
-  text: string;
-}
-
-export interface EndOfDayActionItem {
-  title: string;
-  dueDate?: string | null;
-  link?: string | null;
-  source?: string | null;
-  assignee: string;
-}
-
-type EndOfDaySummaryJSON = {
-  highlights?: string[];
-  risks?: string[];
-  action_items?: Array<{
-    title?: string;
-    due_date?: string | null;
-    link?: string | null;
-    source?: string | null;
-    assignee?: string | null;
-  }>;
-  docs?: Array<{
-    title?: string;
-    link?: string | null;
-    source?: string | null;
-  }>;
-};
-
-function safeParseEndOfDaySummaryJSON(
-  s: string,
-): EndOfDaySummaryJSON | null {
-  try {
-    return JSON.parse(s) as EndOfDaySummaryJSON;
-  } catch {}
-  const first = s.indexOf("{");
-  const last = s.lastIndexOf("}");
-  if (first >= 0 && last > first) {
-    const sub = s.slice(first, last + 1);
-    try {
-      return JSON.parse(sub) as EndOfDaySummaryJSON;
-    } catch {}
-  }
-  return null;
-}
+export type { BriefJSON, MorningBriefJSON } from "./types/briefs";
+export type { EndOfDayActionItem, EndOfDayDocInput } from "./types/endOfDay";
 
 export async function generateBriefFromContext(
   input: {
@@ -393,6 +325,7 @@ export async function generateEndOfDaySummary(opts: {
   documents: EndOfDayDocInput[];
   assigneeLabel?: string; // defaults to "user"
   systemPromptOverride?: string;
+  userId?: string;
 }): Promise<{
   highlights: string[];
   risks: string[];
@@ -406,165 +339,17 @@ export async function generateEndOfDaySummary(opts: {
     temperature: number;
   };
 }> {
-  const openai = getOpenAI();
-  const assigneeLabel = opts.assigneeLabel || "user";
-
-  if (!openai) {
-    const placeholder = `End of day summary placeholder (no OpenAI key). Time: ${opts.briefTime}, window: last ${opts.windowHours}h. Docs: ${opts.documents.length}.`;
-    return {
-      highlights: [],
-      risks: [],
-      actionItems: [],
-      docs: opts.documents
-        .slice(0, 10)
-        .map((d) => ({ title: d.title, link: d.link ?? null, source: d.source })),
-      llmContext: {
-        systemPrompt: "No OpenAI key configured",
-        userPrompt: `Placeholder end of day summary for ${opts.briefTime}`,
-        response: placeholder,
-        model: "none",
-        temperature: 0,
-      },
-    };
-  }
-
-  const systemBase =
-    opts.systemPromptOverride && opts.systemPromptOverride.trim().length
-      ? opts.systemPromptOverride
-      : END_OF_DAY_BRIEF_PROMPT;
-  const system = `${systemBase}
-
-Output format:
-- Return ONLY a single MINIFIED JSON object with these keys:
-{
-  "highlights": string[],
-  "risks": string[],
-  "action_items": [
-    {
-      "title": string,
-      "due_date": string | null,
-      "link": string | null,
-      "source": string | null,
-      "assignee": string
-    }
-  ]
-}
-- No markdown fences. No commentary outside the JSON.`;
-
-  const docList =
-    opts.documents.length === 0
-      ? "None"
-      : opts.documents
-          .map((d, idx) => {
-            const metaParts = [
-              `source: ${d.source}`,
-              `updatedAt: ${d.updatedAt}`,
-              d.docType ? `type: ${d.docType}` : "",
-              d.meetingId ? `meetingId: ${d.meetingId}` : "",
-              d.isCleanedSummary ? "cleaned summary: yes" : "",
-              d.summaryOfId ? `summaryOfId: ${d.summaryOfId}` : "",
-              Array.isArray(d.tags) && d.tags.length
-                ? `tags: ${d.tags.join(", ")}`
-                : "",
-              d.link ? `link: ${d.link}` : "",
-            ]
-              .map((p) => p.trim())
-              .filter(Boolean)
-              .join("; ");
-            return [
-              `${idx + 1}. ${d.title} (${metaParts})`,
-              `Content:\n${d.text}`,
-            ].join("\n");
-          })
-          .join("\n\n");
-
-  const userPrompt = [
-    `Brief time: ${opts.briefTime}`,
-    `Window: last ${opts.windowHours} hours ending at brief time`,
-    `Assign all action items to: ${assigneeLabel}`,
-    "",
-    "Documents:",
-    docList,
-    "",
-    "Return only the JSON object described in the system prompt.",
-  ].join("\n");
-
-  const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-4.1",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
+  const agent = new EndOfDayBriefAgent({
+    systemPrompt:
+      opts.systemPromptOverride && opts.systemPromptOverride.trim().length
+        ? opts.systemPromptOverride
+        : END_OF_DAY_BRIEF_PROMPT,
   });
 
-  const raw = completion.choices[0]?.message?.content ?? "";
-  const parsed = safeParseEndOfDaySummaryJSON(raw);
-
-  const highlights = Array.isArray(parsed?.highlights)
-    ? parsed!.highlights.filter((v) => typeof v === "string" && v.trim())
-    : [];
-  const risks = Array.isArray(parsed?.risks)
-    ? parsed!.risks.filter((v) => typeof v === "string" && v.trim())
-    : [];
-
-  const actionItems =
-    Array.isArray(parsed?.action_items) && parsed.action_items.length
-      ? parsed.action_items
-          .map((ai) => ({
-            title: (ai?.title ?? "").trim(),
-            dueDate:
-              ai?.due_date && typeof ai.due_date === "string"
-                ? ai.due_date
-                : null,
-            link:
-              ai?.link && typeof ai.link === "string" && ai.link.trim()
-                ? ai.link
-                : null,
-            source:
-              ai?.source && typeof ai.source === "string" && ai.source.trim()
-                ? ai.source
-                : null,
-            assignee:
-              ai?.assignee && typeof ai.assignee === "string" && ai.assignee.trim()
-                ? ai.assignee
-                : assigneeLabel,
-          }))
-          .filter((ai) => ai.title.length > 0)
-      : [];
-
-  const docs =
-    Array.isArray(parsed?.docs) && parsed.docs.length
-      ? parsed.docs
-          .map((d) => ({
-            title: (d?.title ?? "").trim(),
-            link:
-              d?.link && typeof d.link === "string" && d.link.trim()
-                ? d.link
-                : null,
-            source:
-              d?.source && typeof d.source === "string" && d.source.trim()
-                ? d.source
-                : null,
-          }))
-          .filter((d) => d.title.length > 0)
-      : opts.documents.slice(0, 10).map((d) => ({
-          title: d.title,
-          link: d.link ?? null,
-          source: d.source,
-        }));
-
-  return {
-    highlights,
-    risks,
-    actionItems,
-    docs,
-    llmContext: {
-      systemPrompt: system,
-      userPrompt,
-      response: raw,
-      model: process.env.OPENAI_MODEL || "gpt-4.1",
-      temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
-    },
-  };
+  return agent.generateEndOfDaySummary(opts.userId || "system", {
+    briefTime: opts.briefTime,
+    windowHours: opts.windowHours,
+    documents: opts.documents,
+    assigneeLabel: opts.assigneeLabel,
+  });
 }

@@ -11,6 +11,8 @@ const DriveToolInput = z.object({
   query: z.string().optional().describe('Drive search query'),
   fileId: z.string().optional().describe('File ID'),
   maxResults: z.number().optional().default(10).describe('Maximum number of results'),
+  modifiedAfter: z.string().optional().describe('Modified after timestamp (ISO 8601)'),
+  modifiedBefore: z.string().optional().describe('Modified before timestamp (ISO 8601)'),
 });
 
 type DriveToolInputType = z.infer<typeof DriveToolInput>;
@@ -24,7 +26,7 @@ export class DriveTool extends BaseTool<DriveToolInputType, any> {
   parameters = DriveToolInput;
   
   async execute(input: DriveToolInputType, context: ToolContext): Promise<any> {
-    const { operation, query, fileId, maxResults } = input;
+    const { operation, query, fileId, maxResults, modifiedAfter, modifiedBefore } = input;
     
     // Get Google client for the user
     const googleClient = await getGoogleClient(context.userId);
@@ -39,7 +41,7 @@ export class DriveTool extends BaseTool<DriveToolInputType, any> {
         if (!query) {
           throw new Error('Query required for search operation');
         }
-        return this.searchFiles(drive, query, maxResults);
+        return this.searchFiles(drive, query, maxResults, modifiedAfter, modifiedBefore);
       
       case 'getFile':
         if (!fileId) {
@@ -61,13 +63,22 @@ export class DriveTool extends BaseTool<DriveToolInputType, any> {
   private async searchFiles(
     drive: drive_v3.Drive,
     query: string,
-    maxResults?: number
+    maxResults?: number,
+    modifiedAfter?: string,
+    modifiedBefore?: string
   ) {
     // Build the search query
     let driveQuery = `fullText contains '${query.replace(/'/g, "\\'")}'`;
     
     // Add filter for non-trashed files
     driveQuery += ' and trashed = false';
+
+    if (modifiedAfter) {
+      driveQuery += ` and modifiedTime > '${modifiedAfter}'`;
+    }
+    if (modifiedBefore) {
+      driveQuery += ` and modifiedTime < '${modifiedBefore}'`;
+    }
     
     const response = await drive.files.list({
       q: driveQuery,

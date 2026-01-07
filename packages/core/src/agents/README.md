@@ -15,9 +15,12 @@ agents/
 ├── tools/                  # Reusable tools
 │   ├── CalendarTool.ts     # Google Calendar access
 │   ├── EmailTool.ts        # Gmail search & retrieval
-│   └── DriveTool.ts        # Google Drive search
+│   ├── DriveTool.ts        # Google Drive search
+│   └── SlackTool.ts        # Slack search & retrieval
 └── personas/               # Agent personalities
-    └── MeetingPrepAgent.ts # Meeting preparation specialist
+    ├── MeetingPrepAgent.ts # Meeting preparation specialist
+    ├── MorningBriefAgent.ts # Morning brief generator
+    └── EndOfDayBriefAgent.ts # End-of-day summary generator
 ```
 
 ## Key Components
@@ -43,6 +46,8 @@ Tools give agents the ability to interact with external systems:
 Specialized agents for specific tasks:
 
 - **MeetingPrepAgent**: Proactively prepares meeting briefs by gathering context from multiple sources
+- **MorningBriefAgent**: Generates morning briefs with today's priorities
+- **EndOfDayBriefAgent**: Summarizes recent work into an end-of-day brief
 
 ### 4. Memory System
 
@@ -119,8 +124,7 @@ export class MyTool extends BaseTool {
 
 ## Future Enhancements
 
-- [ ] Add more agent personas (ActionTrackerAgent, MorningBriefAgent)
-- [ ] Implement SlackTool for Slack integration
+- [ ] Add more agent personas (ActionTrackerAgent)
 - [ ] Add persistent memory storage (database-backed)
 - [ ] Create agent collaboration protocols
 - [ ] Implement agent self-evaluation and improvement
