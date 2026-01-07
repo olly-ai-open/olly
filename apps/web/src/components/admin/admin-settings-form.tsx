@@ -14,12 +14,6 @@ import {
 interface AdminUserSettings {
   id: string;
   userId: string;
-  searchStrategy?:
-    | "LLM_ONLY"
-    | "HEURISTIC_ONLY"
-    | "LLM_AND_HEURISTIC"
-    | "AGENT"
-    | null;
   briefSystemPrompt?: string | null;
   queryPlannerSystemPrompt?: string | null;
   morningBriefSystemPrompt?: string | null;
@@ -42,7 +36,6 @@ export default function AdminSettingsForm() {
           setSettings({
             id: data.id,
             userId: data.userId,
-            searchStrategy: data.searchStrategy,
             briefSystemPrompt: data.briefSystemPrompt,
             queryPlannerSystemPrompt: data.queryPlannerSystemPrompt,
             morningBriefSystemPrompt: data.morningBriefSystemPrompt,
@@ -75,7 +68,6 @@ export default function AdminSettingsForm() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          searchStrategy: settings.searchStrategy,
           briefSystemPrompt: settings.briefSystemPrompt ?? "",
           queryPlannerSystemPrompt: settings.queryPlannerSystemPrompt ?? "",
           morningBriefSystemPrompt: settings.morningBriefSystemPrompt ?? "",
@@ -88,7 +80,6 @@ export default function AdminSettingsForm() {
         setSettings({
           id: data.id,
           userId: data.userId,
-          searchStrategy: data.searchStrategy,
           briefSystemPrompt: data.briefSystemPrompt,
           queryPlannerSystemPrompt: data.queryPlannerSystemPrompt,
           morningBriefSystemPrompt: data.morningBriefSystemPrompt,
@@ -157,52 +148,6 @@ export default function AdminSettingsForm() {
 
       {adminModeOn ? (
         <>
-          <div className="rounded-md border border-border p-4">
-            <h2 className="mb-4 text-lg font-medium">
-              Brief Generation Strategy
-            </h2>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label
-                  htmlFor="searchStrategy"
-                  className="mb-2 block text-sm font-medium text-foreground"
-                >
-                  Query strategy for generating briefs
-                </label>
-                <select
-                  id="searchStrategy"
-                  value={settings.searchStrategy ?? "HEURISTIC_ONLY"}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      searchStrategy: e.target
-                        .value as AdminUserSettings["searchStrategy"],
-                    })
-                  }
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="HEURISTIC_ONLY">
-                    Heuristic only (no LLM query planning)
-                  </option>
-                  <option value="LLM_ONLY">
-                    LLM only (use model-planned queries)
-                  </option>
-                  <option value="LLM_AND_HEURISTIC">
-                    LLM + heuristic (combine both)
-                  </option>
-                  <option value="AGENT">
-                    Agent (autonomous AI with tools)
-                  </option>
-                </select>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Controls how Olly searches Gmail and Drive before generating a
-                  brief. Agent mode uses autonomous AI that can make decisions
-                  and use tools.
-                </p>
-              </div>
-            </div>
-          </div>
-
           <div className="rounded-md border border-border p-4">
             <h2 className="mb-4 text-lg font-medium">LLM System Prompts</h2>
             <p className="mb-3 text-xs text-muted-foreground">

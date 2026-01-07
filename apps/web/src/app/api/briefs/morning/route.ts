@@ -5,16 +5,14 @@ import {
   getAccessTokenFromAccount,
   listEventsByDayWithToken,
 } from "@/lib/google";
-import { getUserSearchStrategy, getUserSettings } from "@/lib/settings";
+import { getUserSettings } from "@/lib/settings";
 import {
   didUserDeclineEvent,
   sendBriefReadyWebPush,
   MorningBriefAgent,
+  flushLangfuse,
 } from "@olly/core";
-import {
-  generateMeetingBriefForEvent,
-  type MeetingBriefSearchStrategy,
-} from "@/lib/meetingBriefs";
+import { generateMeetingBriefForEvent } from "@/lib/meetingBriefs";
 import { safeParseMorningBriefJSON, type MorningBriefJSON } from "@olly/core";
 
 function toDayInTimeZone(now: Date, timeZone: string): string {
@@ -112,17 +110,6 @@ export async function POST(req: Request) {
       existingByExternalId.set(m.externalId as string, m);
     }
 
-    // Decide search strategy for per-event meeting briefs
-    const savedSearchStrategy = await getUserSearchStrategy(userId);
-    let searchStrategy: MeetingBriefSearchStrategy = "HEURISTIC_ONLY";
-    if (savedSearchStrategy === "LLM_ONLY") {
-      searchStrategy = "LLM_ONLY";
-    } else if (savedSearchStrategy === "LLM_AND_HEURISTIC") {
-      searchStrategy = "LLM_AND_HEURISTIC";
-    } else if (savedSearchStrategy === "AGENT") {
-      searchStrategy = "AGENT";
-    }
-
     const goalsByExternalId = new Map<string, string[]>();
     for (const m of existingMeetings as any[]) {
       const latest = m.briefs?.[0];
@@ -148,7 +135,6 @@ export async function POST(req: Request) {
         const result = await generateMeetingBriefForEvent({
           userId,
           eventId: externalId,
-          searchStrategy,
           token,
           userSettings: settings,
           persist: !USE_EPHEMERAL_MEETING_BRIEFS_FOR_MORNING ? true : false,
@@ -289,6 +275,7 @@ export async function POST(req: Request) {
         console.error("Failed to send morning brief web push", err);
       });
     }
+    await flushLangfuse();
 
     return NextResponse.json({
       ok: true,

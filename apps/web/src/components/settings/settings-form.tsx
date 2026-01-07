@@ -7,7 +7,6 @@ interface UserSettings {
   id: string;
   userId: string;
   searchTimeframeDays: number;
-  searchStrategy?: "LLM_ONLY" | "HEURISTIC_ONLY" | "LLM_AND_HEURISTIC" | null;
   briefSystemPrompt?: string | null;
   queryPlannerSystemPrompt?: string | null;
   morningBriefSystemPrompt?: string | null;

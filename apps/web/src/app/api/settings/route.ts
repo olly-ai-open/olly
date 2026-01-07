@@ -20,7 +20,6 @@ export async function GET() {
         data: {
           userId: session.user.id,
           searchTimeframeDays: 30,
-          searchStrategy: null,
           briefSystemPrompt: null,
           queryPlannerSystemPrompt: null,
           endOfDayBriefSystemPrompt: null,
@@ -55,7 +54,6 @@ export async function PUT(req: Request) {
       searchTimeframeDays,
       emailNotifications,
       webNotificationsEnabled,
-      searchStrategy,
       briefSystemPrompt,
       queryPlannerSystemPrompt,
       morningBriefSystemPrompt,
@@ -98,8 +96,7 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Validate admin-only fields (searchStrategy + prompt overrides)
-    let nextSearchStrategy: string | undefined;
+    // Validate admin-only fields (prompt overrides)
     let nextBriefSystemPrompt: string | null | undefined;
     let nextQueryPlannerSystemPrompt: string | null | undefined;
     let nextMorningBriefSystemPrompt: string | null | undefined;
@@ -116,33 +113,6 @@ export async function PUT(req: Request) {
       }
       return !!adminUser?.isAdmin;
     };
-
-    if (searchStrategy !== undefined) {
-      const allowed = [
-        "LLM_ONLY",
-        "HEURISTIC_ONLY",
-        "LLM_AND_HEURISTIC",
-        "AGENT",
-      ];
-      if (!allowed.includes(searchStrategy)) {
-        return NextResponse.json(
-          {
-            error:
-              "searchStrategy must be one of LLM_ONLY, HEURISTIC_ONLY, LLM_AND_HEURISTIC, AGENT",
-          },
-          { status: 400 },
-        );
-      }
-
-      if (!(await ensureAdmin(userId))) {
-        return NextResponse.json(
-          { error: "forbidden: searchStrategy is admin-only" },
-          { status: 403 },
-        );
-      }
-
-      nextSearchStrategy = searchStrategy;
-    }
 
     if (
       briefSystemPrompt !== undefined ||
@@ -232,9 +202,6 @@ export async function PUT(req: Request) {
         ...(webNotificationsEnabled !== undefined && {
           webNotificationsEnabled,
         }),
-        ...(nextSearchStrategy !== undefined && {
-          searchStrategy: nextSearchStrategy,
-        }),
         ...(nextBriefSystemPrompt !== undefined && {
           briefSystemPrompt: nextBriefSystemPrompt,
         }),
@@ -257,7 +224,6 @@ export async function PUT(req: Request) {
       create: {
         userId: session.user.id,
         searchTimeframeDays: searchTimeframeDays ?? 30,
-        searchStrategy: nextSearchStrategy ?? null,
         briefSystemPrompt: nextBriefSystemPrompt ?? null,
         queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt ?? null,
         morningBriefSystemPrompt: nextMorningBriefSystemPrompt ?? null,

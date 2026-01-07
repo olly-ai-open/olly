@@ -1,18 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 import { getEventDetailsWithToken } from "../google-http";
-import {
-  buildDriveHeuristicQueries,
-  buildGmailHeuristicQueries,
-  buildSlackHeuristicQueries,
-} from "../searchHeuristics";
-import { generateBriefFromContext, type BriefJSON, safeParseBriefJSON } from "../llm";
-import { runWorkspaceQueryPlan } from "./briefQueries-core";
+import { type BriefJSON, safeParseBriefJSON } from "../llm";
 import { upsertMeetingFromEventCore } from "./meetings-core";
 import {
   upsertPersonsForEmailsCore,
   linkMeetingParticipantsCore,
   linkBriefParticipantsCore,
-  inferAttendeesFromTitleCore,
 } from "./people-core";
 import {
   getUserSettingsCore,
@@ -26,28 +19,11 @@ import {
 } from "./eventFilters-core";
 import { MeetingPrepAgent } from "../agents/personas/MeetingPrepAgent";
 
-function getHeaderValue(headers: any[], name: string): string | null {
-  const h = headers.find(
-    (hh: any) => typeof hh?.name === "string" && hh.name.toLowerCase() === name,
-  );
-  return typeof h?.value === "string" && h.value.trim().length
-    ? h.value.trim()
-    : null;
-}
-
-export type MeetingBriefSearchStrategy =
-  | "LLM_ONLY"
-  | "HEURISTIC_ONLY"
-  | "LLM_AND_HEURISTIC"
-  | "AGENT";
-
-
 export async function generateMeetingBriefForEventCore(
   prisma: PrismaClient,
   opts: {
     userId: string;
     eventId: string;
-    searchStrategy: MeetingBriefSearchStrategy;
     token?: string;
     userSettings?: UserSettings;
     persist?: boolean;
@@ -61,7 +37,6 @@ export async function generateMeetingBriefForEventCore(
   const {
     userId,
     eventId,
-    searchStrategy,
     token: tokenOverride,
     userSettings,
     persist = true,
@@ -162,145 +137,40 @@ export async function generateMeetingBriefForEventCore(
     };
   }
 
-  const titleQ = event.title?.split(/\s+/).slice(0, 10).join(" ") || "";
-
-  const attendees = ((event.attendees || []) as { email?: string | null }[])
-    .map((a) => a.email)
-    .filter(Boolean) as string[];
-
-  let inferredAttendees: string[] = [];
-  if (!attendees.length && event.title) {
-    const inferred = await inferAttendeesFromTitleCore(
-      prisma,
-      userId,
-      event.title,
-    );
-    inferredAttendees = inferred.inferredAttendees;
-  }
-
-  const effectiveAttendees =
-    attendees.length > 0 ? attendees : inferredAttendees;
-
-  let briefResult: {
+  const briefResult: {
     content: BriefJSON;
     confidence: string;
     sources: any[];
     llmContext?: any;
+  } = {
+    content: { brief_markdown: "" } as BriefJSON,
+    confidence: "low",
+    sources: [],
   };
 
-  // Use agent-based generation if specified
-  if (searchStrategy === "AGENT") {
-    // Create the agent with the user's custom prompt if provided
-    const agent = new MeetingPrepAgent({
-      systemPrompt: briefSystemPromptOverride || undefined,
-    });
-
-    try {
-      // Prepare the meeting brief using the agent
-      const agentBrief = await agent.prepareMeetingBrief(
-        eventId,
-        userId,
-        {
-          token,
-          searchTimeframeDays,
-        }
-      );
-      const fullJson = JSON.parse(agentBrief);
-      const parsed = safeParseBriefJSON(agentBrief);
-      const content: BriefJSON = parsed ?? {
-        brief_markdown: agentBrief,
-        goals: [],
-        key_context: [],
-      };
-      briefResult = {
-        content,
-        confidence: fullJson.sources?.length >= 3 ? "high" : fullJson.sources?.length > 0 ? "medium" : "low",
-        sources: fullJson.sources?.map((src: any) => {
-          return `${src.type}: ${src.title} -> ${src.url}`;
-        })
-      };
-    } catch (agentError: any) {
-      // Fall back to LLM_AND_HEURISTIC strategy
-      console.error("Agent generation failed, falling back to LLM_AND_HEURISTIC:", agentError);
-      
-      // Continue with regular heuristic + LLM flow below
-      // by not returning and letting the code fall through
-    }
-  }
-  
-  // Use heuristic-based generation if not using agent or agent failed
-  if (searchStrategy !== "AGENT" || !briefResult!) {
-    const driveQueries: string[] = [];
-    const gmailQueries: string[] = [];
-    const slackQueries: string[] = [];
-
-    const gmailTimeframeDays = searchTimeframeDays;
-
-    const driveHeuristicQueries = buildDriveHeuristicQueries(titleQ);
-    driveQueries.push(...driveHeuristicQueries);
-
-    const gmailTimeframe = `newer_than:${gmailTimeframeDays}d`;
-    const { queries: heuristicQueries } = buildGmailHeuristicQueries({
-      effectiveAttendees,
-      extractedNames: [],
-      titleQ,
-      gmailTimeframe,
-      currentUserEmail: null,
-    });
-    gmailQueries.push(...heuristicQueries);
-
-    const slackHeuristicQueries = buildSlackHeuristicQueries({
-      titleQ,
-      attendees: effectiveAttendees,
-    });
-    slackQueries.push(...slackHeuristicQueries);
-
-    const drive: any[] = [];
-    const {
-      drive: driveRes,
-      gmail: gmailRes,
-      slack: slackRes,
-    } = await runWorkspaceQueryPlan(
-      prisma,
-      userId,
-      { driveQueries, gmailQueries, slackQueries },
-    );
-    drive.push(...driveRes);
-    const allGmail = gmailRes.map((m: any) => {
-      const headers = Array.isArray(m.payload?.headers) ? m.payload.headers : [];
-      return {
-        ...m,
-        subject: getHeaderValue(headers, "subject") || m.snippet || "(no subject)",
-        from: getHeaderValue(headers, "from") || "",
-        to: getHeaderValue(headers, "to") || "",
-        snippet: m.snippet || "",
-        body: m.text || "",
-      };
-    });
-    const slackMessages = slackRes
-      .filter((m: any) => typeof m?.text === "string" && m.text.trim().length)
-      .map((m: any) => ({
-        ...m,
-        text: (m.text as string).trim(),
-      }));
-
-    briefResult = await generateBriefFromContext(
-      {
-        meeting: {
-          title: event.title,
-          start: event.start,
-          attendees: event.attendees || [],
-          description: event.description,
-        },
-        drive,
-        gmail: allGmail,
-        slack: slackMessages,
-      },
-      {
-        systemPromptOverride: briefSystemPromptOverride ?? undefined,
-      },
-    );
-  }
+  const agent = new MeetingPrepAgent({
+    systemPrompt: briefSystemPromptOverride || undefined,
+  });
+  const agentBrief = await agent.prepareMeetingBrief(eventId, userId, {
+    token,
+    searchTimeframeDays,
+  });
+  const fullJson = JSON.parse(agentBrief);
+  const parsed = safeParseBriefJSON(agentBrief);
+  briefResult.content = parsed ?? {
+    brief_markdown: agentBrief,
+    goals: [],
+    key_context: [],
+  };
+  briefResult.confidence =
+    fullJson.sources?.length >= 3
+      ? "high"
+      : fullJson.sources?.length > 0
+        ? "medium"
+        : "low";
+  briefResult.sources = fullJson.sources?.map((src: any) => {
+    return `${src.type}: ${src.title} -> ${src.url}`;
+  });
 
   let meetingId: string | null = null;
   let briefId: string | null = null;

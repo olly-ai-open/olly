@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateEndOfDayBriefForUser } from "@/lib/endOfDayBriefs";
 import { prisma } from "@/lib/prisma";
-import { sendBriefReadyWebPush } from "@olly/core";
+import { flushLangfuse, sendBriefReadyWebPush } from "@olly/core";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -44,6 +44,9 @@ export async function POST(req: Request) {
       }).catch((err) => {
         console.error("Failed to send evening brief web push", err);
       });
+    }
+    if (result.briefId) {
+      await flushLangfuse();
     }
 
     return NextResponse.json({
