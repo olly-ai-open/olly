@@ -31,7 +31,7 @@ export function ensureLangfuseInitialized(): boolean {
       const scopeName = otelSpan.instrumentationScope?.name || "";
       if (scopeName.startsWith("langfuse")) return true;
       const attrs = otelSpan.attributes || {};
-      return attrs["olly.source"] === "olly-agent";
+      return attrs["langfuse.trace.metadata.source"] === "olly-agent";
     };
     sdk = new NodeSDK({
       spanProcessors: [new LangfuseSpanProcessor({ shouldExportSpan })],
@@ -60,15 +60,19 @@ export async function withLangfuseTrace<T>(
   }
 
   return startActiveObservation(params.name, async (span: Observation) => {
+    const propagatedMetadata: Record<string, string> = {
+      source: "olly-agent",
+    };
+    for (const [key, value] of Object.entries(params.metadata || {})) {
+      if (typeof value === "string" && value.trim().length) {
+        propagatedMetadata[key] = value;
+      }
+    }
     return propagateAttributes(
       {
         userId: params.userId,
         sessionId: params.sessionId,
-        "olly.source": "olly-agent",
-        metadata: {
-          ...(params.metadata || {}),
-          source: "olly-agent",
-        },
+        metadata: propagatedMetadata,
         traceName: params.name,
       },
       async () => {
@@ -107,7 +111,6 @@ export function startLangfuseObservation(params: {
   if (!ensureLangfuseInitialized()) return null;
   const attributes: Record<string, any> = {
     input: params.input,
-    "olly.source": "olly-agent",
     metadata: {
       ...(params.metadata || {}),
       source: "olly-agent",
@@ -127,7 +130,10 @@ export function startLangfuseObservation(params: {
 export async function flushLangfuse(): Promise<void> {
   if (!sdk || !enabled) return;
   try {
-    await sdk.forceFlush();
+    await sdk.shutdown();
+    sdk = null;
+    enabled = false;
+    initialized = false;
   } catch (error) {
     console.warn("Langfuse telemetry flush failed", error);
   }
