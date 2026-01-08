@@ -34,7 +34,12 @@ export function ensureLangfuseInitialized(): boolean {
       return attrs["langfuse.trace.metadata.source"] === "olly-agent";
     };
     sdk = new NodeSDK({
-      spanProcessors: [new LangfuseSpanProcessor({ shouldExportSpan })],
+      spanProcessors: [
+        new LangfuseSpanProcessor({
+          exportMode: "immediate",
+          shouldExportSpan,
+        }),
+      ],
     });
     sdk.start();
     enabled = true;
