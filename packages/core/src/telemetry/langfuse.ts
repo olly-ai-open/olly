@@ -28,10 +28,11 @@ export function ensureLangfuseInitialized(): boolean {
   if (!canEnable()) return false;
   try {
     const shouldExportSpan: ShouldExportSpan = ({ otelSpan }) => {
-      const scopeName = otelSpan.instrumentationScope?.name || "";
-      if (scopeName.startsWith("langfuse")) return true;
-      const attrs = otelSpan.attributes || {};
-      return attrs["langfuse.trace.metadata.source"] === "olly-agent";
+      return true;
+      // const scopeName = otelSpan.instrumentationScope?.name || "";
+      // if (scopeName.startsWith("langfuse")) return true;
+      // const attrs = otelSpan.attributes || {};
+      // return attrs["langfuse.trace.metadata.source"] === "olly-agent";
     };
     sdk = new NodeSDK({
       spanProcessors: [
