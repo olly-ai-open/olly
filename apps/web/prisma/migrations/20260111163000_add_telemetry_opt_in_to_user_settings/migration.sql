@@ -1,0 +1,1 @@
+ALTER TABLE "UserSettings" ADD COLUMN "telemetryOptIn" BOOLEAN NOT NULL DEFAULT true;

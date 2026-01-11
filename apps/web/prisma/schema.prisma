@@ -311,6 +311,7 @@ model UserSettings {
   morningBriefSystemPrompt String? @db.Text // Optional override for morning brief generation prompt
   endOfDayBriefSystemPrompt String? @db.Text // Optional override for end-of-day brief generation prompt
   timeZone            String? // Optional IANA timezone identifier (e.g. America/Los_Angeles)
+  telemetryOptIn      Boolean @default(true)
   
   // Notification preferences
   emailNotifications Boolean @default(true)
