@@ -150,6 +150,7 @@ export async function generateMeetingBriefForEventCore(
 
   const agent = new MeetingPrepAgent({
     systemPrompt: briefSystemPromptOverride || undefined,
+    telemetryEnabled: settings.telemetryOptIn !== false,
   });
   const agentBrief = await agent.prepareMeetingBrief(eventId, userId, {
     token,

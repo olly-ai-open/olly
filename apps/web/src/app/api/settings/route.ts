@@ -23,6 +23,7 @@ export async function GET() {
           briefSystemPrompt: null,
           queryPlannerSystemPrompt: null,
           endOfDayBriefSystemPrompt: null,
+          telemetryOptIn: true,
           emailNotifications: true,
           webNotificationsEnabled: false,
           ignoredEventPatterns: [],
@@ -59,6 +60,7 @@ export async function PUT(req: Request) {
       morningBriefSystemPrompt,
       endOfDayBriefSystemPrompt,
       timeZone,
+      telemetryOptIn,
     } = body;
 
     // Validate searchTimeframeDays
@@ -92,6 +94,13 @@ export async function PUT(req: Request) {
     ) {
       return NextResponse.json(
         { error: "webNotificationsEnabled must be a boolean" },
+        { status: 400 },
+      );
+    }
+
+    if (telemetryOptIn !== undefined && typeof telemetryOptIn !== "boolean") {
+      return NextResponse.json(
+        { error: "telemetryOptIn must be a boolean" },
         { status: 400 },
       );
     }
@@ -202,6 +211,9 @@ export async function PUT(req: Request) {
         ...(webNotificationsEnabled !== undefined && {
           webNotificationsEnabled,
         }),
+        ...(telemetryOptIn !== undefined && {
+          telemetryOptIn,
+        }),
         ...(nextBriefSystemPrompt !== undefined && {
           briefSystemPrompt: nextBriefSystemPrompt,
         }),
@@ -234,6 +246,7 @@ export async function PUT(req: Request) {
             : timeZone.trim() || null,
         emailNotifications: emailNotifications ?? true,
         webNotificationsEnabled: webNotificationsEnabled ?? false,
+        telemetryOptIn: telemetryOptIn ?? true,
         ignoredEventPatterns: nextIgnoredEventPatterns ?? [],
       } as any,
     });

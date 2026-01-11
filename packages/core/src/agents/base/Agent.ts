@@ -28,6 +28,7 @@ export interface AgentConfig {
   tools?: OllyTool[];
   memory?: AgentMemory;
   maxToolRoundtrips?: number;
+  telemetryEnabled?: boolean;
 }
 
 /**
@@ -58,6 +59,7 @@ export abstract class BaseAgent {
   protected tools: Map<string, OllyTool>;
   protected memory: AgentMemory;
   protected openai: ReturnType<typeof createOpenAI>;
+  protected telemetryEnabled: boolean;
   
   constructor(config: AgentConfig) {
     this.name = config.name;
@@ -68,6 +70,7 @@ export abstract class BaseAgent {
     this.maxToolRoundtrips = config.maxToolRoundtrips ?? 5;
     this.systemPrompt = config.systemPrompt || this.getDefaultSystemPrompt();
     this.memory = config.memory || new InMemoryAgentMemory();
+    this.telemetryEnabled = config.telemetryEnabled ?? true;
     
     // Initialize OpenAI provider
     this.openai = createOpenAI({
@@ -127,6 +130,7 @@ export abstract class BaseAgent {
     };
     const toolContext: ToolContext = {
       ...baseContext,
+      telemetryEnabled: this.telemetryEnabled,
       metadata: {
         ...(baseContext.metadata || {}),
         agentName: this.name,
@@ -173,6 +177,7 @@ export abstract class BaseAgent {
             agent: this.name,
             model: this.model,
           },
+          enabled: this.telemetryEnabled,
         },
         async (span) => {
           const generation = startLangfuseObservation({
@@ -181,6 +186,7 @@ export abstract class BaseAgent {
             metadata: { agent: this.name },
             model: this.model,
             asType: 'generation',
+            enabled: this.telemetryEnabled,
           });
           const response = await agent.generate({
             prompt: fullPrompt,

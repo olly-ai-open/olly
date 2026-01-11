@@ -86,6 +86,7 @@ export async function generateEndOfDayBriefForUserCore(
       : undefined;
   const agent = new EndOfDayBriefAgent({
     systemPrompt: systemPromptOverride,
+    telemetryEnabled: settings.telemetryOptIn !== false,
   });
   const summary = await agent.generateEndOfDaySummaryFromWorkspace(userId, {
     briefTime: briefTime.toISOString(),

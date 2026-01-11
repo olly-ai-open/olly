@@ -1,9 +1,7 @@
 import OpenAI from "openai";
 import { MEETING_BRIEF_PROMPT } from "./prompts/meetingBriefPrompt";
-import { END_OF_DAY_BRIEF_PROMPT } from "./prompts/endOfDayBriefPrompt";
-import { EndOfDayBriefAgent } from "./agents/personas/EndOfDayBriefAgent";
 import type { BriefJSON, MorningBriefJSON } from "./types/briefs";
-import type { EndOfDayActionItem, EndOfDayDocInput } from "./types/endOfDay";
+import type { EndOfDayActionItem } from "./types/endOfDay";
 import { QUERY_PLANNER_PROMPT } from "./prompts/queryPlannerPrompt";
 
 export function getOpenAI() {
@@ -64,7 +62,7 @@ export function safeParseMorningBriefJSON(s: string): MorningBriefJSON | null {
 }
 
 export type { BriefJSON, MorningBriefJSON } from "./types/briefs";
-export type { EndOfDayActionItem, EndOfDayDocInput } from "./types/endOfDay";
+export type { EndOfDayActionItem } from "./types/endOfDay";
 
 export async function generateBriefFromContext(
   input: {
@@ -317,39 +315,4 @@ export async function generateSearchQueriesForEvent(
     gmailQueries,
     slackQueries,
   };
-}
-
-export async function generateEndOfDaySummary(opts: {
-  briefTime: string; // ISO string or human readable time for the run
-  windowHours: number;
-  documents: EndOfDayDocInput[];
-  assigneeLabel?: string; // defaults to "user"
-  systemPromptOverride?: string;
-  userId?: string;
-}): Promise<{
-  highlights: string[];
-  risks: string[];
-  actionItems: EndOfDayActionItem[];
-  docs: { title: string; link?: string | null; source?: string | null }[];
-  llmContext: {
-    systemPrompt: string;
-    userPrompt: string;
-    response: string;
-    model: string;
-    temperature: number;
-  };
-}> {
-  const agent = new EndOfDayBriefAgent({
-    systemPrompt:
-      opts.systemPromptOverride && opts.systemPromptOverride.trim().length
-        ? opts.systemPromptOverride
-        : END_OF_DAY_BRIEF_PROMPT,
-  });
-
-  return agent.generateEndOfDaySummary(opts.userId || "system", {
-    briefTime: opts.briefTime,
-    windowHours: opts.windowHours,
-    documents: opts.documents,
-    assigneeLabel: opts.assigneeLabel,
-  });
 }

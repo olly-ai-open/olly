@@ -69,7 +69,9 @@ export async function generateMorningBriefForUserCore(
     status: ai.status as string,
   }));
 
-  const agent = new MorningBriefAgent();
+  const agent = new MorningBriefAgent({
+    telemetryEnabled: settings.telemetryOptIn !== false,
+  });
   const rawBrief = await agent.generateMorningBrief(userId, {
     date: dayISO,
     timeZone,

@@ -22,6 +22,7 @@ export async function getUserSettingsCore(
         queryPlannerSystemPrompt: null,
         morningBriefSystemPrompt: null,
         endOfDayBriefSystemPrompt: null,
+        telemetryOptIn: true,
         timeZone: null,
         emailNotifications: true,
         webNotificationsEnabled: false,

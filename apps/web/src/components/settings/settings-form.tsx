@@ -13,6 +13,7 @@ interface UserSettings {
   timeZone?: string | null;
   emailNotifications: boolean;
   webNotificationsEnabled: boolean;
+  telemetryOptIn: boolean;
   ignoredEventPatterns?: Array<string | { type?: string; value?: string }>;
   createdAt: string;
   updatedAt: string;
@@ -342,6 +343,7 @@ export default function SettingsForm() {
           timeZone: settings.timeZone ?? "UTC",
           emailNotifications: settings.emailNotifications,
           webNotificationsEnabled: settings.webNotificationsEnabled,
+          telemetryOptIn: settings.telemetryOptIn,
           ignoredEventPatterns: parseIgnoredPatterns(ignoredPatternsText),
         }),
       });
@@ -805,6 +807,35 @@ export default function SettingsForm() {
           {webPushError ? (
             <p className="text-xs text-destructive ml-7">{webPushError}</p>
           ) : null}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="mb-4 text-lg font-medium">Privacy</h2>
+        <div className="space-y-3">
+          <div className="flex items-center space-x-3">
+            <input
+              id="telemetryOptIn"
+              type="checkbox"
+              checked={settings.telemetryOptIn}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  telemetryOptIn: e.target.checked,
+                })
+              }
+              className="h-4 w-4 rounded border border-border text-primary focus:ring-primary"
+            />
+            <label
+              htmlFor="telemetryOptIn"
+              className="text-sm font-medium text-foreground"
+            >
+              Make Olly better
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground ml-7">
+            Share anonymized traces to improve brief quality and reliability.
+          </p>
         </div>
       </div>
 

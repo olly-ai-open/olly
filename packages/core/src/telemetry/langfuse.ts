@@ -63,9 +63,13 @@ export async function withLangfuseTrace<T>(
     sessionId?: string;
     input?: any;
     metadata?: Record<string, any>;
+    enabled?: boolean;
   },
   fn: (span: Observation | null) => Promise<T>
 ): Promise<T> {
+  if (params.enabled === false) {
+    return fn(null);
+  }
   if (!ensureLangfuseInitialized()) {
     return fn(null);
   }
@@ -118,7 +122,9 @@ export function startLangfuseObservation(params: {
     | "evaluator"
     | "guardrail"
     | "embedding";
+  enabled?: boolean;
 }): Observation | null {
+  if (params.enabled === false) return null;
   if (!ensureLangfuseInitialized()) return null;
   const attributes: Record<string, any> = {
     input: params.input,

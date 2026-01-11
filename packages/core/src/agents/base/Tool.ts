@@ -10,6 +10,7 @@ export interface ToolContext {
   userId: string;
   sessionId?: string;
   metadata?: Record<string, any>;
+  telemetryEnabled?: boolean;
 }
 
 /**
@@ -41,6 +42,7 @@ export function toAITool<TInput, TOutput>(
         input: args,
         metadata: { operation },
         asType: 'span',
+        enabled: context.telemetryEnabled !== false,
       });
       try {
         const result = await ollyTool.execute(args as TInput, context);
