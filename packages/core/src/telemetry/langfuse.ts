@@ -11,16 +11,15 @@ type Observation = {
   end: () => void;
 };
 
-const LANGFUSE_PUBLIC_KEY = process.env.LANGFUSE_PUBLIC_KEY;
-const LANGFUSE_SECRET_KEY = process.env.LANGFUSE_SECRET_KEY;
-
 let sdk: NodeSDK | null = null;
 let initialized = false;
 let enabled = false;
 let langfuseProcessor: LangfuseSpanProcessor | null = null;
 
 function canEnable(): boolean {
-  return Boolean(LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY);
+  return Boolean(
+    process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY,
+  );
 }
 
 export function ensureLangfuseInitialized(): boolean {
@@ -29,7 +28,8 @@ export function ensureLangfuseInitialized(): boolean {
   if (!canEnable()) return false;
   try {
     const shouldExportSpan: ShouldExportSpan = ({ otelSpan }) => {
-      return otelSpan.instrumentationScope.name !== "next.js";
+      const scopeName = otelSpan.instrumentationScope?.name || "";
+      return scopeName !== "next.js";
     };
     langfuseProcessor = new LangfuseSpanProcessor({
       exportMode: "immediate",
