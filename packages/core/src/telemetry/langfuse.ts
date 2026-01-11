@@ -23,10 +23,17 @@ function canEnable(): boolean {
 }
 
 export function ensureLangfuseInitialized(): boolean {
-  if (initialized) return enabled;
-  initialized = true;
-  if (!canEnable()) return false;
+  const envReady = canEnable();
+  console.log("[langfuse] init check", {
+    initialized,
+    enabled,
+    envReady,
+  });
+  if (!envReady) return false;
   try {
+    if (initialized && enabled) return true;
+    initialized = true;
+    console.log("[langfuse] initializing");
     const shouldExportSpan: ShouldExportSpan = ({ otelSpan }) => {
       const scopeName = otelSpan.instrumentationScope?.name || "";
       return scopeName !== "next.js";
@@ -40,9 +47,11 @@ export function ensureLangfuseInitialized(): boolean {
     });
     sdk.start();
     enabled = true;
+    console.log("[langfuse] initialized");
   } catch (error) {
     console.warn("Langfuse telemetry init failed", error);
     enabled = false;
+    initialized = false;
   }
   return enabled;
 }
@@ -132,7 +141,9 @@ export function startLangfuseObservation(params: {
 export async function flushLangfuse(): Promise<void> {
   if (!langfuseProcessor || !enabled) return;
   try {
+    console.log("[langfuse] forceFlush start");
     await langfuseProcessor.forceFlush();
+    console.log("[langfuse] forceFlush done");
   } catch (error) {
     console.warn("Langfuse telemetry flush failed", error);
   }
