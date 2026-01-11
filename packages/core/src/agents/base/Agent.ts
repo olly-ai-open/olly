@@ -154,6 +154,9 @@ export abstract class BaseAgent {
       model: this.languageModel,
       instructions: this.systemPrompt,
       tools,
+      experimental_telemetry: {
+        isEnabled: true,
+      },
       stopWhen: stepCountIs(this.maxToolRoundtrips),
     });
     
@@ -189,6 +192,7 @@ export abstract class BaseAgent {
           });
           generation?.end();
           span?.update({ output: response.text });
+          span?.end();
           return response;
         },
       );

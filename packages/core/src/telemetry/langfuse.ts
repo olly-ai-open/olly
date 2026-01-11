@@ -17,6 +17,7 @@ const LANGFUSE_SECRET_KEY = process.env.LANGFUSE_SECRET_KEY;
 let sdk: NodeSDK | null = null;
 let initialized = false;
 let enabled = false;
+let langfuseProcessor: LangfuseSpanProcessor | null = null;
 
 function canEnable(): boolean {
   return Boolean(LANGFUSE_PUBLIC_KEY && LANGFUSE_SECRET_KEY);
@@ -28,19 +29,14 @@ export function ensureLangfuseInitialized(): boolean {
   if (!canEnable()) return false;
   try {
     const shouldExportSpan: ShouldExportSpan = ({ otelSpan }) => {
-      return true;
-      // const scopeName = otelSpan.instrumentationScope?.name || "";
-      // if (scopeName.startsWith("langfuse")) return true;
-      // const attrs = otelSpan.attributes || {};
-      // return attrs["langfuse.trace.metadata.source"] === "olly-agent";
+      return otelSpan.instrumentationScope.name !== "next.js";
     };
+    langfuseProcessor = new LangfuseSpanProcessor({
+      exportMode: "immediate",
+      shouldExportSpan,
+    });
     sdk = new NodeSDK({
-      spanProcessors: [
-        new LangfuseSpanProcessor({
-          exportMode: "immediate",
-          shouldExportSpan,
-        }),
-      ],
+      spanProcessors: [langfuseProcessor],
     });
     sdk.start();
     enabled = true;
@@ -134,12 +130,9 @@ export function startLangfuseObservation(params: {
 }
 
 export async function flushLangfuse(): Promise<void> {
-  if (!sdk || !enabled) return;
+  if (!langfuseProcessor || !enabled) return;
   try {
-    await sdk.shutdown();
-    sdk = null;
-    enabled = false;
-    initialized = false;
+    await langfuseProcessor.forceFlush();
   } catch (error) {
     console.warn("Langfuse telemetry flush failed", error);
   }
