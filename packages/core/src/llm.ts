@@ -1,13 +1,158 @@
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { MEETING_BRIEF_PROMPT } from "./prompts/meetingBriefPrompt";
 import type { BriefJSON, MorningBriefJSON } from "./types/briefs";
 import type { EndOfDayActionItem } from "./types/endOfDay";
 import { QUERY_PLANNER_PROMPT } from "./prompts/queryPlannerPrompt";
 
+// LLM Provider types
+export type LLMProvider = "openai" | "anthropic" | "gemini";
+
+// Default models per provider
+const DEFAULT_MODELS: Record<LLMProvider, string> = {
+  openai: "gpt-4.1-mini",
+  anthropic: "claude-haiku-4-5-20251202",
+  gemini: "gemini-1.5-pro",
+};
+
+/**
+ * Get the current LLM provider from environment
+ */
+export function getLLMProvider(): LLMProvider {
+  const provider = process.env.LLM_PROVIDER?.toLowerCase();
+  if (provider === "anthropic" || provider === "gemini") {
+    return provider;
+  }
+  return "openai"; // default
+}
+
+/**
+ * Get the model for the current provider
+ */
+export function getLLMModel(): string {
+  const provider = getLLMProvider();
+  switch (provider) {
+    case "anthropic":
+      return process.env.ANTHROPIC_MODEL || DEFAULT_MODELS.anthropic;
+    case "gemini":
+      return process.env.GOOGLE_MODEL || DEFAULT_MODELS.gemini;
+    default:
+      return process.env.OPENAI_MODEL || DEFAULT_MODELS.openai;
+  }
+}
+
+/**
+ * Get the temperature for LLM calls
+ */
+export function getLLMTemperature(): number {
+  return parseFloat(process.env.LLM_TEMPERATURE ?? process.env.OPENAI_TEMPERATURE ?? "0.2");
+}
+
+/**
+ * Check if LLM is configured (has API key for the current provider)
+ */
+export function isLLMConfigured(): boolean {
+  const provider = getLLMProvider();
+  switch (provider) {
+    case "anthropic":
+      return !!process.env.ANTHROPIC_API_KEY;
+    case "gemini":
+      return !!process.env.GOOGLE_API_KEY;
+    default:
+      return !!process.env.OPENAI_API_KEY;
+  }
+}
+
+// Legacy function for backward compatibility
 export function getOpenAI() {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
   return new OpenAI({ apiKey: key });
+}
+
+/**
+ * Unified chat completion that works with all providers
+ */
+export async function createChatCompletion(
+  messages: { role: "system" | "user" | "assistant"; content: string }[],
+  opts?: { temperature?: number; model?: string }
+): Promise<{ content: string; model: string; provider: LLMProvider }> {
+  const provider = getLLMProvider();
+  const model = opts?.model || getLLMModel();
+  const temperature = opts?.temperature ?? getLLMTemperature();
+
+  switch (provider) {
+    case "anthropic": {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+
+      const client = new Anthropic({ apiKey });
+      const systemMessage = messages.find(m => m.role === "system")?.content || "";
+      const nonSystemMessages = messages
+        .filter(m => m.role !== "system")
+        .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+      const response = await client.messages.create({
+        model,
+        max_tokens: 4096,
+        system: systemMessage,
+        messages: nonSystemMessages,
+        temperature,
+      });
+
+      const textBlock = response.content.find(block => block.type === "text");
+      return {
+        content: textBlock?.type === "text" ? textBlock.text : "",
+        model,
+        provider: "anthropic",
+      };
+    }
+
+    case "gemini": {
+      const apiKey = process.env.GOOGLE_API_KEY;
+      if (!apiKey) throw new Error("GOOGLE_API_KEY not configured");
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const geminiModel = genAI.getGenerativeModel({ model });
+
+      // Combine system and user messages for Gemini
+      const systemMessage = messages.find(m => m.role === "system")?.content || "";
+      const userMessages = messages.filter(m => m.role !== "system");
+      const prompt = systemMessage
+        ? `${systemMessage}\n\n${userMessages.map(m => m.content).join("\n")}`
+        : userMessages.map(m => m.content).join("\n");
+
+      const result = await geminiModel.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature },
+      });
+
+      return {
+        content: result.response.text(),
+        model,
+        provider: "gemini",
+      };
+    }
+
+    default: {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+
+      const client = new OpenAI({ apiKey });
+      const response = await client.chat.completions.create({
+        model,
+        messages,
+        temperature,
+      });
+
+      return {
+        content: response.choices[0]?.message?.content ?? "",
+        model,
+        provider: "openai",
+      };
+    }
+  }
 }
 
 export function safeParseBriefJSON(s: string): BriefJSON | null {
@@ -105,7 +250,7 @@ export async function generateBriefFromContext(
   },
   opts?: { systemPromptOverride?: string },
 ) {
-  const openai = getOpenAI();
+  const llmConfigured = isLLMConfigured();
   const sources: string[] = [];
   for (const f of input.drive.slice(0, 5))
     if (f?.webViewLink) sources.push(`Drive: ${f.name} -> ${f.webViewLink}`);
@@ -139,8 +284,9 @@ export async function generateBriefFromContext(
   const confidence =
     sources.length >= 3 ? "high" : sources.length > 0 ? "medium" : "low";
 
-  if (!openai) {
-    const placeholderContent = `# Meeting Brief\n\n_No OpenAI key configured. Placeholder brief for:_ ${input.meeting.title}`;
+  if (!llmConfigured) {
+    const provider = getLLMProvider();
+    const placeholderContent = `# Meeting Brief\n\n_No ${provider} API key configured. Placeholder brief for:_ ${input.meeting.title}`;
     return {
       content: {
         brief_markdown: placeholderContent,
@@ -151,7 +297,7 @@ export async function generateBriefFromContext(
       confidence,
       sources,
       llmContext: {
-        systemPrompt: "No OpenAI key configured",
+        systemPrompt: `No ${provider} API key configured`,
         userPrompt: `Placeholder request for: ${input.meeting.title}`,
         response: placeholderContent,
         model: "none",
@@ -228,16 +374,12 @@ export async function generateBriefFromContext(
     })
     .join("\n\n")}\n\nReturn ONLY the JSON object with the keys described above.`;
 
-  const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-4.1",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
-  });
+  const completion = await createChatCompletion([
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ]);
 
-  const raw = completion.choices[0]?.message?.content ?? "";
+  const raw = completion.content;
   const parsed = safeParseBriefJSON(raw);
   const content: BriefJSON = parsed ?? {
     brief_markdown: raw,
@@ -249,13 +391,12 @@ export async function generateBriefFromContext(
     content,
     confidence,
     sources,
-    // Return the actual prompts used for debugging
     llmContext: {
       systemPrompt: system,
       userPrompt: user,
       response: raw,
-      model: process.env.OPENAI_MODEL || "gpt-4.1",
-      temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
+      model: completion.model,
+      temperature: getLLMTemperature(),
     },
   };
 }
@@ -271,8 +412,7 @@ export async function generateSearchQueriesForEvent(
   },
   opts?: { systemPromptOverride?: string },
 ): Promise<{ driveQueries: string[]; gmailQueries: string[]; slackQueries: string[] }> {
-  const openai = getOpenAI();
-  if (!openai) {
+  if (!isLLMConfigured()) {
     return { driveQueries: [], gmailQueries: [], slackQueries: [] };
   }
 
@@ -289,16 +429,12 @@ export async function generateSearchQueriesForEvent(
 
   const user = `Meeting:\n- Title: ${input.meeting.title}\n- Date/Time: ${input.meeting.start ?? "unknown"}\n- Participants: ${participantList}\n- Description: ${input.meeting.description ?? ""}\n\nReturn only the JSON object as described.`;
 
-  const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-4.1",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    temperature: parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2"),
-  });
+  const completion = await createChatCompletion([
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ]);
 
-  const raw = completion.choices[0]?.message?.content ?? "";
+  const raw = completion.content;
   const parsed = safeParseSearchQueriesJSON(raw);
   const driveQueries = Array.isArray(parsed?.drive_queries)
     ? parsed!.drive_queries.filter((q) => typeof q === "string" && q.trim())

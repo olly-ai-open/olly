@@ -7,7 +7,7 @@ import { fetchSsmParameters } from "@olly/core";
  */
 export async function initializeEnvironment(): Promise<void> {
   // Skip if already initialized or in local development
-  if (process.env.OPENAI_API_KEY || process.env.NODE_ENV === "development") {
+  if (process.env.PRISMA_DATABASE_URL || process.env.NODE_ENV === "development") {
     return;
   }
 
