@@ -38,7 +38,7 @@ function createLanguageModel(model?: string): { model: AnyLanguageModel; provide
 
     case 'gemini': {
       const google = createGoogleGenerativeAI({
-        apiKey: process.env.GOOGLE_API_KEY,
+        apiKey: process.env.GEMINI_API_KEY,
       });
       const modelName = model || process.env.GOOGLE_MODEL || AGENT_DEFAULT_MODELS.gemini;
       return { model: google(modelName) as unknown as AnyLanguageModel, provider, modelName };

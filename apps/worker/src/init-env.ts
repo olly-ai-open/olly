@@ -11,7 +11,7 @@ export async function initializeEnvironment(): Promise<void> {
   const hasLLMKey =
     process.env.OPENAI_API_KEY ||
     process.env.ANTHROPIC_API_KEY ||
-    process.env.GOOGLE_API_KEY;
+    process.env.GEMINI_API_KEY;
 
   if (hasLLMKey || process.env.NODE_ENV === "development") {
     return;
@@ -43,14 +43,13 @@ export async function initializeEnvironment(): Promise<void> {
       // OpenAI
       `OPENAI_API_KEY`,
       `OPENAI_MODEL`,
-      `OPENAI_TEMPERATURE`,
 
       // Anthropic
       `ANTHROPIC_API_KEY`,
       `ANTHROPIC_MODEL`,
 
-      // Google (Gemini)
-      `GOOGLE_API_KEY`,
+      // Gemini
+      `GEMINI_API_KEY`,
       `GOOGLE_MODEL`,
 
       // Supabase
@@ -98,7 +97,7 @@ export async function initializeEnvironment(): Promise<void> {
         llmApiKeyParam = `/olly/${stage}/ANTHROPIC_API_KEY`;
         break;
       case "gemini":
-        llmApiKeyParam = `/olly/${stage}/GOOGLE_API_KEY`;
+        llmApiKeyParam = `/olly/${stage}/GEMINI_API_KEY`;
         break;
       default:
         llmApiKeyParam = `/olly/${stage}/OPENAI_API_KEY`;

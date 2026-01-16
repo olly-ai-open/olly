@@ -58,7 +58,7 @@ export function isLLMConfigured(): boolean {
     case "anthropic":
       return !!process.env.ANTHROPIC_API_KEY;
     case "gemini":
-      return !!process.env.GOOGLE_API_KEY;
+      return !!process.env.GEMINI_API_KEY;
     default:
       return !!process.env.OPENAI_API_KEY;
   }
@@ -110,8 +110,8 @@ export async function createChatCompletion(
     }
 
     case "gemini": {
-      const apiKey = process.env.GOOGLE_API_KEY;
-      if (!apiKey) throw new Error("GOOGLE_API_KEY not configured");
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
 
       const genAI = new GoogleGenerativeAI(apiKey);
       const geminiModel = genAI.getGenerativeModel({ model });
