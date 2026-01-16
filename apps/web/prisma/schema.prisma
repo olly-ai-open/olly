@@ -40,6 +40,9 @@ model User {
   driveFolders  DriveFolder[]
   settings      UserSettings?
   webPushSubscriptions WebPushSubscription[]
+  docGenRequests    DocGenRequest[]
+  generatedDocs     GeneratedDocument[]
+  templateProfiles  TemplateProfile[]
 }
 
 model Account {
@@ -375,4 +378,83 @@ model ToolMetricsDaily {
 
   @@unique([day, toolName, operation])
   @@index([day])
+}
+
+// Document Generation models
+model DocGenRequest {
+  id         String   @id @default(cuid())
+  userId     String
+  prompt     String   @db.Text
+  intent     Json?    // { docType, timeScope, entity, context, sources }
+  status     String   @default("pending") // pending|gathering|analyzing|synthesizing|creating|completed|failed
+  progress   Json?    // { stage, message, percent }
+  templateId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template   TemplateProfile?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  runs       DocGenRun[]
+  document   GeneratedDocument?
+
+  @@index([userId, status])
+  @@index([createdAt])
+}
+
+model DocGenRun {
+  id          String    @id @default(cuid())
+  requestId   String
+  stage       String    // gather|analyze|synthesize|create
+  status      String    @default("running") // running|completed|failed
+  evidence    Json?     // Array of evidence items found
+  findings    Json?     // Extracted findings/insights
+  error       String?
+  metadata    Json?     // Tool calls, token usage, etc.
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  request     DocGenRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, stage])
+}
+
+model GeneratedDocument {
+  id            String    @id @default(cuid())
+  requestId     String    @unique
+  userId        String
+  title         String
+  docType       String    // status_update|monthly_report|wiki
+  content       Json      // { sections: [...], markdown: string }
+  citations     Json?     // { evidenceId, sourceType, sourceRef, snippet }[]
+  openQuestions Json?     // Items marked as missing/uncertain
+  format        String    @default("markdown")
+  savedAt       DateTime? // null until user explicitly saves
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  request       DocGenRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, docType])
+  @@index([createdAt])
+}
+
+model TemplateProfile {
+  id             String   @id @default(cuid())
+  userId         String?  // null = system template
+  name           String
+  description    String?
+  docType        String   // status_update|monthly_report|wiki
+  templateSource String   @default("system") // system|uploaded|derived
+  content        String   @db.Text
+  structure      Json?    // Parsed structure hints
+  mimeType       String?  // For uploaded: text/markdown, text/plain, etc.
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requests       DocGenRequest[]
+
+  @@index([userId, docType, isActive])
 }

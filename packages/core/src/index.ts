@@ -17,6 +17,7 @@ export * from "./core/workspaceSearch-core";
 export * from "./core/endOfDayBriefs-core";
 export * from "./core/morningBriefs-core";
 export * from "./core/slack-core";
+export * from "./core/docgen-core";
 export * from "./types/endOfDay";
 export * from "./types/briefs";
 export * from "./telemetry/langfuse";
@@ -33,6 +34,7 @@ export * from "./agents/base/Memory";
 export * from "./agents/personas/MeetingPrepAgent";
 export * from "./agents/personas/MorningBriefAgent";
 export * from "./agents/personas/EndOfDayBriefAgent";
+export * from "./agents/personas/DocGenAgent";
 
 // Agent tools exports
 export * from "./agents/tools/CalendarTool";
