@@ -4,7 +4,7 @@
 Pushing `main` on github will automatically trigger the app deployment on Vercel.
 
 ### Environment Variables
-The webapp is setup to read the environment variables from AWS SSM. To add/modify environment variables, go to https://000000000000-tv6ivtpd.us-west-2.console.aws.amazon.com/systems-manager/parameters?region=us-west-2#. These environment variables are only read once per deployment.
+The webapp is setup to read the environment variables from [Vercel's environment variables](https://vercel.com/<org>/<project>/settings/environment-variables). These environment variables are only read once per deployment.
 
 ## Deploying AWS Lambda functions
 ### Prerequisites
