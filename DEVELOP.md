@@ -1,4 +1,7 @@
 ## Environment variables
+### Prerequisites
+Install `awscli` via the instructions from [here](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+
 All environment variables in AWS SSM. To retrieve the env variables for local development, run the following script:
 
       $ ./scripts/sync-env.sh
