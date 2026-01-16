@@ -9,6 +9,7 @@ The webapp is setup to read the environment variables from AWS SSM. To add/modif
 ## Deploying AWS Lambda functions
 ### Prerequisites
 * Get AWS credentials and activate them in your environment.
+* Install `awscli`.
 
 ### Environment Variables
 The Lambda functions are setup to read environment variables from AWS SSM. To add/modify environment variables, go to https://000000000000-tv6ivtpd.us-west-2.console.aws.amazon.com/systems-manager/parameters?region=us-west-2#. Whenever a Lambda function has a cold start, that's when it would be reading the environment variables from SSM. We do not control when a Lambda function is started from a cold start. To force this, a deployment should be done. 
