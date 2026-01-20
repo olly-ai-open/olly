@@ -34,7 +34,14 @@ export default function GenerateBriefButton({
         // Refresh the page to show the updated brief status
         router.refresh();
       } else {
-        console.error("Failed to generate brief");
+        const responseText = await response.text();
+        let errorData: Record<string, unknown> = {};
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          errorData = { rawResponse: responseText };
+        }
+        console.error("Failed to generate brief:", response.status, errorData);
         setIsGenerating(false);
       }
     } catch (error) {
