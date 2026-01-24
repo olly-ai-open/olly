@@ -156,22 +156,23 @@ export async function generateMeetingBriefForEventCore(
     token,
     searchTimeframeDays,
   });
-  const fullJson = JSON.parse(agentBrief);
   const parsed = safeParseBriefJSON(agentBrief);
   briefResult.content = parsed ?? {
     brief_markdown: agentBrief,
     goals: [],
     key_context: [],
   };
+  // Safely extract sources from parsed JSON (may be null if LLM returned plain text)
+  const sources = (parsed as any)?.sources;
   briefResult.confidence =
-    fullJson.sources?.length >= 3
+    Array.isArray(sources) && sources.length >= 3
       ? "high"
-      : fullJson.sources?.length > 0
+      : Array.isArray(sources) && sources.length > 0
         ? "medium"
         : "low";
-  briefResult.sources = fullJson.sources?.map((src: any) => {
-    return `${src.type}: ${src.title} -> ${src.url}`;
-  });
+  briefResult.sources = Array.isArray(sources)
+    ? sources.map((src: any) => `${src.type}: ${src.title} -> ${src.url}`)
+    : [];
 
   let meetingId: string | null = null;
   let briefId: string | null = null;

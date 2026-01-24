@@ -1,4 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { ToolLoopAgent, stepCountIs } from 'ai';
 import { AgentMemory, InMemoryAgentMemory } from './Memory';
 import { OllyTool, ToolContext, toAITool } from './Tool';
@@ -6,6 +8,51 @@ import { wrapLanguageModel } from 'ai';
 import { devToolsMiddleware } from '@ai-sdk/devtools';
 import { startLangfuseObservation, withLangfuseTrace } from '../../telemetry/langfuse';
 import { recordAgentAggregate } from '../../telemetry/metrics-aggregates';
+import { getLLMProvider, getLLMModel, getLLMTemperature, type LLMProvider } from '../../llm';
+
+// Default models per provider for agents
+const AGENT_DEFAULT_MODELS: Record<LLMProvider, string> = {
+  openai: 'gpt-4.1-mini',
+  anthropic: 'claude-haiku-4-5-20251202',
+  gemini: 'gemini-1.5-pro',
+};
+
+// Type for language model that works with all providers
+type AnyLanguageModel = ReturnType<ReturnType<typeof createOpenAI>>;
+
+/**
+ * Create a language model based on the configured provider
+ */
+function createLanguageModel(model?: string): { model: AnyLanguageModel; provider: LLMProvider; modelName: string } {
+  const provider = getLLMProvider();
+
+  switch (provider) {
+    case 'anthropic': {
+      const anthropic = createAnthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      });
+      const modelName = model || process.env.ANTHROPIC_MODEL || AGENT_DEFAULT_MODELS.anthropic;
+      // Cast to AnyLanguageModel since all providers implement the same interface at runtime
+      return { model: anthropic(modelName) as unknown as AnyLanguageModel, provider, modelName };
+    }
+
+    case 'gemini': {
+      const google = createGoogleGenerativeAI({
+        apiKey: process.env.GEMINI_API_KEY,
+      });
+      const modelName = model || process.env.GOOGLE_MODEL || AGENT_DEFAULT_MODELS.gemini;
+      return { model: google(modelName) as unknown as AnyLanguageModel, provider, modelName };
+    }
+
+    default: {
+      const openai = createOpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+      const modelName = model || process.env.OPENAI_MODEL || AGENT_DEFAULT_MODELS.openai;
+      return { model: openai(modelName), provider, modelName };
+    }
+  }
+}
 
 /**
  * Message type for conversation history
@@ -51,48 +98,47 @@ export abstract class BaseAgent {
   protected name: string;
   protected description: string;
   protected model: string;
-  protected languageModel: ReturnType<typeof wrapLanguageModel>;
+  protected provider: LLMProvider;
+  protected languageModel: AnyLanguageModel;
   protected temperature: number;
   protected maxTokens: number;
   protected maxToolRoundtrips: number;
   protected systemPrompt: string;
   protected tools: Map<string, OllyTool>;
   protected memory: AgentMemory;
-  protected openai: ReturnType<typeof createOpenAI>;
   protected telemetryEnabled: boolean;
-  
+
   constructor(config: AgentConfig) {
     this.name = config.name;
     this.description = config.description;
-    this.model = config.model || process.env.OPENAI_MODEL || 'gpt-4-turbo';
-    this.temperature = config.temperature || parseFloat(process.env.OPENAI_TEMPERATURE ?? "0.2");
+    this.temperature = config.temperature || getLLMTemperature();
     this.maxTokens = config.maxTokens ?? 2000;
     this.maxToolRoundtrips = config.maxToolRoundtrips ?? 5;
     this.systemPrompt = config.systemPrompt || this.getDefaultSystemPrompt();
     this.memory = config.memory || new InMemoryAgentMemory();
     this.telemetryEnabled = config.telemetryEnabled ?? true;
-    
-    // Initialize OpenAI provider
-    this.openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-    this.languageModel = this.openai(this.model);
+
+    // Initialize language model using provider factory
+    const { model, provider, modelName } = createLanguageModel(config.model);
+    this.model = modelName;
+    this.provider = provider;
+    this.languageModel = model;
 
     const DEBUG_AI_SDK = process.env.DEBUG_AI_SDK === 'true';
     if (DEBUG_AI_SDK) {
       this.languageModel = wrapLanguageModel({
-        model: this.openai(this.model),
+        model,
         middleware: devToolsMiddleware(),
       });
     }
-    
+
     this.tools = new Map();
     if (config.tools) {
       config.tools.forEach(tool => {
         this.registerTool(tool);
       });
     }
-    
+
   }
   
   /**

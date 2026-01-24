@@ -236,9 +236,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           const token = await getAccessTokenFromAccount(account);
           return listEventsByDayWithToken(token, targetDay, timeZone);
         } catch (error: any) {
-          if (error?.message === "REAUTH_REQUIRED") {
-            console.log("Calendar access requires re-authentication");
-          }
+          console.error("Failed to load calendar events:", error?.message || error);
           return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
         }
       })()

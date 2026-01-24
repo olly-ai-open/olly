@@ -4,6 +4,7 @@ import { DriveTool } from '../tools/DriveTool';
 import { SlackTool } from '../tools/SlackTool';
 import { END_OF_DAY_BRIEF_PROMPT } from '../../prompts/endOfDayBriefPrompt';
 import type { EndOfDayActionItem, EndOfDayDocInput } from '../../types/endOfDay';
+import { isLLMConfigured, getLLMProvider } from '../../llm';
 
 type EndOfDaySummaryJSON = {
   highlights?: string[];
@@ -169,7 +170,7 @@ export class EndOfDayBriefAgent extends BaseAgent {
     super({
       name: 'EndOfDayBriefAgent',
       description: 'Generates end-of-day summaries from recent workspace updates',
-      model: config?.model || process.env.OPENAI_MODEL || 'gpt-4.1',
+      model: config?.model, // Let BaseAgent handle provider-aware model selection
       ...config,
       tools: [
         new EmailTool(),
@@ -228,8 +229,9 @@ export class EndOfDayBriefAgent extends BaseAgent {
       temperature: number;
     };
   }> {
-    if (!process.env.OPENAI_API_KEY) {
-      const placeholder = `End of day summary placeholder (no OpenAI key). Time: ${opts.briefTime}, window: last ${opts.windowHours}h. Docs: ${opts.documents.length}.`;
+    if (!isLLMConfigured()) {
+      const provider = getLLMProvider();
+      const placeholder = `End of day summary placeholder (no ${provider} API key). Time: ${opts.briefTime}, window: last ${opts.windowHours}h. Docs: ${opts.documents.length}.`;
       return {
         highlights: [],
         risks: [],
@@ -238,7 +240,7 @@ export class EndOfDayBriefAgent extends BaseAgent {
           .slice(0, 10)
           .map((d) => ({ title: d.title, link: d.link ?? null, source: d.source })),
         llmContext: {
-          systemPrompt: 'No OpenAI key configured',
+          systemPrompt: `No ${provider} API key configured`,
           userPrompt: `Placeholder end of day summary for ${opts.briefTime}`,
           response: placeholder,
           model: 'none',
@@ -340,15 +342,16 @@ export class EndOfDayBriefAgent extends BaseAgent {
       temperature: number;
     };
   }> {
-    if (!process.env.OPENAI_API_KEY) {
-      const placeholder = `End of day summary placeholder (no OpenAI key). Time: ${opts.briefTime}, window: last ${opts.windowHours}h.`;
+    if (!isLLMConfigured()) {
+      const provider = getLLMProvider();
+      const placeholder = `End of day summary placeholder (no ${provider} API key). Time: ${opts.briefTime}, window: last ${opts.windowHours}h.`;
       return {
         highlights: [],
         risks: [],
         actionItems: [],
         docs: [],
         llmContext: {
-          systemPrompt: 'No OpenAI key configured',
+          systemPrompt: `No ${provider} API key configured`,
           userPrompt: `Placeholder end of day summary for ${opts.briefTime}`,
           response: placeholder,
           model: 'none',

@@ -12,8 +12,14 @@ export async function initializeServerEnvironment(): Promise<void> {
   }
 
   // Skip if already initialized or no AWS credentials available
-  if (
+  // Check for any LLM API key being set (indicates already initialized)
+  const hasLLMKey =
     process.env.OPENAI_API_KEY ||
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.GEMINI_API_KEY;
+
+  if (
+    hasLLMKey ||
     !process.env.AWS_ACCESS_KEY_ID ||
     process.env.NODE_ENV === "development"
   ) {
@@ -48,10 +54,21 @@ export async function initializeServerEnvironment(): Promise<void> {
       `GOOGLE_CLIENT_ID`,
       `GOOGLE_CLIENT_SECRET`,
 
+      // LLM Provider
+      `LLM_PROVIDER`,
+      `LLM_TEMPERATURE`,
+
       // OpenAI
       `OPENAI_API_KEY`,
       `OPENAI_MODEL`,
-      `OPENAI_TEMPERATURE`,
+
+      // Anthropic
+      `ANTHROPIC_API_KEY`,
+      `ANTHROPIC_MODEL`,
+
+      // Gemini
+      `GEMINI_API_KEY`,
+      `GOOGLE_MODEL`,
 
       // Supabase
       `SUPABASE_URL`,
@@ -92,6 +109,20 @@ export async function initializeServerEnvironment(): Promise<void> {
       (name) => !foundParams.includes(name),
     );
 
+    // Determine which LLM API key is required based on provider
+    const llmProvider = process.env.LLM_PROVIDER?.toLowerCase() || "openai";
+    let llmApiKeyParam: string;
+    switch (llmProvider) {
+      case "anthropic":
+        llmApiKeyParam = `/olly/${stage}/ANTHROPIC_API_KEY`;
+        break;
+      case "gemini":
+        llmApiKeyParam = `/olly/${stage}/GEMINI_API_KEY`;
+        break;
+      default:
+        llmApiKeyParam = `/olly/${stage}/OPENAI_API_KEY`;
+    }
+
     const requiredParams = [
       `/olly/${stage}/PRISMA_DATABASE_URL`,
       `/olly/${stage}/PRISMA_FIELD_ENCRYPTION_KEY`,
@@ -99,7 +130,7 @@ export async function initializeServerEnvironment(): Promise<void> {
       `/olly/${stage}/NEXTAUTH_SECRET`,
       `/olly/${stage}/GOOGLE_CLIENT_ID`,
       `/olly/${stage}/GOOGLE_CLIENT_SECRET`,
-      `/olly/${stage}/OPENAI_API_KEY`,
+      llmApiKeyParam,
     ];
 
     const missingRequired = missingParams.filter((p) =>

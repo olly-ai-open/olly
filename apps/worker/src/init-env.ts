@@ -7,7 +7,13 @@ import { fetchSsmParameters } from "@olly/core";
  */
 export async function initializeEnvironment(): Promise<void> {
   // Skip if already initialized or in local development
-  if (process.env.OPENAI_API_KEY || process.env.NODE_ENV === "development") {
+  // Check for any LLM API key being set (indicates already initialized)
+  const hasLLMKey =
+    process.env.OPENAI_API_KEY ||
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.GEMINI_API_KEY;
+
+  if (hasLLMKey || process.env.NODE_ENV === "development") {
     return;
   }
 
@@ -30,10 +36,21 @@ export async function initializeEnvironment(): Promise<void> {
       `GOOGLE_CLIENT_SECRET`,
       `NEXTAUTH_URL`,
       
+      // LLM Provider
+      `LLM_PROVIDER`,
+      `LLM_TEMPERATURE`,
+
       // OpenAI
       `OPENAI_API_KEY`,
       `OPENAI_MODEL`,
-      `OPENAI_TEMPERATURE`,
+
+      // Anthropic
+      `ANTHROPIC_API_KEY`,
+      `ANTHROPIC_MODEL`,
+
+      // Gemini
+      `GEMINI_API_KEY`,
+      `GOOGLE_MODEL`,
 
       // Supabase
       `SUPABASE_URL`,
@@ -72,14 +89,28 @@ export async function initializeEnvironment(): Promise<void> {
     const foundParams = allParameters.map((p) => p.Name);
     const missingParams = parameterNames.filter((name) => !foundParams.includes(name));
     
+    // Determine which LLM API key is required based on provider
+    const llmProvider = process.env.LLM_PROVIDER?.toLowerCase() || "openai";
+    let llmApiKeyParam: string;
+    switch (llmProvider) {
+      case "anthropic":
+        llmApiKeyParam = `/olly/${stage}/ANTHROPIC_API_KEY`;
+        break;
+      case "gemini":
+        llmApiKeyParam = `/olly/${stage}/GEMINI_API_KEY`;
+        break;
+      default:
+        llmApiKeyParam = `/olly/${stage}/OPENAI_API_KEY`;
+    }
+
     const requiredParams = [
       `/olly/${stage}/PRISMA_DATABASE_URL`,
       `/olly/${stage}/PRISMA_FIELD_ENCRYPTION_KEY`,
       `/olly/${stage}/GOOGLE_CLIENT_ID`,
       `/olly/${stage}/GOOGLE_CLIENT_SECRET`,
-      `/olly/${stage}/OPENAI_API_KEY`,
+      llmApiKeyParam,
     ];
-    
+
     const missingRequired = missingParams.filter(p => requiredParams.includes(p));
     
     if (missingRequired.length > 0) {
