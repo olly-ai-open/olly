@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import GenerateDocumentForm from './generate-document-form';
-import GenerationProgress from './generation-progress';
-import DocumentViewer from './document-viewer';
+import { useState, useCallback } from "react";
+import GenerateDocumentForm from "./generate-document-form";
+import GenerationProgress from "./generation-progress";
+import DocumentViewer from "./document-viewer";
 
-type ViewState = 'form' | 'progress' | 'result';
+type ViewState = "form" | "progress" | "result";
 
 interface DocGenRequest {
   id: string;
@@ -27,26 +27,21 @@ interface GeneratedDocument {
   createdAt: string;
 }
 
-interface GenerateDocumentViewProps {
-  userId: string;
-}
-
-export default function GenerateDocumentView({ userId }: GenerateDocumentViewProps) {
-  const [viewState, setViewState] = useState<ViewState>('form');
-  const [requestId, setRequestId] = useState<string | null>(null);
+export default function GenerateDocumentView() {
+  const [viewState, setViewState] = useState<ViewState>("form");
   const [request, setRequest] = useState<DocGenRequest | null>(null);
   const [document, setDocument] = useState<GeneratedDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Poll for request status while in progress
-  const pollStatus = useCallback(async (id: string) => {
+  const pollStatus = useCallback(async function pollStatusFn(id: string) {
     try {
       const res = await fetch(`/api/docgen/requests/${id}`);
       const data = await res.json();
 
       if (!data.ok) {
-        setError(data.error || 'Failed to get status');
-        setViewState('form');
+        setError(data.error || "Failed to get status");
+        setViewState("form");
         return;
       }
 
@@ -54,63 +49,61 @@ export default function GenerateDocumentView({ userId }: GenerateDocumentViewPro
 
       if (data.document) {
         setDocument(data.document);
-        setViewState('result');
+        setViewState("result");
         return;
       }
 
-      if (data.request.status === 'completed') {
+      if (data.request.status === "completed") {
         setDocument(data.document);
-        setViewState('result');
+        setViewState("result");
         return;
       }
 
-      if (data.request.status === 'failed') {
-        setError('Document generation failed. Please try again.');
-        setViewState('form');
+      if (data.request.status === "failed") {
+        setError("Document generation failed. Please try again.");
+        setViewState("form");
         return;
       }
 
       // Continue polling
-      setTimeout(() => pollStatus(id), 2000);
+      setTimeout(() => pollStatusFn(id), 2000);
     } catch (err) {
-      console.error('Polling error:', err);
-      setError('Connection error. Please try again.');
-      setViewState('form');
+      console.error("Polling error:", err);
+      setError("Connection error. Please try again.");
+      setViewState("form");
     }
   }, []);
 
   // Start generation
   const handleSubmit = async (prompt: string, templateId?: string) => {
     setError(null);
-    setViewState('progress');
+    setViewState("progress");
 
     try {
-      const res = await fetch('/api/docgen/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/docgen/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, templateId }),
       });
       const data = await res.json();
 
       if (!data.ok) {
-        setError(data.error || 'Failed to start generation');
-        setViewState('form');
+        setError(data.error || "Failed to start generation");
+        setViewState("form");
         return;
       }
 
-      setRequestId(data.requestId);
       pollStatus(data.requestId);
     } catch (err) {
-      console.error('Submit error:', err);
-      setError('Connection error. Please try again.');
-      setViewState('form');
+      console.error("Submit error:", err);
+      setError("Connection error. Please try again.");
+      setViewState("form");
     }
   };
 
   // Reset to form
   const handleReset = () => {
-    setViewState('form');
-    setRequestId(null);
+    setViewState("form");
     setRequest(null);
     setDocument(null);
     setError(null);
@@ -122,7 +115,7 @@ export default function GenerateDocumentView({ userId }: GenerateDocumentViewPro
 
     try {
       const res = await fetch(`/api/docgen/documents/${document.id}/save`, {
-        method: 'POST',
+        method: "POST",
       });
       const data = await res.json();
 
@@ -130,7 +123,7 @@ export default function GenerateDocumentView({ userId }: GenerateDocumentViewPro
         setDocument({ ...document, savedAt: new Date().toISOString() });
       }
     } catch (err) {
-      console.error('Save error:', err);
+      console.error("Save error:", err);
     }
   };
 
@@ -140,7 +133,8 @@ export default function GenerateDocumentView({ userId }: GenerateDocumentViewPro
       <div className="mb-8">
         <h1 className="text-2xl font-semibold">Generate Document</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create status updates, reports, and wiki documents from your workspace data.
+          Create status updates, reports, and wiki documents from your workspace
+          data.
         </p>
       </div>
 
@@ -152,32 +146,31 @@ export default function GenerateDocumentView({ userId }: GenerateDocumentViewPro
       )}
 
       {/* View states */}
-      {viewState === 'form' && (
-        <GenerateDocumentForm onSubmit={handleSubmit} />
+      {viewState === "form" && <GenerateDocumentForm onSubmit={handleSubmit} />}
+
+      {viewState === "progress" && request && (
+        <GenerationProgress request={request} onCancel={handleReset} />
       )}
 
-      {viewState === 'progress' && request && (
-        <GenerationProgress
-          request={request}
-          onCancel={handleReset}
-        />
-      )}
-
-      {viewState === 'progress' && !request && (
+      {viewState === "progress" && !request && (
         <GenerationProgress
           request={{
-            id: '',
-            prompt: '',
+            id: "",
+            prompt: "",
             intent: null,
-            status: 'pending',
-            progress: { stage: 'gathering', message: 'Starting...', percent: 5 },
+            status: "pending",
+            progress: {
+              stage: "gathering",
+              message: "Starting...",
+              percent: 5,
+            },
             createdAt: new Date().toISOString(),
           }}
           onCancel={handleReset}
         />
       )}
 
-      {viewState === 'result' && document && (
+      {viewState === "result" && document && (
         <DocumentViewer
           document={document}
           onSave={handleSave}

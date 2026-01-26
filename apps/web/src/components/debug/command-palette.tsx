@@ -31,6 +31,95 @@ type SearchPayload = {
   briefs: BriefResult[];
 };
 
+const toISODate = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateQuery = (raw: string) => {
+  const input = raw.trim().toLowerCase();
+  if (!input) return null;
+
+  const now = new Date();
+
+  if (input === "today") {
+    return { label: "Today", date: toISODate(now) };
+  }
+  if (input === "yesterday") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    return { label: "Yesterday", date: toISODate(d) };
+  }
+  if (input === "tomorrow") {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    return { label: "Tomorrow", date: toISODate(d) };
+  }
+
+  const weekMap: Record<string, number> = {
+    sunday: 0,
+    sun: 0,
+    monday: 1,
+    mon: 1,
+    tuesday: 2,
+    tue: 2,
+    wednesday: 3,
+    wed: 3,
+    thursday: 4,
+    thu: 4,
+    friday: 5,
+    fri: 5,
+    saturday: 6,
+    sat: 6,
+  };
+
+  const weekdayMatch = input.match(
+    /^(last|next)\s+(sunday|sun|monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat)$/,
+  );
+  if (weekdayMatch) {
+    const [, dir, day] = weekdayMatch;
+    const target = weekMap[day];
+    const current = now.getDay();
+    const offset =
+      dir === "next"
+        ? (7 - current + target) % 7 || 7
+        : (current + 7 - target) % 7 || 7;
+    const d = new Date(now);
+    d.setDate(d.getDate() + (dir === "next" ? offset : -offset));
+    return { label: `${dir} ${day}`, date: toISODate(d) };
+  }
+
+  const isoMatch = input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const d = new Date(`${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T00:00:00`);
+    if (!Number.isNaN(d.getTime())) {
+      return { label: isoMatch[0], date: toISODate(d) };
+    }
+  }
+
+  const slashMatch = input.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
+  if (slashMatch) {
+    const month = Number(slashMatch[1]);
+    const day = Number(slashMatch[2]);
+    const year = slashMatch[3]
+      ? Number(
+          slashMatch[3].length === 2 ? `20${slashMatch[3]}` : slashMatch[3],
+        )
+      : now.getFullYear();
+    const d = new Date(year, month - 1, day);
+    if (!Number.isNaN(d.getTime())) {
+      return {
+        label: `${month}/${day}/${year}`,
+        date: toISODate(d),
+      };
+    }
+  }
+
+  return null;
+};
+
 export default function CommandPalette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -42,99 +131,6 @@ export default function CommandPalette() {
     briefs: [],
   });
   const [loading, setLoading] = useState(false);
-
-  const toISODate = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const parseDateQuery = (raw: string) => {
-    const input = raw.trim().toLowerCase();
-    if (!input) return null;
-
-    const now = new Date();
-
-    if (input === "today") {
-      return { label: "Today", date: toISODate(now) };
-    }
-    if (input === "yesterday") {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 1);
-      return { label: "Yesterday", date: toISODate(d) };
-    }
-    if (input === "tomorrow") {
-      const d = new Date(now);
-      d.setDate(d.getDate() + 1);
-      return { label: "Tomorrow", date: toISODate(d) };
-    }
-
-    const weekMap: Record<string, number> = {
-      sunday: 0,
-      sun: 0,
-      monday: 1,
-      mon: 1,
-      tuesday: 2,
-      tue: 2,
-      wednesday: 3,
-      wed: 3,
-      thursday: 4,
-      thu: 4,
-      friday: 5,
-      fri: 5,
-      saturday: 6,
-      sat: 6,
-    };
-
-    const weekdayMatch = input.match(
-      /^(last|next)\s+(sunday|sun|monday|mon|tuesday|tue|wednesday|wed|thursday|thu|friday|fri|saturday|sat)$/,
-    );
-    if (weekdayMatch) {
-      const [, dir, day] = weekdayMatch;
-      const target = weekMap[day];
-      const current = now.getDay();
-      const offset =
-        dir === "next"
-          ? (7 - current + target) % 7 || 7
-          : (current + 7 - target) % 7 || 7;
-      const d = new Date(now);
-      d.setDate(d.getDate() + (dir === "next" ? offset : -offset));
-      return { label: `${dir} ${day}`, date: toISODate(d) };
-    }
-
-    const isoMatch = input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (isoMatch) {
-      const d = new Date(
-        `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T00:00:00`,
-      );
-      if (!Number.isNaN(d.getTime())) {
-        return { label: isoMatch[0], date: toISODate(d) };
-      }
-    }
-
-    const slashMatch = input.match(
-      /^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/,
-    );
-    if (slashMatch) {
-      const month = Number(slashMatch[1]);
-      const day = Number(slashMatch[2]);
-      const year = slashMatch[3]
-        ? Number(
-            slashMatch[3].length === 2 ? `20${slashMatch[3]}` : slashMatch[3],
-          )
-        : now.getFullYear();
-      const d = new Date(year, month - 1, day);
-      if (!Number.isNaN(d.getTime())) {
-        return {
-          label: `${month}/${day}/${year}`,
-          date: toISODate(d),
-        };
-      }
-    }
-
-    return null;
-  };
 
   const dateSuggestions = useMemo(() => {
     const parsed = parseDateQuery(query);

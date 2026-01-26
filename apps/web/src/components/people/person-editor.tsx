@@ -46,7 +46,7 @@ export default function PersonEditor({
         setMessage("Saved");
         setTimeout(() => setMessage(null), 2500);
       }
-    } catch (error) {
+    } catch {
       setMessage("Failed to save person details. Please try again.");
     } finally {
       setSaving(false);

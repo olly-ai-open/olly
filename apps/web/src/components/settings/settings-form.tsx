@@ -130,7 +130,7 @@ export default function SettingsForm() {
         } else {
           setMessage("Failed to load settings");
         }
-      } catch (error) {
+      } catch {
         setMessage("Failed to load settings");
       } finally {
       }
@@ -356,7 +356,7 @@ export default function SettingsForm() {
         setMessage(error.error || "Failed to save settings");
         return;
       }
-    } catch (error) {
+    } catch {
       setMessage("Failed to save settings");
       setSaving(false);
       return;
