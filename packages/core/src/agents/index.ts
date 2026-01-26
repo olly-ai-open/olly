@@ -17,3 +17,12 @@ export { DriveTool } from './tools/DriveTool';
 export { MeetingPrepAgent } from './personas/MeetingPrepAgent';
 export { MorningBriefAgent } from './personas/MorningBriefAgent';
 export { EndOfDayBriefAgent } from './personas/EndOfDayBriefAgent';
+export {
+  DocGenAgent,
+  type DocType,
+  type DocGenIntent,
+  type Evidence,
+  type DocSection,
+  type GeneratedDocResult,
+  type ProgressCallback,
+} from './personas/DocGenAgent';

@@ -108,12 +108,6 @@ export default async function ActionItemsPage({
   const renderItems = (list: any[]) => (
     <div className="space-y-3">
       {list.map((ai: any) => {
-        const options = (ai.brief?.people || [])
-          .map((bp: any) => bp.person)
-          .filter(Boolean) as any[];
-        const assigned = (ai.assignees || [])
-          .map((a: any) => a.person)
-          .filter(Boolean) as any[];
         return (
           <ActionItemRow
             key={ai.id}
@@ -128,16 +122,6 @@ export default async function ActionItemsPage({
             dueAt={ai.dueAt ? new Date(ai.dueAt as any).toISOString() : null}
             timeZone={timeZone}
             briefId={ai.briefId || null}
-            assigned={assigned.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              email: p.email,
-            }))}
-            options={options.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              email: p.email,
-            }))}
           />
         );
       })}

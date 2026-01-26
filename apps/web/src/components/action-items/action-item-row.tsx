@@ -3,8 +3,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 
-type Person = { id: string; name?: string | null; email?: string | null };
-
 function toDayKeyInTimeZone(d: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -27,8 +25,6 @@ export default function ActionItemRow({
   dueAt,
   timeZone,
   briefId,
-  assigned,
-  options,
 }: {
   id: string;
   title: string;
@@ -37,8 +33,6 @@ export default function ActionItemRow({
   dueAt?: string | null;
   timeZone: string;
   briefId?: string | null;
-  assigned: Person[];
-  options: Person[];
 }) {
   const [completed, setCompleted] = useState(!!completedAt);
   const [saving, setSaving] = useState(false);

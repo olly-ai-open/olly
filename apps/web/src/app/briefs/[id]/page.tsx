@@ -234,13 +234,6 @@ export default async function BriefDetail({
             <div className="mb-2 text-sm font-medium">All Action Items</div>
             <ul className="space-y-1 text-sm">
               {highlightedActionItems.map((ai: any) => {
-                const assigned = (ai.assignees || [])
-                  .map((a: any) => a.person)
-                  .filter(Boolean) as any[];
-                const options =
-                  ai.brief?.people
-                    ?.map((bp: any) => bp.person)
-                    .filter(Boolean) ?? [];
                 return (
                   <li key={ai.id}>
                     <ActionItemRow
@@ -259,16 +252,6 @@ export default async function BriefDetail({
                       }
                       timeZone={settings.timeZone || "UTC"}
                       briefId={ai.briefId || null}
-                      assigned={assigned.map((p: any) => ({
-                        id: p.id,
-                        name: p.name,
-                        email: p.email,
-                      }))}
-                      options={options.map((p: any) => ({
-                        id: p.id,
-                        name: p.name,
-                        email: p.email,
-                      }))}
                     />
                   </li>
                 );
@@ -282,12 +265,6 @@ export default async function BriefDetail({
               {brief.actionItems
                 .filter((ai: any) => ai?.status !== "deleted")
                 .map((ai: any) => {
-                  const assigned = (ai.assignees || [])
-                    .map((a: any) => a.person)
-                    .filter(Boolean) as any[];
-                  const options = (brief.people || [])
-                    .map((bp: any) => bp.person)
-                    .filter(Boolean) as any[];
                   return (
                     <li key={ai.id}>
                       <ActionItemRow
@@ -306,16 +283,6 @@ export default async function BriefDetail({
                         }
                         timeZone={settings.timeZone || "UTC"}
                         briefId={brief.id}
-                        assigned={assigned.map((p: any) => ({
-                          id: p.id,
-                          name: p.name,
-                          email: p.email,
-                        }))}
-                        options={options.map((p: any) => ({
-                          id: p.id,
-                          name: p.name,
-                          email: p.email,
-                        }))}
                       />
                     </li>
                   );
