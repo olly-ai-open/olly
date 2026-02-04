@@ -77,12 +77,22 @@ export async function generateMorningBriefForUserCore(
     timeZone,
     actionItems: actionItemsForBrief,
   });
-  const fullJson = JSON.parse(rawBrief);
   const parsed = safeParseMorningBriefJSON(rawBrief);
   const morning: MorningBriefJSON = parsed ?? {
     brief_markdown: rawBrief,
     highlighted_action_item_ids: [],
   };
+  // Safely extract sources from parsed JSON (may be null if LLM returned plain text)
+  const sources = (parsed as any)?.sources;
+  const confidence =
+    Array.isArray(sources) && sources.length >= 3
+      ? "high"
+      : Array.isArray(sources) && sources.length > 0
+        ? "medium"
+        : "low";
+  const formattedSources = Array.isArray(sources)
+    ? sources.map((src: any) => `${src.type}: ${src.title} -> ${src.url}`)
+    : [];
 
   const externalId = `morning:${dayISO}`;
   const morningMeeting = await prisma.meeting.upsert({
@@ -109,15 +119,8 @@ export async function generateMorningBriefForUserCore(
         brief_markdown: morning.brief_markdown,
         highlighted_action_item_ids: morning.highlighted_action_item_ids,
       },
-      confidence:
-        fullJson.sources?.length >= 3
-          ? "high"
-          : fullJson.sources?.length > 0
-            ? "medium"
-            : "low",
-      sources: fullJson.sources?.map((src: any) => {
-        return `${src.type}: ${src.title} -> ${src.url}`;
-      }),
+      confidence,
+      sources: formattedSources,
     },
   });
 
