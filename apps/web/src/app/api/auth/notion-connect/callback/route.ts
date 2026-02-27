@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exchangeCodeForToken } from "@/lib/notion";
+import { exchangeNotionOAuthCode } from "@/lib/notion";
+import { auth } from "@/lib/auth";
+import { prisma as db } from "@/lib/prisma";
+
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -8,27 +11,52 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     return NextResponse.redirect(
-      new URL(`/settings?notion_error=${error}`, req.url)
+      new URL(`/integrations?notion_error=${error}`, req.url)
     );
   }
 
   if (!code) {
     return NextResponse.redirect(
-      new URL("/settings?notion_error=no_code", req.url)
+      new URL("/integrations?notion_error=no_code", req.url)
     );
   }
 
   try {
-    const tokenData = await exchangeCodeForToken(code);
-    // Store tokenData in database associated with user
-    // For now, redirect with success
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.redirect(
+        new URL("/integrations?notion_error=not_authenticated", req.url)
+      );
+    }
+
+    const redirectUri = `${process.env.NEXTAUTH_URL?.replace(/\/$/, '')}/api/auth/notion-connect/callback`;
+    const tokenData = await exchangeNotionOAuthCode(code, redirectUri);
+
+    // Save token to database
+    await db.notionCredential.upsert({
+      where: { userId: session.user.id },
+      update: {
+        accessToken: tokenData.access_token,
+        workspaceId: tokenData.workspace_id,
+        workspaceName: tokenData.workspace_name ?? null,
+        botId: tokenData.bot_id,
+      },
+      create: {
+        userId: session.user.id,
+        accessToken: tokenData.access_token,
+        workspaceId: tokenData.workspace_id,
+        workspaceName: tokenData.workspace_name ?? null,
+        botId: tokenData.bot_id,
+      },
+    });
+
     return NextResponse.redirect(
-      new URL("/settings?notion_connected=true", req.url)
+      new URL("/integrations?notion_connected=true", req.url)
     );
   } catch (error: any) {
     console.error("Failed to exchange Notion code:", error);
     return NextResponse.redirect(
-      new URL(`/settings?notion_error=${error.message}", req.url)
+      new URL(`/integrations?notion_error=${error.message}`, req.url)
     );
   }
 }

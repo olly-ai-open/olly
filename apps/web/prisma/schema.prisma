@@ -43,6 +43,7 @@ model User {
   docGenRequests    DocGenRequest[]
   generatedDocs     GeneratedDocument[]
   templateProfiles  TemplateProfile[]
+  notionCredential  NotionCredential?
 }
 
 model Account {
@@ -457,4 +458,19 @@ model TemplateProfile {
   requests       DocGenRequest[]
 
   @@index([userId, docType, isActive])
+}
+
+model NotionCredential {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  accessToken   String   @db.Text
+  workspaceId   String
+  workspaceName String?
+  botId         String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

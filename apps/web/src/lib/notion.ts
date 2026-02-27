@@ -28,3 +28,14 @@ export async function exchangeNotionOAuthCode(code: string, redirectUri: string)
   }
   return await response.json();
 }
+export async function checkNotionHealth(userId: string): Promise<{ connected: boolean }> {
+  try {
+    const { prisma: db } = await import("@/lib/prisma");
+    const credentials = await db.notionCredential.findUnique({
+      where: { userId },
+    });
+    return { connected: !!credentials };
+  } catch {
+    return { connected: false };
+  }
+}
