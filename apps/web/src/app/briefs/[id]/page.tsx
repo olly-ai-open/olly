@@ -7,6 +7,11 @@ import ActionItemRow from "@/components/action-items/action-item-row";
 import MarkdownView from "@/components/briefs/markdown-view";
 import { getUserSettings } from "@/lib/settings";
 import { getBriefForUser } from "@/lib/briefs";
+import {
+  parseMeetingBriefSections,
+  parseOverviewContent,
+  sanitizeBriefMarkdown,
+} from "@/lib/parse-meeting-brief-sections";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,6 +92,18 @@ export default async function BriefDetail({
         .map((x: string) => x.trim())
     : [];
   const isMorningBrief = brief.meeting?.type === "morning";
+  const isEveningBrief = brief.meeting?.type === "evening";
+  const isMeetingBrief = !isMorningBrief && !isEveningBrief;
+
+  // Sanitize markdown once — strips leaked internal IDs like (cm...)
+  const briefMarkdown = contentObj?.brief_markdown
+    ? sanitizeBriefMarkdown(contentObj.brief_markdown)
+    : null;
+
+  const meetingSections =
+    isMeetingBrief && briefMarkdown
+      ? parseMeetingBriefSections(briefMarkdown)
+      : null;
 
   const highlightedActionItems =
     isMorningBrief && highlightedIds.length
@@ -145,24 +162,75 @@ export default async function BriefDetail({
       </div>
 
       <div className="space-y-6">
-        {/* Report (markdown displayed as preformatted text) */}
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          {contentObj?.brief_markdown ? (
-            <MarkdownView
-              markdown={contentObj.brief_markdown}
-              className="prose prose-sm max-w-none"
-            />
-          ) : (
-            <div className="whitespace-pre-wrap text-sm">{text}</div>
-          )}
-        </div>
+        {/* Brief content */}
+        {meetingSections ? (
+          <>
+            {/* Card 1: Meeting Overview */}
+            {meetingSections.overview &&
+              (() => {
+                const ov = parseOverviewContent(meetingSections.overview);
+                return (
+                  <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                    <MarkdownView
+                      markdown={ov.mainContent}
+                      className="prose prose-sm max-w-none"
+                    />
+                    {ov.attendees && (
+                      <details className="mt-3 border-t border-border pt-3">
+                        <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+                          Attendees
+                        </summary>
+                        <div className="mt-2">
+                          <MarkdownView
+                            markdown={ov.attendees}
+                            className="prose prose-sm max-w-none"
+                          />
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                );
+              })()}
+
+            {/* Card 2: Context & Background, Key Points, Talking Points */}
+            {meetingSections.contextAndPoints && (
+              <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                <MarkdownView
+                  markdown={meetingSections.contextAndPoints}
+                  className="prose prose-sm max-w-none"
+                />
+              </div>
+            )}
+
+            {/* Fallback if parsing found no recognized sections */}
+            {!meetingSections.overview && !meetingSections.contextAndPoints && (
+              <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+                <MarkdownView
+                  markdown={meetingSections.fullMarkdown}
+                  className="prose prose-sm max-w-none"
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+            {briefMarkdown ? (
+              <MarkdownView
+                markdown={briefMarkdown}
+                className="prose prose-sm max-w-none"
+              />
+            ) : (
+              <div className="whitespace-pre-wrap text-sm">{text}</div>
+            )}
+          </div>
+        )}
 
         {/* Meeting Goals */}
         {goals.length > 0 && (
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <div className="mb-2 text-sm font-medium">
+            <h2 className="text-xl font-semibold mb-2">
               Goals for this meeting
-            </div>
+            </h2>
             <ul className="list-disc space-y-1 pl-5 text-sm">
               {goals.map((g, i) => (
                 <li key={i}>{g}</li>
