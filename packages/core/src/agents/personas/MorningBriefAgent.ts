@@ -103,7 +103,9 @@ Steps:
 2. Search for recent important emails from the past ${searchTimeframeDays} days that relate to today's meetings or action items
 3. Search for relevant documents in Drive that might be needed for today's meetings
 4. Check Slack for recent important messages or discussions related to today's activities
-5. Synthesize all information into a concise, actionable morning brief
+5. Search Notion pages and documents for any relevant context, goals, or notes related to today's meetings and action items using the notion tool
+6. Synthesize all information into a concise, actionable morning brief
+
 
 Important:
 - Track EVERY individual source (email, document, Slack message, calendar event)
