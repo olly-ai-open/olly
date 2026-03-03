@@ -108,7 +108,8 @@ Steps:
 
 
 Important:
-- Track EVERY individual source (email, document, Slack message, calendar event)
+- You MUST use the notion tool to search for relevant pages and content. Call notion tool with operation 'searchPages' first, then 'searchContent' with relevant keywords.
+- Track EVERY individual source (email, document, Slack message, calendar event, notion page)
 - For each meeting today, identify what preparation is needed
 - Highlight only the MOST important action items that should be addressed today
 - Focus on practical, actionable insights for the day ahead
