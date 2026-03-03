@@ -6,20 +6,14 @@ import { searchNotion, queryNotionDatabase, getNotionPageBlocks, extractPlainTex
  */
 export async function getNotionToken(userId: string): Promise<string | null> {
   const prisma = await getPrisma();
-  
   try {
-    const account = await prisma.account.findFirst({
-      where: {
-        userId,
-        provider: 'notion',
-      },
+    const credential = await prisma.notionCredential.findUnique({
+      where: { userId },
     });
-    
-    if (!account || !account.access_token) {
+    if (!credential || !credential.accessToken) {
       return null;
     }
-    
-    return account.access_token;
+    return credential.accessToken;
   } catch (error) {
     console.error('Error getting Notion token:', error);
     return null;
@@ -114,7 +108,7 @@ export async function searchNotionContent(
 ): Promise<NotionSnippet[]> {
   const token = await getNotionToken(userId);
   if (!token) {
-    return [];
+    return [];e
   }
   
   try {
