@@ -463,7 +463,7 @@ model TemplateProfile {
 model NotionCredential {
   id            String   @id @default(cuid())
   userId        String   @unique
-  accessToken   String   @db.Text
+  accessToken   String   @db.Text /// @encrypted
   workspaceId   String
   workspaceName String?
   botId         String
