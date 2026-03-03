@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { checkGoogleHealth } from "@/lib/google";
 import { checkSlackHealth } from "@/lib/slack";
+import { checkNotionHealth } from "@/lib/notion";
 import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import Sidebar from "@/components/layout/sidebar";
@@ -25,15 +26,14 @@ export default async function IntegrationsPage() {
     );
   }
 
-  // Check Google connection and scope status
-  const [health, slackHealth] = await Promise.all([
+  const [health, slackHealth, notionHealth] = await Promise.all([
     checkGoogleHealth(session.user.id),
     checkSlackHealth(session.user.id),
+    checkNotionHealth(session.user.id),
   ]);
 
   return (
     <>
-      {/* Load Google Picker API */}
       <Script
         src="https://apis.google.com/js/api.js"
         strategy="afterInteractive"
@@ -103,8 +103,6 @@ export default async function IntegrationsPage() {
                         ✓ Gmail access enabled
                       </span>
                     </div>
-
-                    {/* Drive Folder Manager */}
                     <div className="pt-3 border-t border-border">
                       <DriveFolderManager userId={session.user.id} />
                     </div>
@@ -197,6 +195,50 @@ export default async function IntegrationsPage() {
                 </div>
               )}
             </div>
+
+            {/* Notion Integration */}
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm mt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Notion</div>
+                  <div className="text-sm text-muted-foreground">
+                    Access Notion pages and databases for briefs
+                  </div>
+                </div>
+                <div className="text-sm">
+                  {notionHealth.connected ? (
+                    <span className="text-green-600">✓ Connected</span>
+                  ) : (
+                    <span className="text-gray-500">Not Connected</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-4">
+                {!notionHealth.connected && (
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    href="/api/auth/notion-connect"
+                  >
+                    Connect Notion
+                  </Link>
+                )}
+              </div>
+
+              {notionHealth.connected && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <form action="/api/auth/notion-disconnect" method="post">
+                    <button
+                      type="submit"
+                      className="bg-background rounded-md border border-border px-3 py-1 text-sm hover:bg-accent cursor-pointer"
+                    >
+                      Disconnect Notion
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </main>

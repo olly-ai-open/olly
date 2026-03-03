@@ -50,6 +50,8 @@ PARAMETERS=(
     "/olly/$STAGE/LANGFUSE_SECRET_KEY"
     "/olly/$STAGE/LANGFUSE_PUBLIC_KEY"
     "/olly/$STAGE/LANGFUSE_BASE_URL"
+    "/olly/$STAGE/NOTION_CLIENT_ID"
+    "/olly/$STAGE/NOTION_CLIENT_SECRET"
 )
 
 # Create temporary file for parameters
