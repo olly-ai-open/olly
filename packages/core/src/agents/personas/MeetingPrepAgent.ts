@@ -1,3 +1,4 @@
+import { NotionTool } from '../tools/NotionTool';
 import { BaseAgent, AgentConfig } from '../base/Agent';
 import { CalendarTool } from '../tools/CalendarTool';
 import { EmailTool } from '../tools/EmailTool';
@@ -21,12 +22,14 @@ export class MeetingPrepAgent extends BaseAgent {
       description: 'Prepares comprehensive briefs for upcoming meetings by gathering context from multiple sources',
       ...config,
       tools: [
-        new CalendarTool(),
-        new EmailTool(),
-        new DriveTool(),
-        new SlackTool(),
-        ...(config?.tools || []),
-      ],
+    	new CalendarTool(),
+    	new EmailTool(),
+    	new DriveTool(),
+    	new SlackTool(),
+    	new NotionTool(),
+    	...(config?.tools || []),
+       ],
+
       systemPrompt: `${config?.systemPrompt || MEETING_BRIEF_PROMPT}}\n\nStrict output format:
         - Return ONLY a single MINIFIED JSON object with these keys:
         {

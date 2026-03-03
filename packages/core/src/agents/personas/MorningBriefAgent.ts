@@ -1,3 +1,4 @@
+import { NotionTool } from '../tools/NotionTool';
 import { BaseAgent, AgentConfig } from '../base/Agent';
 import { CalendarTool } from '../tools/CalendarTool';
 import { EmailTool } from '../tools/EmailTool';
@@ -25,6 +26,7 @@ export class MorningBriefAgent extends BaseAgent {
         new EmailTool(),
         new DriveTool(),
         new SlackTool(),
+	new NotionTool(),
         ...(config?.tools || []),
       ],
       systemPrompt: `${config?.systemPrompt || MORNING_BRIEF_PROMPT}\n\nStrict output format:

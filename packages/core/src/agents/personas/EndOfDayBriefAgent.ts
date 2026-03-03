@@ -1,3 +1,4 @@
+import { NotionTool } from '../tools/NotionTool';
 import { BaseAgent, AgentConfig } from '../base/Agent';
 import { EmailTool } from '../tools/EmailTool';
 import { DriveTool } from '../tools/DriveTool';
@@ -176,6 +177,7 @@ export class EndOfDayBriefAgent extends BaseAgent {
         new EmailTool(),
         new DriveTool(),
         new SlackTool(),
+	new NotionTool(),
         ...(config?.tools || []),
       ],
       systemPrompt: `${config?.systemPrompt || END_OF_DAY_BRIEF_PROMPT}\n\nStrict output format:
