@@ -77,7 +77,7 @@ export async function fetchRecentNotionPages(
     const snippets: NotionSnippet[] = [];
     
     for (const item of results.results) {
-      if (item.object !== 'page') continue;
+      if (!('object' in item) || item.object !== 'page') continue;
       
       const titleProp = (item as any).properties?.title || (item as any).properties?.Name;
       const title = titleProp?.title ? extractPlainText(titleProp.title) : 'Untitled';
@@ -123,16 +123,16 @@ export async function searchNotionContent(
     const snippets: NotionSnippet[] = [];
     
     for (const item of results.results) {
-      const isPage = item.object === 'page';
+      const isPage = ('object' in item) && item.object === 'page';
       const title = isPage
         ? extractPlainText((item as any).properties?.title?.title || [])
         : extractPlainText((item as any).title || []);
-      
+
       snippets.push({
         id: item.id,
         title: title || 'Untitled',
         url: item.url,
-        lastEdited: item.last_edited_time || item.created_time,
+        lastEdited: item.last_edited_time || (isPage ? (item as any).created_time : undefined),
         summary: '',
         type: isPage ? 'page' : 'database',
         sourceRef: { provider: 'notion', id: item.id },
