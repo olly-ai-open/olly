@@ -46,7 +46,7 @@ export async function searchNotion(
   }
   
   if (filter) {
-    body.filter = filter;
+    body.filter = { value: filter.value, property: 'object' };
   }
   
   const resp = await fetch(url, {
