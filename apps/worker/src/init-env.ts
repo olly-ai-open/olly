@@ -66,6 +66,10 @@ export async function initializeEnvironment(): Promise<void> {
       "LANGFUSE_PUBLIC_KEY",
       "LANGFUSE_BASE_URL",
 
+      // Notion
+      "NOTION_CLIENT_ID",
+      "NOTION_CLIENT_SECRET",
+
     ].map(key => `/olly/${stage}/${key}`);
     
     const allParameters = await fetchSsmParameters({
