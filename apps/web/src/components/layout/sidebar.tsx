@@ -22,11 +22,13 @@ export default async function Sidebar() {
     calendar: boolean;
     drive: boolean;
     slack: boolean;
+    notion: boolean;
   } = {
     gmail: false,
     calendar: false,
     drive: false,
     slack: false,
+    notion: false,
   };
   if (userId) {
     try {
@@ -42,15 +44,19 @@ export default async function Sidebar() {
       const slackAccount = await prisma.account.findFirst({
         where: { userId, provider: "slack" },
       });
+      const notionCredential = await prisma.notionCredential.findUnique({
+    	where: { userId },
+      });
       connected = {
         gmail: scope.includes("gmail"),
         calendar: scope.includes("calendar"),
         drive: scope.includes("drive"),
         slack: !!slackAccount?.access_token,
+	notion: !!notionCredential,
       };
     } catch {
       // DB unavailable — keep sidebar rendering with defaults
-      connected = { gmail: false, calendar: false, drive: false, slack: false };
+      connected = { gmail: false, calendar: false, drive: false, slack: false, notion: false };
     }
   }
 
@@ -110,6 +116,10 @@ export default async function Sidebar() {
             <div className="flex items-center gap-2">
               {dot(connected.slack)} Slack
             </div>
+	    <div className="flex items-center gap-2">
+    	      {dot(connected.notion)} Notion
+	    </div>
+
           </div>
         </div>
       </div>
