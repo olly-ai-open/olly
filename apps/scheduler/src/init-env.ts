@@ -30,6 +30,10 @@ export async function initializeEnvironment(): Promise<void> {
       `SUPABASE_ANON_KEY`,
       `SUPABASE_SERVICE_KEY`,
 
+      // Notion
+      "NOTION_CLIENT_ID",
+      "NOTION_CLIENT_SECRET",
+
     ].map(key => `/olly/${stage}/${key}`);
     
     const allParameters = await fetchSsmParameters({
