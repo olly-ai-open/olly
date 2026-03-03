@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { BaseTool, ToolContext } from '../base/Tool';
 import { getNotionToken } from '../../notion';
-import { searchNotion, queryNotionDatabase, getNotionPageBlocks, extractPlainText } from '../../notion-http';
+import { searchNotion, queryNotionDatabase, getNotionPageBlocks, extractPlainText, NotionPage, NotionDatabase } from '../../notion-http';
 
 const NotionToolInput = z.object({
   operation: z.enum(['searchPages', 'searchContent', 'queryDatabase', 'getPageContent']),
@@ -55,7 +55,10 @@ export class NotionTool extends BaseTool<NotionToolInputType, any> {
   private async searchPages(token: string, query?: string, maxResults?: number, timeframe?: { startDate?: string }) {
     try {
       const results = await searchNotion(token, query, { value: 'page' }, maxResults || 10);
-      let pages = results.results.filter(r => r.object === 'page');
+      let pages = results.results.filter(
+        (r): r is NotionPage =>
+          typeof r === 'object' && 'object' in r && (r as NotionPage).object === 'page'
+      );
       if (timeframe?.startDate) {
         const sinceDate = new Date(timeframe.startDate);
         pages = pages.filter(p => new Date(p.last_edited_time) >= sinceDate);
@@ -73,7 +76,7 @@ export class NotionTool extends BaseTool<NotionToolInputType, any> {
       return {
         results: results.results.map(item => ({
           id: item.id,
-          type: item.object,
+          type: 'object' in item ? item.object : undefined,
           title: this.extractTitle(item),
           url: item.url,
           last_edited: item.last_edited_time,
@@ -126,7 +129,7 @@ export class NotionTool extends BaseTool<NotionToolInputType, any> {
   }
   
   private extractTitle(item: any): string {
-    if (item.object === 'page') {
+    if ('object' in item && item.object === 'page') {
       const titleProp = item.properties?.title || item.properties?.Name;
       return titleProp?.title ? extractPlainText(titleProp.title) : 'Untitled';
     } else {
