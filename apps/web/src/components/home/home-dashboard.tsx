@@ -476,6 +476,29 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           </div>
         )}
 
+{/* Show a notice if user hasn't connected Notion */}
+{userId && !(await prisma.notionCredential.findUnique({ where: { userId } })) && (
+  <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+    <div className="flex items-start gap-3">
+      <span className="text-blue-600">📝</span>
+      <div className="flex-1">
+        <div className="font-medium text-blue-900">
+          Connect Notion to enrich your briefs
+        </div>
+        <div className="mt-1 text-sm text-blue-700">
+          Connect your Notion workspace to include relevant notes and documents in your meeting briefs.
+        </div>
+        <Link
+          href="/integrations"
+          className="mt-3 inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Connect Notion →
+        </Link>
+      </div>
+    </div>
+  </div>
+)}
+
         <div className="grid grid-cols-1 gap-6">
           {userId ? (
             meetings.length ? (
