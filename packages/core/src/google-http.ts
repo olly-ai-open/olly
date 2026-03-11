@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { getPrisma } from "./prisma-lambda";
+import { getPrisma } from "./prisma-server";
 
 export type GoogleAccountLike = {
   access_token: string | null;

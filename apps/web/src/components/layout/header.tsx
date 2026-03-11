@@ -8,7 +8,6 @@ import ThemeToggle from "@/components/layout/theme-toggle";
 import MobileNav from "@/components/layout/mobile-nav";
 import CommandPalette from "@/components/debug/command-palette";
 import Image from "next/image";
-import mascot from "@/assets/olly-mascot.png";
 
 export default async function Header() {
   noStore();
@@ -62,8 +61,10 @@ export default async function Header() {
           className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-1 text-lg font-semibold text-primary shadow-card hover:bg-muted"
         >
           <Image
-            src={mascot}
+            src="/olly-mascot.png"
             alt="Olly logo"
+            width={28}
+            height={28}
             className="h-7 w-7 rounded-full"
             priority
           />

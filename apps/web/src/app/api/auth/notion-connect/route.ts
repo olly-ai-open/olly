@@ -12,6 +12,9 @@ export async function GET() {
     return NextResponse.redirect(url);
   } catch (error: any) {
     console.error("Failed to start Notion OAuth:", error);
-    return NextResponse.json({ error: error?.message || "notion_oauth_error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error?.message || "notion_oauth_error" },
+      { status: 500 },
+    );
   }
 }

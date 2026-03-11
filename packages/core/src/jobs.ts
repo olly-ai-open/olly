@@ -1,4 +1,5 @@
 import type { Job, PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { generateMeetingBriefForEventCore } from "./core/meetingBriefs-core";
 import { generateMorningBriefForUserCore } from "./core/morningBriefs-core";
 import { generateEndOfDayBriefForUserCore } from "./core/endOfDayBriefs-core";
@@ -12,7 +13,7 @@ import {
   listEventsInRangeWithToken,
   getEventDetailsWithToken,
 } from "./google-http";
-import { getPrisma } from "./prisma-lambda";
+import { getPrisma } from "./prisma-server";
 import {
   normalizeIgnorePatterns,
   shouldIgnoreEventByTitle,
@@ -31,46 +32,210 @@ export interface RunJobResult {
   jobId: string;
   status: "DONE" | "FAILED" | "SKIPPED";
   error?: string;
+  retried?: boolean;
 }
+
+export interface ClaimDueJobsOptions {
+  limit?: number;
+  now?: Date;
+  lockTtlMs?: number;
+}
+
+const DEFAULT_LOCK_TTL_MS = 10 * 60 * 1000;
+const RETRY_BACKOFF_MINUTES = [1, 5, 15, 60] as const;
 
 export async function runJobById(jobId: string): Promise<RunJobResult> {
   const prisma = await getPrisma();
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
-  if (!job) {
-    return { jobId, status: "SKIPPED", error: "job_not_found" };
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - DEFAULT_LOCK_TTL_MS);
+  const lockToken = randomUUID();
+
+  const claimed = await prisma.job.updateMany({
+    where: {
+      id: jobId,
+      status: { in: ["PENDING", "QUEUED"] },
+      OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }],
+    } as any,
+    data: {
+      status: "RUNNING",
+      attempts: { increment: 1 },
+      lockedAt: now,
+      lockToken,
+    } as any,
+  });
+
+  if (claimed.count !== 1) {
+    return { jobId, status: "SKIPPED", error: "job_not_runnable" };
   }
 
-  if (job.status !== "PENDING" && job.status !== "QUEUED") {
-    return { jobId, status: "SKIPPED", error: "job_not_runnable" };
+  const job = await prisma.job.findUnique({ where: { id: jobId } });
+  if (!job || job.lockToken !== lockToken) {
+    return { jobId, status: "SKIPPED", error: "job_not_claimed" };
+  }
+
+  return runClaimedJob(prisma, job);
+}
+
+export async function claimDueJobs(
+  prisma: PrismaClient,
+  options: ClaimDueJobsOptions = {},
+): Promise<Job[]> {
+  const limit = options.limit ?? 25;
+  const now = options.now ?? new Date();
+  const lockTtlMs = options.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
+  const staleBefore = new Date(now.getTime() - lockTtlMs);
+
+  const candidates = await prisma.job.findMany({
+    where: {
+      status: { in: ["PENDING", "QUEUED"] },
+      AND: [
+        { OR: [{ runAt: null }, { runAt: { lte: now } }] },
+        { OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }] },
+      ],
+    } as any,
+    orderBy: [{ runAt: "asc" }, { createdAt: "asc" }],
+    take: limit,
+  });
+
+  const claimed: Job[] = [];
+  for (const job of candidates) {
+    const maxAttempts = Math.max(1, job.maxAttempts ?? 5);
+    if (job.attempts >= maxAttempts) {
+      await prisma.job.updateMany({
+        where: { id: job.id, status: { in: ["PENDING", "QUEUED"] } },
+        data: {
+          status: "FAILED",
+          lastError: "max_attempts_exceeded",
+          lockedAt: null,
+          lockToken: null,
+        } as any,
+      });
+      continue;
+    }
+
+    const lockToken = randomUUID();
+    const update = await prisma.job.updateMany({
+      where: {
+        id: job.id,
+        status: { in: ["PENDING", "QUEUED"] },
+        OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }],
+      } as any,
+      data: {
+        status: "RUNNING",
+        attempts: { increment: 1 },
+        lockedAt: now,
+        lockToken,
+      } as any,
+    });
+
+    if (update.count !== 1) continue;
+    const locked = await prisma.job.findUnique({
+      where: { id: job.id },
+    });
+    if (locked && locked.lockToken === lockToken) {
+      claimed.push(locked);
+    }
+  }
+
+  return claimed;
+}
+
+export async function runClaimedJob(
+  prisma: PrismaClient,
+  job: Job,
+): Promise<RunJobResult> {
+  if (job.status !== "RUNNING" || !job.lockToken) {
+    return { jobId: job.id, status: "SKIPPED", error: "job_not_claimed" };
   }
 
   let result: RunJobResult;
   try {
-    await prisma.job.update({
-      where: { id: job.id },
-      data: { status: "RUNNING", attempts: job.attempts + 1 },
-    });
-
     await dispatchJob(prisma, job);
-
-    await prisma.job.update({
-      where: { id: job.id },
-      data: { status: "DONE", lastError: null },
+    await finalizeJob(prisma, job.id, job.lockToken, {
+      status: "DONE",
     });
-
     result = { jobId: job.id, status: "DONE" };
   } catch (err: any) {
     const message = err?.message || "unknown_error";
-    await prisma.job.update({
-      where: { id: job.id },
-      data: { status: "FAILED", lastError: message },
-    });
-
-    result = { jobId: job.id, status: "FAILED", error: message };
+    result = await rescheduleFailedJob(prisma, job.id, job.lockToken, message);
   } finally {
     await flushLangfuse();
   }
+
   return result;
+}
+
+export async function finalizeJob(
+  prisma: PrismaClient,
+  jobId: string,
+  lockToken: string,
+  result: { status: "DONE" },
+): Promise<void> {
+  if (result.status !== "DONE") return;
+  await prisma.job.updateMany({
+    where: {
+      id: jobId,
+      status: "RUNNING",
+      lockToken,
+    } as any,
+    data: {
+      status: "DONE",
+      lastError: null,
+      lockedAt: null,
+      lockToken: null,
+    } as any,
+  });
+}
+
+export async function rescheduleFailedJob(
+  prisma: PrismaClient,
+  jobId: string,
+  lockToken: string,
+  error: string,
+): Promise<RunJobResult> {
+  const current = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { attempts: true, maxAttempts: true },
+  });
+
+  const attempts = current?.attempts ?? 1;
+  const maxAttempts = Math.max(1, current?.maxAttempts ?? 5);
+  if (attempts >= maxAttempts) {
+    await prisma.job.updateMany({
+      where: { id: jobId, status: "RUNNING", lockToken } as any,
+      data: {
+        status: "FAILED",
+        lastError: error,
+        lockedAt: null,
+        lockToken: null,
+      } as any,
+    });
+    return { jobId, status: "FAILED", error };
+  }
+
+  const nextRunAt = new Date(
+    Date.now() + getRetryDelayMs(attempts),
+  );
+  await prisma.job.updateMany({
+    where: { id: jobId, status: "RUNNING", lockToken } as any,
+    data: {
+      status: "PENDING",
+      runAt: nextRunAt,
+      lastError: error,
+      lockedAt: null,
+      lockToken: null,
+    } as any,
+  });
+
+  return { jobId, status: "SKIPPED", error, retried: true };
+}
+
+function getRetryDelayMs(attempts: number): number {
+  const index = Math.min(
+    RETRY_BACKOFF_MINUTES.length - 1,
+    Math.max(0, attempts - 1),
+  );
+  return RETRY_BACKOFF_MINUTES[index] * 60 * 1000;
 }
 
 async function dispatchJob(

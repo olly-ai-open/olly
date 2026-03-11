@@ -1,4 +1,4 @@
-import { getPrisma } from './prisma-lambda';
+import { getPrisma } from './prisma-server';
 import { searchNotion, queryNotionDatabase, getNotionPageBlocks, extractPlainText } from './notion-http';
 
 /**
@@ -6,14 +6,20 @@ import { searchNotion, queryNotionDatabase, getNotionPageBlocks, extractPlainTex
  */
 export async function getNotionToken(userId: string): Promise<string | null> {
   const prisma = await getPrisma();
+  
   try {
-    const credential = await prisma.notionCredential.findUnique({
-      where: { userId },
+    const account = await prisma.account.findFirst({
+      where: {
+        userId,
+        provider: 'notion',
+      },
     });
-    if (!credential || !credential.accessToken) {
+    
+    if (!account || !account.access_token) {
       return null;
     }
-    return credential.accessToken;
+    
+    return account.access_token;
   } catch (error) {
     console.error('Error getting Notion token:', error);
     return null;
@@ -108,7 +114,7 @@ export async function searchNotionContent(
 ): Promise<NotionSnippet[]> {
   const token = await getNotionToken(userId);
   if (!token) {
-    return [];e
+    return [];
   }
   
   try {

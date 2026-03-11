@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 interface Progress {
   stage: string;
@@ -21,10 +21,10 @@ interface GenerationProgressProps {
 }
 
 const STAGES = [
-  { key: 'gathering', label: 'Gathering information', icon: '🔍' },
-  { key: 'analyzing', label: 'Analyzing findings', icon: '🔬' },
-  { key: 'synthesizing', label: 'Synthesizing document', icon: '✍️' },
-  { key: 'creating', label: 'Finalizing', icon: '📄' },
+  { key: "gathering", label: "Gathering information", icon: "🔍" },
+  { key: "analyzing", label: "Analyzing findings", icon: "🔬" },
+  { key: "synthesizing", label: "Synthesizing document", icon: "✍️" },
+  { key: "creating", label: "Finalizing", icon: "📄" },
 ];
 
 function getStageIndex(status: string): number {
@@ -36,7 +36,11 @@ export default function GenerationProgress({
   request,
   onCancel,
 }: GenerationProgressProps) {
-  const progress = request.progress || { stage: 'gathering', message: 'Starting...', percent: 5 };
+  const progress = request.progress || {
+    stage: "gathering",
+    message: "Starting...",
+    percent: 5,
+  };
   const currentStageIndex = getStageIndex(progress.stage);
 
   return (
@@ -74,19 +78,19 @@ export default function GenerationProgress({
             <div
               key={stage.key}
               className={`flex flex-col items-center ${
-                isPending ? 'opacity-40' : ''
+                isPending ? "opacity-40" : ""
               }`}
             >
               <div
                 className={`mb-2 flex h-10 w-10 items-center justify-center rounded-full text-lg ${
                   isCompleted
-                    ? 'bg-success/20 text-success'
+                    ? "bg-success/20 text-success"
                     : isCurrent
-                      ? 'animate-pulse bg-primary/20 text-primary'
-                      : 'bg-border text-muted-foreground'
+                      ? "animate-pulse bg-primary/20 text-primary"
+                      : "bg-border text-muted-foreground"
                 }`}
               >
-                {isCompleted ? '✓' : stage.icon}
+                {isCompleted ? "✓" : stage.icon}
               </div>
               <span className="text-center text-xs font-medium">
                 {stage.label}

@@ -21,6 +21,5 @@ async function waitForFile(file, timeoutMs = 30000) {
 
 await waitForFile(target, 30000)
 
-const proc = spawn('pnpm', ['typecheck:watch'], { stdio: 'inherit', shell: true })
+const proc = spawn('npm', ['run', 'typecheck:watch'], { stdio: 'inherit', shell: true })
 proc.on('exit', (code) => process.exit(code ?? 0))
-

@@ -140,7 +140,8 @@ export function parseOverviewContent(overviewMarkdown: string): ParsedOverview {
 
   return {
     mainContent: mainLines.join("\n").trim(),
-    attendees: attendeeLines.length > 0 ? attendeeLines.join("\n").trim() : null,
+    attendees:
+      attendeeLines.length > 0 ? attendeeLines.join("\n").trim() : null,
   };
 }
 
@@ -173,7 +174,8 @@ export function parseMeetingBriefSections(
 
   return {
     overview: overviewParts.length > 0 ? overviewParts.join("\n\n") : null,
-    contextAndPoints: contextParts.length > 0 ? contextParts.join("\n\n") : null,
+    contextAndPoints:
+      contextParts.length > 0 ? contextParts.join("\n\n") : null,
     fullMarkdown: markdown,
   };
 }

@@ -6,7 +6,9 @@ export async function POST() {
   const session = await auth();
 
   if (!session?.user?.id) {
-    return NextResponse.redirect(new URL("/integrations", process.env.NEXTAUTH_URL!));
+    return NextResponse.redirect(
+      new URL("/integrations", process.env.NEXTAUTH_URL!),
+    );
   }
 
   try {
@@ -15,9 +17,16 @@ export async function POST() {
       where: { userId: session.user.id },
     });
 
-    return NextResponse.redirect(new URL("/integrations", process.env.NEXTAUTH_URL!));
+    return NextResponse.redirect(
+      new URL("/integrations", process.env.NEXTAUTH_URL!),
+    );
   } catch (error: any) {
     console.error("Failed to disconnect Notion:", error);
-    return NextResponse.redirect(new URL("/integrations?notion_error=disconnect_failed", process.env.NEXTAUTH_URL!));
+    return NextResponse.redirect(
+      new URL(
+        "/integrations?notion_error=disconnect_failed",
+        process.env.NEXTAUTH_URL!,
+      ),
+    );
   }
 }

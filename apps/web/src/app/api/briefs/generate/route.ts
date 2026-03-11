@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { flushLangfuse, sendBriefReadyWebPush } from "@olly/core";
+import { sendBriefReadyWebPush } from "@olly/core";
+import { flushLangfuse } from "@olly/core/src/telemetry/langfuse";
 import { getUserSettings } from "@/lib/settings";
 import { generateMeetingBriefForEvent } from "@/lib/meetingBriefs";
 

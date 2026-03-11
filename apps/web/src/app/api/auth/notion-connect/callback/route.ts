@@ -3,7 +3,6 @@ import { exchangeNotionOAuthCode } from "@/lib/notion";
 import { auth } from "@/lib/auth";
 import { prisma as db } from "@/lib/prisma";
 
-
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const code = searchParams.get("code");
@@ -11,13 +10,13 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     return NextResponse.redirect(
-      new URL(`/integrations?notion_error=${error}`, req.url)
+      new URL(`/integrations?notion_error=${error}`, req.url),
     );
   }
 
   if (!code) {
     return NextResponse.redirect(
-      new URL("/integrations?notion_error=no_code", req.url)
+      new URL("/integrations?notion_error=no_code", req.url),
     );
   }
 
@@ -25,11 +24,11 @@ export async function GET(req: NextRequest) {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.redirect(
-        new URL("/integrations?notion_error=not_authenticated", req.url)
+        new URL("/integrations?notion_error=not_authenticated", req.url),
       );
     }
 
-    const redirectUri = `${process.env.NEXTAUTH_URL?.replace(/\/$/, '')}/api/auth/notion-connect/callback`;
+    const redirectUri = `${process.env.NEXTAUTH_URL?.replace(/\/$/, "")}/api/auth/notion-connect/callback`;
     const tokenData = await exchangeNotionOAuthCode(code, redirectUri);
 
     // Save token to database
@@ -51,12 +50,12 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.redirect(
-      new URL("/integrations?notion_connected=true", req.url)
+      new URL("/integrations?notion_connected=true", req.url),
     );
   } catch (error: any) {
     console.error("Failed to exchange Notion code:", error);
     return NextResponse.redirect(
-      new URL(`/integrations?notion_error=${error.message}`, req.url)
+      new URL(`/integrations?notion_error=${error.message}`, req.url),
     );
   }
 }

@@ -1,5 +1,5 @@
 import { WebClient } from '@slack/web-api';
-import { getPrisma } from './prisma-lambda';
+import { getPrisma } from './prisma-server';
 
 /**
  * Get a Slack client configured for a specific user

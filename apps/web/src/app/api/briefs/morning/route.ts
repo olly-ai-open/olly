@@ -6,12 +6,9 @@ import {
   listEventsByDayWithToken,
 } from "@/lib/google";
 import { getUserSettings } from "@/lib/settings";
-import {
-  didUserDeclineEvent,
-  sendBriefReadyWebPush,
-  MorningBriefAgent,
-  flushLangfuse,
-} from "@olly/core";
+import { didUserDeclineEvent, sendBriefReadyWebPush } from "@olly/core";
+import { flushLangfuse } from "@olly/core/src/telemetry/langfuse";
+import { MorningBriefAgent } from "@olly/core/src/agents/personas/MorningBriefAgent";
 import { generateMeetingBriefForEvent } from "@/lib/meetingBriefs";
 import { safeParseMorningBriefJSON, type MorningBriefJSON } from "@olly/core";
 

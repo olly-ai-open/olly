@@ -2,21 +2,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
-
-function toDayKeyInTimeZone(d: Date, timeZone: string): string {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = fmt.formatToParts(d);
-  const obj: Record<string, string> = {};
-  for (const p of parts) {
-    if (p.type !== "literal") obj[p.type] = p.value;
-  }
-  return `${obj.year}-${obj.month}-${obj.day}`;
-}
+import {
+  buildGoogleCalendarTemplateUrl,
+  toDayKeyInTimeZone,
+} from "@/lib/calendar-links";
 
 export default function ActionItemRow({
   id,
@@ -125,6 +114,13 @@ export default function ActionItemRow({
         timeZone,
       }).format(new Date(dueAt))
     : null;
+  const calendarHref = dueAt
+    ? buildGoogleCalendarTemplateUrl({
+        text: title,
+        details: title,
+        allDayDate: toDayKeyInTimeZone(new Date(dueAt), timeZone),
+      })
+    : null;
 
   return (
     <div
@@ -171,6 +167,16 @@ export default function ActionItemRow({
                 >
                   Delete
                 </button>
+                {calendarHref ? (
+                  <a
+                    href={calendarHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ml-2 underline"
+                  >
+                    Add to calendar
+                  </a>
+                ) : null}
                 {briefId ? (
                   <>
                     {" • "}

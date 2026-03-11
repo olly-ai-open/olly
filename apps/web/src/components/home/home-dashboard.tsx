@@ -23,6 +23,10 @@ import { getUserSettings } from "@/lib/settings";
 import GenerateMorningBriefButton from "@/components/briefs/generate-morning-brief-button";
 import GenerateEveningBriefButton from "@/components/briefs/generate-evening-brief-button";
 import BriefActionPill from "@/components/briefs/brief-action-pill";
+import {
+  buildGoogleCalendarTemplateUrl,
+  toDayKeyInTimeZone,
+} from "@/lib/calendar-links";
 
 function formatMinutesHuman(mins: number) {
   if (!mins || mins < 0) return "0m";
@@ -236,7 +240,10 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           const token = await getAccessTokenFromAccount(account);
           return listEventsByDayWithToken(token, targetDay, timeZone);
         } catch (error: any) {
-          console.error("Failed to load calendar events:", error?.message || error);
+          console.error(
+            "Failed to load calendar events:",
+            error?.message || error,
+          );
           return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
         }
       })()
@@ -476,29 +483,6 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           </div>
         )}
 
-{/* Show a notice if user hasn't connected Notion */}
-{userId && !(await prisma.notionCredential.findUnique({ where: { userId } })) && (
-  <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
-    <div className="flex items-start gap-3">
-      <span className="text-blue-600">📝</span>
-      <div className="flex-1">
-        <div className="font-medium text-blue-900">
-          Connect Notion to enrich your briefs
-        </div>
-        <div className="mt-1 text-sm text-blue-700">
-          Connect your Notion workspace to include relevant notes and documents in your meeting briefs.
-        </div>
-        <Link
-          href="/integrations"
-          className="mt-3 inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Connect Notion →
-        </Link>
-      </div>
-    </div>
-  </div>
-)}
-
         <div className="grid grid-cols-1 gap-6">
           {userId ? (
             meetings.length ? (
@@ -667,6 +651,11 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                   const due = item.dueAt ? new Date(item.dueAt) : null;
                   if (!due) return null;
                   const tone = actionTone(due);
+                  const calendarHref = buildGoogleCalendarTemplateUrl({
+                    text: item.title,
+                    details: item.title,
+                    allDayDate: toDayKeyInTimeZone(due, timeZone),
+                  });
                   return (
                     <div
                       key={item.id}
@@ -684,6 +673,14 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                             <div className="text-xs text-muted-foreground">
                               {formatDueLabel(due)}
                             </div>
+                            <a
+                              href={calendarHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 inline-block text-muted-foreground text-xs font-medium underline"
+                            >
+                              Add to calendar
+                            </a>
                           </div>
                         </div>
                       </div>

@@ -21,7 +21,7 @@ export async function getPrisma(): Promise<ExtendedPrismaClient> {
   if (!prismaPromise) {
     prismaPromise = (async () => {
       return createPrismaClient(
-        process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL ||'',
+        process.env.DATABASE_URL ||'',
         process.env.PRISMA_FIELD_ENCRYPTION_KEY || '',
       );
     })();

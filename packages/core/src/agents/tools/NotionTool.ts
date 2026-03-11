@@ -29,8 +29,6 @@ export class NotionTool extends BaseTool<NotionToolInputType, any> {
       throw new Error('Notion not connected for user');
     }
     
-    console.log('[NotionTool] Token found, executing operation:', operation);
-
     switch (operation) {
       case 'searchPages':
         return this.searchPages(token, query, maxResults, timeframe);

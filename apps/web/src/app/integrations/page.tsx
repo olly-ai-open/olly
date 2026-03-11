@@ -238,7 +238,6 @@ export default async function IntegrationsPage() {
                 </div>
               )}
             </div>
-
           </div>
         </div>
       </main>

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 interface Citation {
   evidenceId: string;
@@ -13,15 +13,15 @@ interface CitationsPanelProps {
 }
 
 const SOURCE_ICONS: Record<string, string> = {
-  email: '📧',
-  drive: '📁',
-  slack: '💬',
+  email: "📧",
+  drive: "📁",
+  slack: "💬",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
-  email: 'Email',
-  drive: 'Google Drive',
-  slack: 'Slack',
+  email: "Email",
+  drive: "Google Drive",
+  slack: "Slack",
 };
 
 export default function CitationsPanel({ citations }: CitationsPanelProps) {
@@ -35,7 +35,7 @@ export default function CitationsPanel({ citations }: CitationsPanelProps) {
       acc[type].push(citation);
       return acc;
     },
-    {} as Record<string, Citation[]>
+    {} as Record<string, Citation[]>,
   );
 
   return (
@@ -46,7 +46,7 @@ export default function CitationsPanel({ citations }: CitationsPanelProps) {
         {Object.entries(grouped).map(([sourceType, items]) => (
           <div key={sourceType}>
             <h5 className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <span>{SOURCE_ICONS[sourceType] || '📄'}</span>
+              <span>{SOURCE_ICONS[sourceType] || "📄"}</span>
               <span>{SOURCE_LABELS[sourceType] || sourceType}</span>
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
                 {items.length}
@@ -59,7 +59,9 @@ export default function CitationsPanel({ citations }: CitationsPanelProps) {
                   className="rounded-md border border-border/50 bg-muted/30 p-3"
                 >
                   <div className="mb-1 flex items-start justify-between gap-2">
-                    <span className="text-sm font-medium">{citation.title}</span>
+                    <span className="text-sm font-medium">
+                      {citation.title}
+                    </span>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {citation.evidenceId}
                     </span>

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateEndOfDayBriefForUser } from "@/lib/endOfDayBriefs";
 import { prisma } from "@/lib/prisma";
-import { flushLangfuse, sendBriefReadyWebPush } from "@olly/core";
+import { sendBriefReadyWebPush } from "@olly/core";
+import { flushLangfuse } from "@olly/core/src/telemetry/langfuse";
 
 export async function POST(req: Request) {
   const session = await auth();

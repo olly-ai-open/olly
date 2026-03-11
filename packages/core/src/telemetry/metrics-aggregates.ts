@@ -1,4 +1,4 @@
-import { getPrisma } from "../prisma-lambda";
+import { getPrisma } from "../prisma-server";
 
 type AgentAggregateInput = {
   agentName: string;
@@ -19,7 +19,7 @@ type ToolAggregateInput = {
 };
 
 function hasDatabase(): boolean {
-  return Boolean(process.env.PRISMA_DATABASE_URL || process.env.DATABASE_URL);
+  return Boolean(process.env.DATABASE_URL);
 }
 
 function isEnabled(): boolean {

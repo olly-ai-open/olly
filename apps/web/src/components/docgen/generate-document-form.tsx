@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import ConversationStarters from './conversation-starters';
+import { useState, useEffect } from "react";
+import ConversationStarters from "./conversation-starters";
 
 interface Template {
   id: string;
@@ -14,8 +14,10 @@ interface GenerateDocumentFormProps {
   onSubmit: (prompt: string, templateId?: string) => void;
 }
 
-export default function GenerateDocumentForm({ onSubmit }: GenerateDocumentFormProps) {
-  const [prompt, setPrompt] = useState('');
+export default function GenerateDocumentForm({
+  onSubmit,
+}: GenerateDocumentFormProps) {
+  const [prompt, setPrompt] = useState("");
   const [templateId, setTemplateId] = useState<string | undefined>();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,13 +27,13 @@ export default function GenerateDocumentForm({ onSubmit }: GenerateDocumentFormP
   useEffect(() => {
     const loadTemplates = async () => {
       try {
-        const res = await fetch('/api/docgen/templates');
+        const res = await fetch("/api/docgen/templates");
         const data = await res.json();
         if (data.ok) {
           setTemplates(data.templates);
         }
       } catch (err) {
-        console.error('Failed to load templates:', err);
+        console.error("Failed to load templates:", err);
       }
     };
     loadTemplates();
@@ -53,10 +55,7 @@ export default function GenerateDocumentForm({ onSubmit }: GenerateDocumentFormP
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Main input */}
       <div>
-        <label
-          htmlFor="prompt"
-          className="mb-2 block text-sm font-medium"
-        >
+        <label htmlFor="prompt" className="mb-2 block text-sm font-medium">
           What do you want to generate?
         </label>
         <textarea
@@ -71,9 +70,7 @@ export default function GenerateDocumentForm({ onSubmit }: GenerateDocumentFormP
       </div>
 
       {/* Conversation starters */}
-      {!prompt && (
-        <ConversationStarters onSelect={handleStarterClick} />
-      )}
+      {!prompt && <ConversationStarters onSelect={handleStarterClick} />}
 
       {/* Template selector (collapsible) */}
       <div className="rounded-lg border border-border p-4">
@@ -85,10 +82,10 @@ export default function GenerateDocumentForm({ onSubmit }: GenerateDocumentFormP
           <span>
             {templateId
               ? `Using template: ${templates.find((t) => t.id === templateId)?.name}`
-              : 'Use a template (optional)'}
+              : "Use a template (optional)"}
           </span>
           <span className="text-muted-foreground">
-            {showTemplates ? '−' : '+'}
+            {showTemplates ? "−" : "+"}
           </span>
         </button>
 
@@ -99,8 +96,8 @@ export default function GenerateDocumentForm({ onSubmit }: GenerateDocumentFormP
               onClick={() => setTemplateId(undefined)}
               className={`w-full rounded-md border px-3 py-2 text-left text-sm ${
                 !templateId
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:bg-border/30'
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-border/30"
               }`}
             >
               No template (use defaults)
@@ -112,15 +109,15 @@ export default function GenerateDocumentForm({ onSubmit }: GenerateDocumentFormP
                 onClick={() => setTemplateId(template.id)}
                 className={`w-full rounded-md border px-3 py-2 text-left text-sm ${
                   templateId === template.id
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:bg-border/30'
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-border/30"
                 }`}
               >
                 <span className="font-medium">{template.name}</span>
                 <span className="ml-2 text-xs text-muted-foreground">
-                  ({template.docType.replace('_', ' ')})
+                  ({template.docType.replace("_", " ")})
                 </span>
-                {template.templateSource === 'system' && (
+                {template.templateSource === "system" && (
                   <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs">
                     Default
                   </span>
@@ -167,7 +164,7 @@ export default function GenerateDocumentForm({ onSubmit }: GenerateDocumentFormP
               Starting...
             </>
           ) : (
-            'Generate Document'
+            "Generate Document"
           )}
         </button>
       </div>
