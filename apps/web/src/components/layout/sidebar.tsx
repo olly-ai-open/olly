@@ -23,12 +23,16 @@ export default async function Sidebar() {
     drive: boolean;
     slack: boolean;
     notion: boolean;
+    airtable: boolean;
+    jira: boolean;
   } = {
     gmail: false,
     calendar: false,
     drive: false,
     slack: false,
     notion: false,
+    airtable: false,
+    jira: false,
   };
   if (userId) {
     try {
@@ -47,21 +51,31 @@ export default async function Sidebar() {
       const notionCredential = await prisma.notionCredential.findUnique({
         where: { userId },
       });
+      const airtableCredential = await prisma.airtableCredential.findUnique({
+        where: { userId },
+      });
+      const jiraCredential = await prisma.jiraCredential.findUnique({
+    where: { userId },
+});
+
       connected = {
         gmail: scope.includes("gmail"),
         calendar: scope.includes("calendar"),
         drive: scope.includes("drive"),
         slack: !!slackAccount?.access_token,
         notion: !!notionCredential,
+        airtable: !!airtableCredential,
+        jira: !!jiraCredential,
       };
     } catch {
-      // DB unavailable — keep sidebar rendering with defaults
       connected = {
         gmail: false,
         calendar: false,
         drive: false,
         slack: false,
         notion: false,
+        airtable: false,
+        jira: false,
       };
     }
   }
@@ -125,6 +139,13 @@ export default async function Sidebar() {
             <div className="flex items-center gap-2">
               {dot(connected.notion)} Notion
             </div>
+            <div className="flex items-center gap-2">
+              {dot(connected.airtable)} Airtable
+            </div>
+            <div className="flex items-center gap-2">
+    {dot(connected.jira)} Jira
+</div>
+
           </div>
         </div>
       </div>

@@ -69,7 +69,7 @@ export async function runJobById(jobId: string): Promise<RunJobResult> {
   }
 
   const job = await prisma.job.findUnique({ where: { id: jobId } });
-  if (!job || job.lockToken !== lockToken) {
+  if (!job || (job as any).lockToken !== lockToken) {
     return { jobId, status: "SKIPPED", error: "job_not_claimed" };
   }
 
@@ -99,7 +99,7 @@ export async function claimDueJobs(
 
   const claimed: Job[] = [];
   for (const job of candidates) {
-    const maxAttempts = Math.max(1, job.maxAttempts ?? 5);
+    const maxAttempts = Math.max(1, (job as any).maxAttempts ?? 5);
     if (job.attempts >= maxAttempts) {
       await prisma.job.updateMany({
         where: { id: job.id, status: { in: ["PENDING", "QUEUED"] } },
@@ -132,7 +132,7 @@ export async function claimDueJobs(
     const locked = await prisma.job.findUnique({
       where: { id: job.id },
     });
-    if (locked && locked.lockToken === lockToken) {
+    if (locked && (locked as any).lockToken === lockToken) {
       claimed.push(locked);
     }
   }
@@ -144,20 +144,20 @@ export async function runClaimedJob(
   prisma: PrismaClient,
   job: Job,
 ): Promise<RunJobResult> {
-  if (job.status !== "RUNNING" || !job.lockToken) {
+  if (job.status !== "RUNNING" || !(job as any).lockToken) {
     return { jobId: job.id, status: "SKIPPED", error: "job_not_claimed" };
   }
 
   let result: RunJobResult;
   try {
     await dispatchJob(prisma, job);
-    await finalizeJob(prisma, job.id, job.lockToken, {
+    await finalizeJob(prisma, job.id, (job as any).lockToken, {
       status: "DONE",
     });
     result = { jobId: job.id, status: "DONE" };
   } catch (err: any) {
     const message = err?.message || "unknown_error";
-    result = await rescheduleFailedJob(prisma, job.id, job.lockToken, message);
+    result = await rescheduleFailedJob(prisma, job.id, (job as any).lockToken, message);
   } finally {
     await flushLangfuse();
   }
@@ -194,15 +194,15 @@ export async function rescheduleFailedJob(
   error: string,
 ): Promise<RunJobResult> {
   const current = await prisma.job.findUnique({
-    where: { id: jobId },
-    select: { attempts: true, maxAttempts: true },
-  });
+  where: { id: jobId },
+  select: { attempts: true },
+});
 
-  const attempts = current?.attempts ?? 1;
-  const maxAttempts = Math.max(1, current?.maxAttempts ?? 5);
-  if (attempts >= maxAttempts) {
-    await prisma.job.updateMany({
-      where: { id: jobId, status: "RUNNING", lockToken } as any,
+const attempts = current?.attempts ?? 1;
+const maxAttempts = 5;
+if (attempts >= maxAttempts) {
+  await prisma.job.updateMany({
+    where: { id: jobId, status: "RUNNING", lockToken } as any,
       data: {
         status: "FAILED",
         lastError: error,
