@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getLLMProvider, getLLMModel } from "@olly/core";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -47,17 +48,28 @@ Example format:
   ]
 }`;
 
-    const { createAnthropic } = await import("@ai-sdk/anthropic");
     const { generateText } = await import("ai");
+    const provider = getLLMProvider();
+    const modelName = getLLMModel();
 
-    const anthropic = createAnthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    console.log(`[UserStories] Using provider: ${provider}, model: ${modelName}`);
 
-    const result = await generateText({
-      model: anthropic("claude-haiku-4-5-20251001"),
-      prompt,
-    });
+    let model;
+    if (provider === "anthropic") {
+      const { createAnthropic } = await import("@ai-sdk/anthropic");
+      const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      model = anthropic(modelName);
+    } else if (provider === "gemini") {
+      const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+      const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
+      model = google(modelName);
+    } else {
+      const { createOpenAI } = await import("@ai-sdk/openai");
+      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      model = openai(modelName);
+    }
+
+    const result = await generateText({ model, prompt });
 
     const jsonMatch = result.text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -67,7 +79,7 @@ Example format:
     const parsed = JSON.parse(jsonMatch[0]);
     return NextResponse.json({ stories: parsed.stories });
   } catch (error: any) {
-    console.error("Failed to generate user stories:", error);
+    console.error("[UserStories] Failed to generate:", error);
     return NextResponse.json(
       { error: error?.message || "Failed to generate user stories" },
       { status: 500 }
