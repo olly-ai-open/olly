@@ -59,7 +59,7 @@ Example format:
       const { createAnthropic } = await import("@ai-sdk/anthropic");
       const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       model = anthropic(modelName);
-    else {
+    } else {
       const { createOpenAI } = await import("@ai-sdk/openai");
       const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
       model = openai(modelName);
