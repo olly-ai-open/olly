@@ -10,7 +10,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { description, selectedServices, storyCount, includeAcceptanceCriteria } = body;
+    const {
+      description,
+      selectedServices = [],
+      storyCount = 5,
+      includeAcceptanceCriteria = false,
+    } = body;
 
     if (!description) {
       return NextResponse.json(
@@ -31,7 +36,7 @@ Generate exactly ${storyCount} user stories in the following JSON format. Each s
 - description: "As a [user type], I want [goal], so that [benefit]"
 - priority: one of "Critical", "High", "Medium", "Low"
 - selected: true
-${includeAcceptanceCriteria ? '- acceptanceCriteria: array of 3-5 acceptance criteria strings' : ''}
+${includeAcceptanceCriteria ? '- acceptanceCriteria: array of 3-5 acceptance criteria strings' : ""}
 
 Return ONLY a valid JSON object with a "stories" array. No other text.
 
@@ -49,20 +54,52 @@ Example format:
 }`;
 
     const { generateText } = await import("ai");
-    const provider = getLLMProvider();
+    const provider = getLLMProvider()?.toLowerCase();
     const modelName = getLLMModel();
 
     console.log(`[UserStories] Using provider: ${provider}, model: ${modelName}`);
 
-    let model;
+    let model: any;
+
     if (provider === "anthropic") {
+      if (!process.env.ANTHROPIC_API_KEY) {
+        return NextResponse.json(
+          {
+            error:
+              "Anthropic is selected as the LLM provider, but ANTHROPIC_API_KEY is not configured.",
+          },
+          { status: 500 }
+        );
+      }
+
       const { createAnthropic } = await import("@ai-sdk/anthropic");
-      const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const anthropic = createAnthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      });
       model = anthropic(modelName);
-    } else {
+    } else if (provider === "openai") {
+      if (!process.env.OPENAI_API_KEY) {
+        return NextResponse.json(
+          {
+            error:
+              "OpenAI is selected as the LLM provider, but OPENAI_API_KEY is not configured.",
+          },
+          { status: 500 }
+        );
+      }
+
       const { createOpenAI } = await import("@ai-sdk/openai");
-      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const openai = createOpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
       model = openai(modelName);
+    } else {
+      return NextResponse.json(
+        {
+          error: `Unsupported LLM provider: ${provider}. Configure a supported provider such as "openai" or "anthropic".`,
+        },
+        { status: 500 }
+      );
     }
 
     const result = await generateText({ model, prompt });
