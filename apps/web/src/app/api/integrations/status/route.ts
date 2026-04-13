@@ -18,7 +18,7 @@ export async function GET() {
           select: { scope: true },
         }),
         prisma.notionCredential.findUnique({ where: { userId } }),
-        prisma.airtableCredential.findUnique({ where: { userId } }),
+        prisma.integration.findFirst({ where: { userId, provider: "airtable", status: "connected" } }),
         prisma.integration.findFirst({
           where: { userId, provider: "jira", status: "connected" },
         }),

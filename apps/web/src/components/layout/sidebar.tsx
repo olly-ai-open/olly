@@ -51,12 +51,12 @@ export default async function Sidebar() {
       const notionCredential = await prisma.notionCredential.findUnique({
         where: { userId },
       });
-      const airtableCredential = await prisma.airtableCredential.findUnique({
-        where: { userId },
+      const airtableCredential = await prisma.integration.findFirst({
+        where: { userId, provider: "airtable", status: "connected" },
       });
-      const jiraCredential = await prisma.jiraCredential.findUnique({
-    where: { userId },
-});
+      const jiraCredential = await prisma.integration.findFirst({
+        where: { userId, provider: "jira", status: "connected" },
+      });
 
       connected = {
         gmail: scope.includes("gmail"),
