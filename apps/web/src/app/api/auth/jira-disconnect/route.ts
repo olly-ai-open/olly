@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { deleteCredential } from "@/lib/credentials";
 import { NextResponse } from "next/server";
 
 export async function POST() {
@@ -12,12 +12,7 @@ export async function POST() {
   }
 
   try {
-    await prisma.integration.deleteMany({
-      where: {
-        userId: session.user.id,
-        provider: "jira",
-      },
-    });
+    await deleteCredential(session.user.id, "jira");
 
     return NextResponse.redirect(
       new URL("/integrations", process.env.NEXTAUTH_URL!)

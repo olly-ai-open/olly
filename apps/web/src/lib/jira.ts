@@ -1,17 +1,11 @@
+import { getCredential, hasCredential } from "@/lib/credentials";
+
 export async function checkJiraHealth(userId: string): Promise<{ connected: boolean; baseUrl?: string }> {
   try {
-    const { prisma } = await import("@/lib/prisma");
-    const integration = await prisma.integration.findFirst({
-      where: {
-        userId,
-        provider: "jira",
-        status: "connected",
-      },
-    });
-    const meta = integration?.meta as any;
+    const data = await getCredential(userId, "jira");
     return {
-      connected: !!integration,
-      baseUrl: meta?.baseUrl,
+      connected: !!data,
+      baseUrl: data?.baseUrl,
     };
   } catch {
     return { connected: false };
@@ -20,21 +14,12 @@ export async function checkJiraHealth(userId: string): Promise<{ connected: bool
 
 export async function getJiraCredentials(userId: string): Promise<{ accessToken: string; baseUrl: string; email: string } | null> {
   try {
-    const { prisma } = await import("@/lib/prisma");
-    const integration = await prisma.integration.findFirst({
-      where: {
-        userId,
-        provider: "jira",
-        status: "connected",
-      },
-    });
-    if (!integration?.meta) return null;
-    const meta = integration.meta as any;
-    if (!meta.accessToken || !meta.baseUrl || !meta.email) return null;
+    const data = await getCredential(userId, "jira");
+    if (!data?.accessToken || !data?.baseUrl || !data?.email) return null;
     return {
-      accessToken: meta.accessToken,
-      baseUrl: meta.baseUrl,
-      email: meta.email,
+      accessToken: data.accessToken,
+      baseUrl: data.baseUrl,
+      email: data.email,
     };
   } catch {
     return null;

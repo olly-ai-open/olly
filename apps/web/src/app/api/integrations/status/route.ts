@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { hasCredential } from "@/lib/credentials";
 
 export async function GET() {
   const session = await auth();
@@ -11,17 +12,15 @@ export async function GET() {
   const userId = session.user.id;
 
   try {
-    const [account, notionCredential, airtableCredential, jiraIntegration, slackAccount] =
+    const [account, notionCredential, airtableConnected, jiraConnected, slackAccount] =
       await Promise.all([
         prisma.account.findFirst({
           where: { userId, provider: "google" },
           select: { scope: true },
         }),
         prisma.notionCredential.findUnique({ where: { userId } }),
-        prisma.integration.findFirst({ where: { userId, provider: "airtable", status: "connected" } }),
-        prisma.integration.findFirst({
-          where: { userId, provider: "jira", status: "connected" },
-        }),
+        hasCredential(userId, "airtable"),
+        hasCredential(userId, "jira"),
         prisma.account.findFirst({
           where: { userId, provider: "slack" },
           select: { access_token: true },
@@ -32,8 +31,8 @@ export async function GET() {
 
     return NextResponse.json({
       notion: !!notionCredential,
-      airtable: !!airtableCredential,
-      jira: !!jiraIntegration,
+      airtable: airtableConnected,
+      jira: jiraConnected,
       slack: !!slackAccount?.access_token,
       gmail: scope.includes("gmail"),
       google_drive: scope.includes("drive"),

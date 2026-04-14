@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { hasCredential } from "@/lib/credentials";
 import NavLinkActive from "@/components/layout/nav-link-active";
 import AdminNavLabel from "@/components/admin/admin-nav-label";
 import {
@@ -51,12 +52,8 @@ export default async function Sidebar() {
       const notionCredential = await prisma.notionCredential.findUnique({
         where: { userId },
       });
-      const airtableCredential = await prisma.integration.findFirst({
-        where: { userId, provider: "airtable", status: "connected" },
-      });
-      const jiraCredential = await prisma.integration.findFirst({
-        where: { userId, provider: "jira", status: "connected" },
-      });
+      const airtableConnected = await hasCredential(userId, "airtable");
+      const jiraConnected = await hasCredential(userId, "jira");
 
       connected = {
         gmail: scope.includes("gmail"),
@@ -64,8 +61,8 @@ export default async function Sidebar() {
         drive: scope.includes("drive"),
         slack: !!slackAccount?.access_token,
         notion: !!notionCredential,
-        airtable: !!airtableCredential,
-        jira: !!jiraCredential,
+        airtable: airtableConnected,
+        jira: jiraConnected,
       };
     } catch {
       connected = {
@@ -143,9 +140,8 @@ export default async function Sidebar() {
               {dot(connected.airtable)} Airtable
             </div>
             <div className="flex items-center gap-2">
-    {dot(connected.jira)} Jira
-</div>
-
+              {dot(connected.jira)} Jira
+            </div>
           </div>
         </div>
       </div>
