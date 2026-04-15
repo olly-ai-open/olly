@@ -83,9 +83,9 @@ export default function StepConfigure({ data, onUpdate, onNext, onBack }: Props)
             <div className="mt-2">
               <p className="font-medium">Acceptance Criteria:</p>
               <ul className="mt-1 list-disc pl-4 space-y-1">
-                >User can enter email and password</li>
-                >System validates credentials</li>
-                >User is redirected to dashboard on success</li>
+                <li>User can enter email and password</li>
+                <li>System validates credentials</li>
+                <li>User is redirected to dashboard on success</li>
               </ul>
             </div>
           )}

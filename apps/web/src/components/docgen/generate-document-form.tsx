@@ -57,7 +57,7 @@ export default function GenerateDocumentForm({
 
       {/* Main input */}
       <div>
-        abel htmlFor="prompt" className="mb-2 block text-sm font-medium">
+        <label htmlFor="prompt" className="mb-2 block text-sm font-medium">
           What do you want to generate?
         </label>
         <textarea
