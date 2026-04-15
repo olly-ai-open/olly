@@ -12,13 +12,13 @@ export async function GET() {
   const userId = session.user.id;
 
   try {
-    const [account, notionCredential, airtableConnected, jiraConnected, slackAccount] =
+    const [account, notionConnected, airtableConnected, jiraConnected, slackAccount] =
       await Promise.all([
         prisma.account.findFirst({
           where: { userId, provider: "google" },
           select: { scope: true },
         }),
-        prisma.notionCredential.findUnique({ where: { userId } }),
+        hasCredential(userId, "notion"),
         hasCredential(userId, "airtable"),
         hasCredential(userId, "jira"),
         prisma.account.findFirst({
@@ -30,7 +30,7 @@ export async function GET() {
     const scope = account?.scope || "";
 
     return NextResponse.json({
-      notion: !!notionCredential,
+      notion: notionConnected,
       airtable: airtableConnected,
       jira: jiraConnected,
       slack: !!slackAccount?.access_token,

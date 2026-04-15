@@ -49,9 +49,7 @@ export default async function Sidebar() {
       const slackAccount = await prisma.account.findFirst({
         where: { userId, provider: "slack" },
       });
-      const notionCredential = await prisma.notionCredential.findUnique({
-        where: { userId },
-      });
+      const notionConnected = await hasCredential(userId, "notion");
       const airtableConnected = await hasCredential(userId, "airtable");
       const jiraConnected = await hasCredential(userId, "jira");
 
@@ -60,7 +58,7 @@ export default async function Sidebar() {
         calendar: scope.includes("calendar"),
         drive: scope.includes("drive"),
         slack: !!slackAccount?.access_token,
-        notion: !!notionCredential,
+        notion: notionConnected,
         airtable: airtableConnected,
         jira: jiraConnected,
       };
