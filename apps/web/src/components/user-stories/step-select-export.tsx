@@ -22,6 +22,11 @@ interface IntegrationStatus {
   google_docs: boolean;
 }
 
+interface JiraProject {
+  key: string;
+  name: string;
+}
+
 interface Props {
   data: WizardData;
   onUpdate: (updates: Partial<WizardData>) => void;
@@ -37,6 +42,8 @@ export default function StepSelectExport({ data, onUpdate, onNext, onBack }: Pro
   const [dateRangeDays, setDateRangeDays] = useState(30);
   const [error, setError] = useState<string | null>(null);
   const [integrations, setIntegrations] = useState<IntegrationStatus | null>(null);
+  const [projects, setProjects] = useState<JiraProject[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
 
   useEffect(() => {
     fetch("/api/integrations/status")
@@ -44,6 +51,17 @@ export default function StepSelectExport({ data, onUpdate, onNext, onBack }: Pro
       .then((d) => setIntegrations(d))
       .catch(() => setIntegrations(null));
   }, []);
+
+  useEffect(() => {
+    if (data.exportDestination === "jira") {
+      setLoadingProjects(true);
+      fetch("/api/jira/projects")
+        .then((r) => r.json())
+        .then((d) => setProjects(d.projects || []))
+        .catch(() => setProjects([]))
+        .finally(() => setLoadingProjects(false));
+    }
+  }, [data.exportDestination]);
 
   const EXPORT_OPTIONS = [
     {
@@ -88,7 +106,7 @@ export default function StepSelectExport({ data, onUpdate, onNext, onBack }: Pro
 
   const checkDuplicates = async () => {
     if (!projectKey) {
-      setError("Please enter a project key to check for duplicates");
+      setError("Please select a project to check for duplicates");
       return;
     }
     setIsChecking(true);
@@ -106,7 +124,7 @@ export default function StepSelectExport({ data, onUpdate, onNext, onBack }: Pro
       const result = await resp.json();
       setExistingIssues(result.issues || []);
       setShowDuplicates(true);
-   } catch {
+    } catch {
       setExistingIssues([]);
       setShowDuplicates(true);
     } finally {
@@ -173,13 +191,32 @@ export default function StepSelectExport({ data, onUpdate, onNext, onBack }: Pro
             </p>
           </div>
           <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Project key (e.g. KAN)"
-              value={projectKey}
-              onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
-              className="flex-1 rounded-md border border-border px-3 py-2 text-sm"
-            />
+            {loadingProjects ? (
+              <div className="flex-1 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground">
+                Loading projects...
+              </div>
+            ) : projects.length > 0 ? (
+              <select
+                value={projectKey}
+                onChange={(e) => setProjectKey(e.target.value)}
+                className="flex-1 rounded-md border border-border px-3 py-2 text-sm bg-background"
+              >
+                <option value="">Select a project...</option>
+                {projects.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.name} ({p.key})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                placeholder="Project key (e.g. KAN)"
+                value={projectKey}
+                onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
+                className="flex-1 rounded-md border border-border px-3 py-2 text-sm"
+              />
+            )}
             <select
               value={dateRangeDays}
               onChange={(e) => setDateRangeDays(Number(e.target.value))}
@@ -232,9 +269,7 @@ export default function StepSelectExport({ data, onUpdate, onNext, onBack }: Pro
                           <span className="ml-2 text-sm">{issue.summary}</span>
                           <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
                             <span>Status: {issue.status}</span>
-                            <span>
-                              {new Date(issue.created).toLocaleDateString()}
-                            </span>
+                            <span>{new Date(issue.created).toLocaleDateString()}</span>
                           </div>
                         </div>
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 border border-amber-200 whitespace-nowrap">

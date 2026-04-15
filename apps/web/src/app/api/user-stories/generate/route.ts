@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getLLMProvider, getLLMModel } from "@olly/core";
+import { USER_STORIES_PROMPT } from "@olly/core/src/prompts/userStoriesPrompt";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -24,7 +25,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const prompt = `You are an expert product manager. Generate ${storyCount} user stories for the following feature or product:
+    const prompt = `${USER_STORIES_PROMPT}
+
+Generate ${storyCount} user stories for the following feature or product:
 
 "${description}"
 
@@ -64,40 +67,26 @@ Example format:
     if (provider === "anthropic") {
       if (!process.env.ANTHROPIC_API_KEY) {
         return NextResponse.json(
-          {
-            error:
-              "Anthropic is selected as the LLM provider, but ANTHROPIC_API_KEY is not configured.",
-          },
+          { error: "Anthropic is selected as the LLM provider, but ANTHROPIC_API_KEY is not configured." },
           { status: 500 }
         );
       }
-
       const { createAnthropic } = await import("@ai-sdk/anthropic");
-      const anthropic = createAnthropic({
-        apiKey: process.env.ANTHROPIC_API_KEY,
-      });
+      const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       model = anthropic(modelName);
     } else if (provider === "openai") {
       if (!process.env.OPENAI_API_KEY) {
         return NextResponse.json(
-          {
-            error:
-              "OpenAI is selected as the LLM provider, but OPENAI_API_KEY is not configured.",
-          },
+          { error: "OpenAI is selected as the LLM provider, but OPENAI_API_KEY is not configured." },
           { status: 500 }
         );
       }
-
       const { createOpenAI } = await import("@ai-sdk/openai");
-      const openai = createOpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
+      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
       model = openai(modelName);
     } else {
       return NextResponse.json(
-        {
-          error: `Unsupported LLM provider: ${provider}. Configure a supported provider such as "openai" or "anthropic".`,
-        },
+        { error: `Unsupported LLM provider: ${provider}. Configure "openai" or "anthropic".` },
         { status: 500 }
       );
     }

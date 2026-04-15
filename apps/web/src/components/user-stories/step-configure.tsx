@@ -16,16 +16,35 @@ export default function StepConfigure({ data, onUpdate, onNext, onBack }: Props)
         <p className="block text-sm font-semibold mb-2">
           Number of user stories to generate
         </p>
-        <select
-          value={data.storyCount}
-          onChange={(e) => onUpdate({ storyCount: Number(e.target.value) })}
-          className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm"
-        >
-          <option value={3}>3 stories</option>
-          <option value={5}>5 stories</option>
-          <option value={8}>8 stories</option>
-          <option value={10}>10 stories</option>
-        </select>
+        <div className="flex gap-2 items-center">
+          <select
+            value={[3, 5, 8, 10, 15, 20].includes(data.storyCount) ? data.storyCount : "custom"}
+            onChange={(e) => {
+              if (e.target.value !== "custom") {
+                onUpdate({ storyCount: Number(e.target.value) });
+              }
+            }}
+            className="flex-1 rounded-lg border border-border bg-background px-4 py-3 text-sm"
+          >
+            <option value={3}>3 stories</option>
+            <option value={5}>5 stories</option>
+            <option value={8}>8 stories</option>
+            <option value={10}>10 stories</option>
+            <option value={15}>15 stories</option>
+            <option value={20}>20 stories</option>
+            <option value="custom">Custom number</option>
+          </select>
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={data.storyCount}
+            onChange={(e) => onUpdate({ storyCount: Math.min(50, Math.max(1, Number(e.target.value))) })}
+            className="w-24 rounded-lg border border-border bg-background px-3 py-3 text-sm"
+            placeholder="Count"
+          />
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">Max 50 stories</p>
       </div>
 
       <div>
@@ -64,9 +83,9 @@ export default function StepConfigure({ data, onUpdate, onNext, onBack }: Props)
             <div className="mt-2">
               <p className="font-medium">Acceptance Criteria:</p>
               <ul className="mt-1 list-disc pl-4 space-y-1">
-                <li>User can enter email and password</li>
-                <li>System validates credentials</li>
-                <li>User is redirected to dashboard on success</li>
+                >User can enter email and password</li>
+                >System validates credentials</li>
+                >User is redirected to dashboard on success</li>
               </ul>
             </div>
           )}
