@@ -56,7 +56,8 @@ export default function StepExport({ data, onBack }: Props) {
       `"${s.description}"`,
       s.priority,
     ]);
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("
+");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -70,9 +71,16 @@ export default function StepExport({ data, onBack }: Props) {
     const md = selectedStories
       .map(
         (s) =>
-          `## ${s.title}\n**Priority:** ${s.priority}\n\n${s.description}\n`
+          `## ${s.title}
+**Priority:** ${s.priority}
+
+${s.description}
+`
       )
-      .join("\n---\n\n");
+      .join("
+---
+
+");
     const blob = new Blob([md], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -160,9 +168,9 @@ export default function StepExport({ data, onBack }: Props) {
       {/* Jira export form */}
       {activeExport === "jira" && results.length === 0 && (
         <div className="rounded-lg border border-border p-6 space-y-4">
-          <p className="font-medium">Push to Jira</p>
+          <h3 className="font-medium">Push to Jira</h3>
           <div className="space-y-1">
-            <p className="text-sm font-medium">Jira Project Key</p>
+            <label className="text-sm font-medium">Jira Project Key</label>
             <p className="text-xs text-muted-foreground">
               Enter your Jira project key. Examples: SEC, AUTH, FEAT, KAN
             </p>
@@ -189,7 +197,7 @@ export default function StepExport({ data, onBack }: Props) {
       {/* Notion export - coming soon */}
       {activeExport === "notion" && (
         <div className="rounded-lg border border-border p-6">
-          <p className="font-medium mb-2">Export to Notion</p>
+          <h3 className="font-medium mb-2">Export to Notion</h3>
           <p className="text-sm text-muted-foreground">
             Coming soon! You can use the Markdown download and paste into Notion for now.
           </p>
@@ -206,24 +214,24 @@ export default function StepExport({ data, onBack }: Props) {
       {/* Jira success */}
       {results.length > 0 && (
         <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-6">
-          <p className="font-medium text-green-700 mb-3">
+          <h3 className="font-medium text-green-700 mb-3">
             Created {results.length} Jira issues!
-          </p>
-          <ul className="space-y-2">
-  {results.map((r) => (
-    <li key={r.key} className="flex items-center gap-2">
-      <a
-        href={r.url}
-        target="_blank"
-        rel="noreferrer"
-        className="text-primary underline-offset-4 hover:underline"
-      >
-        {r.key}
-      </a>
-      <span className="text-muted-foreground">{r.title}</span>
-    </li>
-  ))}
-</ul>
+          </h3>
+          <div className="space-y-2">
+            {results.map((r) => (
+              <div key={r.key} className="flex items-center gap-2">
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  {r.key}
+                </a>
+                <span className="text-muted-foreground">{r.title}</span>
+              </div>
+            ))}
+          </div>
           <div className="mt-4 pt-4 border-t border-green-500/30 flex gap-3">
             <a
               href={results[0]?.url?.split("/browse/")[0] + `/jira/software/projects/${projectKey}/list`}
