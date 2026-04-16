@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getLLMProvider, getLLMModel } from "@olly/core";
+import {
+  createChatCompletion,
+  getLLMProvider,
+  getLLMModel,
+  isLLMConfigured,
+} from "@olly/core";
 import { USER_STORIES_PROMPT } from "@olly/core/src/prompts/userStoriesPrompt";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
+
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -25,13 +31,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const provider = getLLMProvider()?.toLowerCase();
+    const modelName = getLLMModel();
+
+    if (!isLLMConfigured()) {
+      return NextResponse.json(
+        {
+          error: `${provider} is selected as the LLM provider, but its API key is not configured.`,
+        },
+        { status: 500 }
+      );
+    }
+
     const prompt = `${USER_STORIES_PROMPT}
 
 Generate ${storyCount} user stories for the following feature or product:
 
 "${description}"
 
-${selectedServices.length > 0 ? `Context is being pulled from: ${selectedServices.join(", ")}` : ""}
+${
+  selectedServices.length > 0
+    ? `Context is being pulled from: ${selectedServices.join(", ")}`
+    : ""
+}
 
 Generate exactly ${storyCount} user stories in the following JSON format. Each story must have:
 - id: unique string
@@ -39,7 +61,11 @@ Generate exactly ${storyCount} user stories in the following JSON format. Each s
 - description: "As a [user type], I want [goal], so that [benefit]"
 - priority: one of "Critical", "High", "Medium", "Low"
 - selected: true
-${includeAcceptanceCriteria ? '- acceptanceCriteria: array of 3-5 acceptance criteria strings' : ""}
+${
+  includeAcceptanceCriteria
+    ? '- acceptanceCriteria: array of 3-5 acceptance criteria strings'
+    : ""
+}
 
 Return ONLY a valid JSON object with a "stories" array. No other text.
 
@@ -56,50 +82,23 @@ Example format:
   ]
 }`;
 
-    const { generateText } = await import("ai");
-    const provider = getLLMProvider()?.toLowerCase();
-    const modelName = getLLMModel();
+    console.log(
+      `[UserStories] Using provider: ${provider}, model: ${modelName}`
+    );
 
-    console.log(`[UserStories] Using provider: ${provider}, model: ${modelName}`);
+    const completion = await createChatCompletion(
+      [{ role: "user", content: prompt }],
+      { model: modelName }
+    );
 
-    let model: any;
-
-    if (provider === "anthropic") {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        return NextResponse.json(
-          { error: "Anthropic is selected as the LLM provider, but ANTHROPIC_API_KEY is not configured." },
-          { status: 500 }
-        );
-      }
-      const { createAnthropic } = await import("@ai-sdk/anthropic");
-      const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      model = anthropic(modelName);
-    } else if (provider === "openai") {
-      if (!process.env.OPENAI_API_KEY) {
-        return NextResponse.json(
-          { error: "OpenAI is selected as the LLM provider, but OPENAI_API_KEY is not configured." },
-          { status: 500 }
-        );
-      }
-      const { createOpenAI } = await import("@ai-sdk/openai");
-      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      model = openai(modelName);
-    } else {
-      return NextResponse.json(
-        { error: `Unsupported LLM provider: ${provider}. Configure "openai" or "anthropic".` },
-        { status: 500 }
-      );
-    }
-
-    const result = await generateText({ model, prompt });
-
-    const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+    const jsonMatch = completion.content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("Failed to parse generated stories");
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
-    return NextResponse.json({ stories: parsed.stories });
+
+    return NextResponse.json({ stories: parsed.stories ?? [] });
   } catch (error: any) {
     console.error("[UserStories] Failed to generate:", error);
     return NextResponse.json(
