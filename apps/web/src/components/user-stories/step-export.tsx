@@ -1,12 +1,15 @@
 "use client";
 
+
 import { useState } from "react";
 import { WizardData } from "./user-stories-wizard";
+
 
 interface Props {
   data: WizardData;
   onBack: () => void;
 }
+
 
 export default function StepExport({ data, onBack }: Props) {
   const [projectKey, setProjectKey] = useState("");
@@ -15,7 +18,9 @@ export default function StepExport({ data, onBack }: Props) {
   const [results, setResults] = useState<Array<{ key: string; url: string; title: string }>>([]);
   const [activeExport, setActiveExport] = useState<"jira" | "notion" | "download" | null>(null);
 
+
   const selectedStories = data.generatedStories.filter((s) => s.selected);
+
 
   const handlePushToJira = async () => {
     if (!projectKey) {
@@ -49,6 +54,7 @@ export default function StepExport({ data, onBack }: Props) {
     setIsPushing(false);
   };
 
+
   const handleDownloadCSV = () => {
     const headers = ["Title", "Description", "Priority"];
     const rows = selectedStories.map((s) => [
@@ -66,20 +72,14 @@ export default function StepExport({ data, onBack }: Props) {
     URL.revokeObjectURL(url);
   };
 
+
   const handleDownloadMarkdown = () => {
     const md = selectedStories
       .map(
         (s) =>
-          `## ${s.title}
-**Priority:** ${s.priority}
-
-${s.description}
-`
+          `## ${s.title}\n**Priority:** ${s.priority}\n\n${s.description}\n`
       )
-      .join("
----
-
-");
+      .join("\n---\n\n");
     const blob = new Blob([md], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -89,6 +89,7 @@ ${s.description}
     URL.revokeObjectURL(url);
   };
 
+
   return (
     <div className="space-y-6">
       <div>
@@ -97,6 +98,7 @@ ${s.description}
           Export {selectedStories.length} selected stories to your preferred tool
         </p>
       </div>
+
 
       {/* Selected stories summary */}
       <div className="rounded-lg border border-border bg-muted/50 p-4">
@@ -112,6 +114,7 @@ ${s.description}
           ))}
         </ul>
       </div>
+
 
       {/* Export options */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -129,6 +132,7 @@ ${s.description}
           <div className="text-xs text-muted-foreground">Push as tickets</div>
         </button>
 
+
         <button
           type="button"
           onClick={() => setActiveExport("notion")}
@@ -143,6 +147,7 @@ ${s.description}
           <div className="text-xs text-muted-foreground">Save to Notion</div>
         </button>
 
+
         <button
           type="button"
           onClick={handleDownloadCSV}
@@ -152,6 +157,7 @@ ${s.description}
           <div className="text-sm font-medium">CSV</div>
           <div className="text-xs text-muted-foreground">Download as CSV</div>
         </button>
+
 
         <button
           type="button"
@@ -164,12 +170,13 @@ ${s.description}
         </button>
       </div>
 
+
       {/* Jira export form */}
       {activeExport === "jira" && results.length === 0 && (
         <div className="rounded-lg border border-border p-6 space-y-4">
-          <h3 className="font-medium">Push to Jira</h3>
+          <p className="font-medium">Push to Jira</p>
           <div className="space-y-1">
-            <label className="text-sm font-medium">Jira Project Key</label>
+            <p className="text-sm font-medium">Jira Project Key</p>
             <p className="text-xs text-muted-foreground">
               Enter your Jira project key. Examples: SEC, AUTH, FEAT, KAN
             </p>
@@ -193,10 +200,11 @@ ${s.description}
         </div>
       )}
 
+
       {/* Notion export - coming soon */}
       {activeExport === "notion" && (
         <div className="rounded-lg border border-border p-6">
-          <h3 className="font-medium mb-2">Export to Notion</h3>
+          <p className="font-medium mb-2">Export to Notion</p>
           <p className="text-sm text-muted-foreground">
             Coming soon! You can use the Markdown download and paste into Notion for now.
           </p>
@@ -210,27 +218,28 @@ ${s.description}
         </div>
       )}
 
+
       {/* Jira success */}
       {results.length > 0 && (
         <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-6">
-          <h3 className="font-medium text-green-700 mb-3">
+          <p className="font-medium text-green-700 mb-3">
             Created {results.length} Jira issues!
-          </h3>
-          <div className="space-y-2">
-            {results.map((r) => (
-              <div key={r.key} className="flex items-center gap-2">
-                <a
-                  href={r.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  {r.key}
-                </a>
-                <span className="text-muted-foreground">{r.title}</span>
-              </div>
-            ))}
-          </div>
+          </p>
+          <ul className="space-y-2">
+  {results.map((r) => (
+    <li key={r.key} className="flex items-center gap-2">
+      <a
+        href={r.url}
+        target="_blank"
+        rel="noreferrer"
+        className="text-primary underline-offset-4 hover:underline"
+      >
+        {r.key}
+      </a>
+      <span className="text-muted-foreground">{r.title}</span>
+    </li>
+  ))}
+</ul>
           <div className="mt-4 pt-4 border-t border-green-500/30 flex gap-3">
             <a
               href={results[0]?.url?.split("/browse/")[0] + `/jira/software/projects/${projectKey}/list`}
@@ -249,6 +258,7 @@ ${s.description}
           </div>
         </div>
       )}
+
 
       {results.length === 0 && (
         <div className="flex justify-between pt-4 border-t border-border">
