@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
@@ -15,7 +12,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// NextAuth base models
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -43,7 +39,10 @@ model User {
   docGenRequests    DocGenRequest[]
   generatedDocs     GeneratedDocument[]
   templateProfiles  TemplateProfile[]
+  credentials       Credential[]
   notionCredential  NotionCredential?
+  airtableCredential AirtableCredential?
+  jiraCredential    JiraCredential?
 }
 
 model Account {
@@ -83,7 +82,6 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// Product models
 model Integration {
   id        String   @id @default(cuid())
   userId    String
@@ -129,8 +127,7 @@ model Brief {
   generatedAt DateTime @default(now())
   feedback    Json?
   readAt      DateTime?
-  
-  // Debug data fields
+
   debugS3Key       String?
   debugCapturedAt  DateTime?
   debugMetadata    Json?
@@ -167,7 +164,7 @@ model ActionItemEvent {
   id           String   @id @default(cuid())
   userId       String
   actionItemId String
-  type         String   // EDIT | DELETE
+  type         String
   createdAt    DateTime @default(now())
 
   actionItem ActionItem @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
@@ -206,8 +203,8 @@ model Schedule {
   userId     String
   type       String
   timeZone   String?
-  timeOfDay  String   // HH:MM in user's timezone
-  daysOfWeek Json?    // Optional array of weekdays (0-6) or other pattern
+  timeOfDay  String
+  daysOfWeek Json?
   active     Boolean  @default(true)
   nextRunAt  DateTime?
   meta       Json?
@@ -237,7 +234,6 @@ model CachedArtifact {
   @@unique([userId, provider, externalId])
 }
 
-// People directory and associations
 model Person {
   id        String   @id @default(cuid())
   userId    String
@@ -290,14 +286,13 @@ model ActionItemAssignee {
   @@id([actionItemId, personId])
 }
 
-// Google Drive folder permissions
 model DriveFolder {
   id         String   @id @default(cuid())
   userId     String
-  folderId   String   // Google Drive folder ID
-  folderName String   // Display name of the folder
-  parentId   String?  // Parent folder ID (for nested folders)
-  path       String?  // Full path for display (e.g., "My Folder/Subfolder")
+  folderId   String
+  folderName String
+  parentId   String?
+  path       String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -307,28 +302,24 @@ model DriveFolder {
   @@index([userId])
 }
 
-// User settings and preferences
 model UserSettings {
   id        String   @id @default(cuid())
   userId    String   @unique
-  
-  // Search settings
-  searchTimeframeDays Int @default(30) // How far back to search (1-180 days)
-  searchStrategy      String? // Optional: LLM_ONLY, HEURISTIC_ONLY, LLM_AND_HEURISTIC, AGENT
-  briefSystemPrompt   String? @db.Text // Optional override for brief generation system prompt
-  queryPlannerSystemPrompt String? @db.Text // Optional override for query planner system prompt
-  morningBriefSystemPrompt String? @db.Text // Optional override for morning brief generation prompt
-  endOfDayBriefSystemPrompt String? @db.Text // Optional override for end-of-day brief generation prompt
-  timeZone            String? // Optional IANA timezone identifier (e.g. America/Los_Angeles)
+
+  searchTimeframeDays Int @default(30)
+  searchStrategy      String?
+  briefSystemPrompt   String? @db.Text
+  queryPlannerSystemPrompt String? @db.Text
+  morningBriefSystemPrompt String? @db.Text
+  endOfDayBriefSystemPrompt String? @db.Text
+  timeZone            String?
   telemetryOptIn      Boolean @default(true)
-  
-  // Notification preferences
+
   emailNotifications Boolean @default(true)
   webNotificationsEnabled Boolean @default(false)
 
-  // Event ignore settings (e.g., titles to skip for briefs)
   ignoredEventPatterns Json?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -386,14 +377,13 @@ model ToolMetricsDaily {
   @@index([day])
 }
 
-// Document Generation models
 model DocGenRequest {
   id         String   @id @default(cuid())
   userId     String
   prompt     String   @db.Text
-  intent     Json?    // { docType, timeScope, entity, context, sources }
-  status     String   @default("pending") // pending|gathering|analyzing|synthesizing|creating|completed|failed
-  progress   Json?    // { stage, message, percent }
+  intent     Json?
+  status     String   @default("pending")
+  progress   Json?
   templateId String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -410,12 +400,12 @@ model DocGenRequest {
 model DocGenRun {
   id          String    @id @default(cuid())
   requestId   String
-  stage       String    // gather|analyze|synthesize|create
-  status      String    @default("running") // running|completed|failed
-  evidence    Json?     // Array of evidence items found
-  findings    Json?     // Extracted findings/insights
+  stage       String
+  status      String    @default("running")
+  evidence    Json?
+  findings    Json?
   error       String?
-  metadata    Json?     // Tool calls, token usage, etc.
+  metadata    Json?
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 
@@ -429,12 +419,12 @@ model GeneratedDocument {
   requestId     String    @unique
   userId        String
   title         String
-  docType       String    // status_update|monthly_report|wiki
-  content       Json      // { sections: [...], markdown: string }
-  citations     Json?     // { evidenceId, sourceType, sourceRef, snippet }[]
-  openQuestions Json?     // Items marked as missing/uncertain
+  docType       String
+  content       Json
+  citations     Json?
+  openQuestions Json?
   format        String    @default("markdown")
-  savedAt       DateTime? // null until user explicitly saves
+  savedAt       DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -447,14 +437,14 @@ model GeneratedDocument {
 
 model TemplateProfile {
   id             String   @id @default(cuid())
-  userId         String?  // null = system template
+  userId         String?
   name           String
   description    String?
-  docType        String   // status_update|monthly_report|wiki
-  templateSource String   @default("system") // system|uploaded|derived
+  docType        String
+  templateSource String   @default("system")
   content        String   @db.Text
-  structure      Json?    // Parsed structure hints
-  mimeType       String?  // For uploaded: text/markdown, text/plain, etc.
+  structure      Json?
+  mimeType       String?
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -478,4 +468,44 @@ model NotionCredential {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model AirtableCredential {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  accessToken  String   @db.Text /// @encrypted
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model JiraCredential {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  accessToken String   @db.Text /// @encrypted
+  baseUrl     String
+  email       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Credential {
+  id        String   @id @default(cuid())
+  userId    String
+  provider  String
+  data      String   @db.Text /// @encrypted
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId, provider])
 }

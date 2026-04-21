@@ -1,3 +1,5 @@
+import { getCredential, hasCredential } from "@/lib/credentials";
+
 export function buildNotionAuthorizeUrl(userId: string): string {
   const clientId = process.env.NOTION_CLIENT_ID;
   const redirectUri = `${process.env.NEXTAUTH_URL?.replace(/\/$/, "")}/api/auth/notion-connect/callback`;
@@ -20,9 +22,7 @@ export async function exchangeNotionOAuthCode(
   const clientSecret = process.env.NOTION_CLIENT_SECRET;
   if (!clientId || !clientSecret)
     throw new Error("Notion OAuth credentials not configured");
-  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString(
-    "base64",
-  );
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   const response = await fetch("https://api.notion.com/v1/oauth/token", {
     method: "POST",
     headers: {
@@ -41,16 +41,23 @@ export async function exchangeNotionOAuthCode(
   }
   return await response.json();
 }
+
 export async function checkNotionHealth(
   userId: string,
 ): Promise<{ connected: boolean }> {
   try {
-    const { prisma: db } = await import("@/lib/prisma");
-    const credentials = await db.notionCredential.findUnique({
-      where: { userId },
-    });
-    return { connected: !!credentials };
+    const connected = await hasCredential(userId, "notion");
+    return { connected };
   } catch {
     return { connected: false };
+  }
+}
+
+export async function getNotionToken(userId: string): Promise<string | null> {
+  try {
+    const data = await getCredential(userId, "notion");
+    return data?.accessToken || null;
+  } catch {
+    return null;
   }
 }

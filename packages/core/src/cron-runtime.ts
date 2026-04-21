@@ -238,7 +238,7 @@ export async function runWorkerTick(
         where: {
           id: job.id,
           status: "RUNNING",
-          lockToken: job.lockToken,
+          lockToken: (job as any).lockToken,
         } as any,
         data: {
           status: "PENDING",

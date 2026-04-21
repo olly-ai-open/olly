@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { hasCredential } from "@/lib/credentials";
 import NavLinkActive from "@/components/layout/nav-link-active";
 import AdminNavLabel from "@/components/admin/admin-nav-label";
 import {
@@ -23,12 +24,16 @@ export default async function Sidebar() {
     drive: boolean;
     slack: boolean;
     notion: boolean;
+    airtable: boolean;
+    jira: boolean;
   } = {
     gmail: false,
     calendar: false,
     drive: false,
     slack: false,
     notion: false,
+    airtable: false,
+    jira: false,
   };
   if (userId) {
     try {
@@ -44,24 +49,28 @@ export default async function Sidebar() {
       const slackAccount = await prisma.account.findFirst({
         where: { userId, provider: "slack" },
       });
-      const notionCredential = await prisma.notionCredential.findUnique({
-        where: { userId },
-      });
+      const notionConnected = await hasCredential(userId, "notion");
+      const airtableConnected = await hasCredential(userId, "airtable");
+      const jiraConnected = await hasCredential(userId, "jira");
+
       connected = {
         gmail: scope.includes("gmail"),
         calendar: scope.includes("calendar"),
         drive: scope.includes("drive"),
         slack: !!slackAccount?.access_token,
-        notion: !!notionCredential,
+        notion: notionConnected,
+        airtable: airtableConnected,
+        jira: jiraConnected,
       };
     } catch {
-      // DB unavailable — keep sidebar rendering with defaults
       connected = {
         gmail: false,
         calendar: false,
         drive: false,
         slack: false,
         notion: false,
+        airtable: false,
+        jira: false,
       };
     }
   }
@@ -124,6 +133,12 @@ export default async function Sidebar() {
             </div>
             <div className="flex items-center gap-2">
               {dot(connected.notion)} Notion
+            </div>
+            <div className="flex items-center gap-2">
+              {dot(connected.airtable)} Airtable
+            </div>
+            <div className="flex items-center gap-2">
+              {dot(connected.jira)} Jira
             </div>
           </div>
         </div>

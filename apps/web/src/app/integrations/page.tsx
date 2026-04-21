@@ -1,3 +1,4 @@
+import { checkAirtableHealth } from "@/lib/airtable";
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { checkGoogleHealth } from "@/lib/google";
@@ -9,6 +10,7 @@ import Sidebar from "@/components/layout/sidebar";
 import LoginHero from "@/components/home/login-hero";
 import DriveFolderManager from "@/components/integrations/drive-folder-manager";
 import Script from "next/script";
+import { checkJiraHealth } from "@/lib/jira";
 
 export const metadata: Metadata = {
   title: "Olly - Integrations",
@@ -26,11 +28,14 @@ export default async function IntegrationsPage() {
     );
   }
 
-  const [health, slackHealth, notionHealth] = await Promise.all([
+  const [health, slackHealth, notionHealth, airtableHealth, jiraHealth] = await Promise.all([
     checkGoogleHealth(session.user.id),
     checkSlackHealth(session.user.id),
     checkNotionHealth(session.user.id),
-  ]);
+    checkAirtableHealth(session.user.id),
+    checkJiraHealth(session.user.id),
+]);
+
 
   return (
     <>
@@ -238,6 +243,103 @@ export default async function IntegrationsPage() {
                 </div>
               )}
             </div>
+	{/* Airtable Integration */}
+<div className="rounded-lg border border-border bg-card p-4 shadow-sm mt-4">
+  <div className="flex items-center justify-between">
+    <div>
+      <div className="font-medium">Airtable</div>
+      <div className="text-sm text-muted-foreground">
+        Access Airtable bases and tables for briefs
+      </div>
+    </div>
+    <div className="text-sm">
+      {airtableHealth.connected ? (
+        <span className="text-green-600">Connected</span>
+      ) : (
+        <span className="text-gray-500">Not Connected</span>
+      )}
+    </div>
+  </div>
+  {!airtableHealth.connected && (
+    <div className="mt-4">
+      <div className="text-sm text-muted-foreground mb-2">
+        Enter your Airtable Personal Access Token to connect
+      </div>
+      <form action="/api/auth/airtable-connect" method="post" className="flex gap-2">
+        <input type="text" name="accessToken" placeholder="patXXXXXX..."
+          className="flex-1 rounded-md border border-border px-3 py-2 text-sm" />
+        <button type="submit"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          Connect Airtable
+        </button>
+      </form>
+    </div>
+  )}
+  {airtableHealth.connected && (
+    <div className="mt-4 pt-4 border-t border-border">
+      <form action="/api/auth/airtable-disconnect" method="post">
+        <button type="submit"
+          className="bg-background rounded-md border border-border px-3 py-1 text-sm hover:bg-accent cursor-pointer">
+          Disconnect Airtable
+        </button>
+      </form>
+    </div>
+  )}
+</div>
+
+{/* JIRA Integration */}
+<div className="rounded-lg border border-border bg-card p-4 shadow-sm mt-4">
+  <div className="flex items-center justify-between">
+    <div>
+      <div className="font-medium">Jira</div>
+      <div className="text-sm text-muted-foreground">
+        Access Jira issues and projects for briefs
+      </div>
+    </div>
+    <div className="text-sm">
+      {jiraHealth.connected ? (
+        <span className="text-green-600">Connected</span>
+      ) : (
+        <span className="text-gray-500">Not Connected</span>
+      )}
+    </div>
+  </div>
+
+  {!jiraHealth.connected && (
+    <div className="mt-4">
+      <div className="text-sm text-muted-foreground mb-2">
+        Enter your Jira credentials to connect
+      </div>
+      <form action="/api/auth/jira-connect" method="post" className="space-y-2">
+        <input type="text" name="baseUrl" placeholder="https://yourcompany.atlassian.net"
+          className="w-full rounded-md border border-border px-3 py-2 text-sm" />
+        <input type="text" name="email" placeholder="your@email.com"
+          className="w-full rounded-md border border-border px-3 py-2 text-sm" />
+        <input type="text" name="accessToken" placeholder="Your Jira API token"
+          className="w-full rounded-md border border-border px-3 py-2 text-sm" />
+        <button type="submit"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          Connect Jira
+        </button>
+      </form>
+    </div>
+  )}
+
+  {jiraHealth.connected && (
+    <div className="mt-4 pt-4 border-t border-border">
+      <div className="text-sm text-muted-foreground mb-2">
+        Connected to: {jiraHealth.baseUrl}
+      </div>
+      <form action="/api/auth/jira-disconnect" method="post">
+        <button type="submit"
+          className="bg-background rounded-md border border-border px-3 py-1 text-sm hover:bg-accent cursor-pointer">
+          Disconnect Jira
+        </button>
+      </form>
+    </div>
+  )}
+</div>
+
           </div>
         </div>
       </main>

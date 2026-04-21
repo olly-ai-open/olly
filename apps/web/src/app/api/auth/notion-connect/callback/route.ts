@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeNotionOAuthCode } from "@/lib/notion";
 import { auth } from "@/lib/auth";
-import { prisma as db } from "@/lib/prisma";
+import { saveCredential } from "@/lib/credentials";
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -31,22 +31,11 @@ export async function GET(req: NextRequest) {
     const redirectUri = `${process.env.NEXTAUTH_URL?.replace(/\/$/, "")}/api/auth/notion-connect/callback`;
     const tokenData = await exchangeNotionOAuthCode(code, redirectUri);
 
-    // Save token to database
-    await db.notionCredential.upsert({
-      where: { userId: session.user.id },
-      update: {
-        accessToken: tokenData.access_token,
-        workspaceId: tokenData.workspace_id,
-        workspaceName: tokenData.workspace_name ?? null,
-        botId: tokenData.bot_id,
-      },
-      create: {
-        userId: session.user.id,
-        accessToken: tokenData.access_token,
-        workspaceId: tokenData.workspace_id,
-        workspaceName: tokenData.workspace_name ?? null,
-        botId: tokenData.bot_id,
-      },
+    await saveCredential(session.user.id, "notion", {
+      accessToken: tokenData.access_token,
+      workspaceId: tokenData.workspace_id,
+      workspaceName: tokenData.workspace_name ?? "",
+      botId: tokenData.bot_id,
     });
 
     return NextResponse.redirect(
