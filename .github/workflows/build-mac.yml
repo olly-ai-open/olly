@@ -1,0 +1,40 @@
+﻿name: Build Mac DMG
+
+on:
+  push:
+    branches: [main, feature/credential-table]
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Next.js
+        run: |
+          cd apps/web
+          npx next build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Build Electron DMG
+        run: npx electron-builder --mac dmg
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Olly-Mac
+          path: dist/*.dmg
