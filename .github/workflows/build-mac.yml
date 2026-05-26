@@ -29,7 +29,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
 
       - name: Build Electron DMG
-        run: npx electron-builder --mac dmg
+        run: npx electron-builder --mac dmg --publish never
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
