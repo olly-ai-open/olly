@@ -1,3 +1,4 @@
 dist-lambda
 node_modules
 .env.local
+dist/

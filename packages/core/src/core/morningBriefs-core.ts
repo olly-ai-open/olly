@@ -115,12 +115,12 @@ export async function generateMorningBriefForUserCore(
   const savedBrief = await prisma.brief.create({
     data: {
       meetingId: morningMeeting.id,
-      content: {
+      content: JSON.stringify({
         brief_markdown: morning.brief_markdown,
         highlighted_action_item_ids: morning.highlighted_action_item_ids,
-      },
+      }),
       confidence,
-      sources: formattedSources,
+      sources: JSON.stringify(formattedSources),
     },
   });
 

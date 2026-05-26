@@ -257,16 +257,16 @@ export async function POST(req: Request) {
     });
 
     const saved = await prisma.brief.create({
-      data: {
-        meetingId: morningMeeting.id,
-        content: {
-          brief_markdown: morning.brief_markdown,
-          highlighted_action_item_ids: morning.highlighted_action_item_ids,
-        },
-        confidence,
-        sources: formattedSources,
-      },
-    });
+  data: {
+    meetingId: morningMeeting.id,
+    content: JSON.stringify({
+      brief_markdown: morning.brief_markdown,
+      highlighted_action_item_ids: morning.highlighted_action_item_ids,
+    }),
+    confidence,
+    sources: JSON.stringify(formattedSources),
+  },
+});
 
     if (scheduled) {
       sendBriefReadyWebPush(prisma, {

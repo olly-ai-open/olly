@@ -1,6 +1,6 @@
 {
   "name": "olly-monorepo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Olly AI Local Desktop App",
   "author": "Mihir Bapat",
   "private": true,
@@ -14,7 +14,7 @@
     "electron": "electron .",
     "electron:build": "electron-builder"
   },
-  "devDependencies": {
+  "dependencies": {
     "electron": "^41.7.0",
     "electron-builder": "^26.8.1"
   },
@@ -29,19 +29,15 @@
       "apps/web/.next/**/*",
       "apps/web/public/**/*",
       "apps/web/package.json",
-      "packages/**/*",
+      "packages/core/dist/**/*",
       "node_modules/**/*"
     ],
     "mac": {
       "target": "dmg",
-      "icon": "apps/web/public/icon.icns"
+      "category": "public.app-category.productivity"
     },
     "win": {
-      "target": "nsis",
-      "icon": "apps/web/public/icon.ico"
-    },
-    "linux": {
-      "target": "AppImage"
+      "target": "nsis"
     }
   }
 }

@@ -41,7 +41,6 @@ export default async function BriefDetail({
   }
   const settings = await getUserSettings(session.user.id);
 
-  // Get user admin status
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { isAdmin: true },
@@ -68,22 +67,49 @@ export default async function BriefDetail({
         timeStyle: "short",
       }).format(brief.meeting.startsAt)
     : "";
-  const content: any = brief.content as any;
-  const contentObj: any | null =
-    typeof content === "object" && content ? content : null;
+
+  // Parse content — it may be a JSON string (from encryption layer) or already an object
+  const rawContent: any = brief.content as any;
+  let contentObj: any | null = null;
+  if (typeof rawContent === "object" && rawContent) {
+    contentObj = rawContent;
+  } else if (typeof rawContent === "string") {
+    try {
+      const parsed = JSON.parse(rawContent);
+      if (typeof parsed === "object" && parsed) {
+        contentObj = parsed;
+      }
+    } catch {
+      // not valid JSON, treat as plain text
+    }
+  }
   const text = !contentObj
-    ? typeof content === "string"
-      ? content
-      : String(content ?? "")
+    ? typeof rawContent === "string"
+      ? rawContent
+      : String(rawContent ?? "")
     : "";
+
   const goals: string[] = Array.isArray(contentObj?.goals)
     ? (contentObj.goals as any[])
         .map((g: any) => (typeof g === "string" ? g.trim() : ""))
         .filter(Boolean)
     : [];
-  const sources: string[] = Array.isArray(brief.sources)
-    ? (brief.sources as any[])
-    : [];
+
+  // Parse sources — also stored as JSON string
+  const rawSources: any = brief.sources as any;
+  let parsedSources: string[] = [];
+  if (Array.isArray(rawSources)) {
+    parsedSources = rawSources as string[];
+  } else if (typeof rawSources === "string") {
+    try {
+      const s = JSON.parse(rawSources);
+      if (Array.isArray(s)) parsedSources = s;
+    } catch {
+      // ignore
+    }
+  }
+  const sources: string[] = parsedSources;
+
   const highlightedIds: string[] = Array.isArray(
     contentObj?.highlighted_action_item_ids,
   )
@@ -95,7 +121,6 @@ export default async function BriefDetail({
   const isEveningBrief = brief.meeting?.type === "evening";
   const isMeetingBrief = !isMorningBrief && !isEveningBrief;
 
-  // Sanitize markdown once — strips leaked internal IDs like (cm...)
   const briefMarkdown = contentObj?.brief_markdown
     ? sanitizeBriefMarkdown(contentObj.brief_markdown)
     : null;
@@ -130,7 +155,6 @@ export default async function BriefDetail({
     provider?: string;
     meta?: string;
   } {
-    // Accept formats like: "Drive: Title -> URL" or Gmail URL strings
     const driveMatch = s.match(/^\s*(\w+):\s*(.*?)\s*->\s*(https?:\/\/\S+)/i);
     if (driveMatch)
       return {
@@ -162,10 +186,8 @@ export default async function BriefDetail({
       </div>
 
       <div className="space-y-6">
-        {/* Brief content */}
         {meetingSections ? (
           <>
-            {/* Card 1: Meeting Overview */}
             {meetingSections.overview &&
               (() => {
                 const ov = parseOverviewContent(meetingSections.overview);
@@ -192,7 +214,6 @@ export default async function BriefDetail({
                 );
               })()}
 
-            {/* Card 2: Context & Background, Key Points, Talking Points */}
             {meetingSections.contextAndPoints && (
               <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
                 <MarkdownView
@@ -202,7 +223,6 @@ export default async function BriefDetail({
               </div>
             )}
 
-            {/* Fallback if parsing found no recognized sections */}
             {!meetingSections.overview && !meetingSections.contextAndPoints && (
               <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
                 <MarkdownView
@@ -225,7 +245,6 @@ export default async function BriefDetail({
           </div>
         )}
 
-        {/* Meeting Goals */}
         {goals.length > 0 && (
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <h2 className="text-xl font-semibold mb-2">
@@ -239,7 +258,6 @@ export default async function BriefDetail({
           </div>
         )}
 
-        {/* Relevant Documents */}
         {sources?.length ? (
           <details
             className="group rounded-lg border border-border bg-card shadow-sm"
@@ -266,10 +284,9 @@ export default async function BriefDetail({
                 {sources.slice(0, 10).map((s, i) => {
                   const p = parseSource(s);
                   return (
-                    <li
+                  <li
                       key={i}
-                      className="flex items-center justify-between rounded-md bg-muted px-3 py-2"
-                    >
+                      className="flex items-center justify-between rounded-md bg-muted px-3 py-2">
                       <div>
                         <div className="font-medium">{p.title}</div>
                         {p.provider && (
@@ -296,7 +313,6 @@ export default async function BriefDetail({
           </details>
         ) : null}
 
-        {/* Morning Priorities / Action Items */}
         {isMorningBrief && highlightedActionItems.length > 0 ? (
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
             <div className="mb-2 text-sm font-medium">All Action Items</div>
@@ -359,7 +375,6 @@ export default async function BriefDetail({
           </div>
         ) : null}
 
-        {/* Actions */}
         <BriefActions
           briefId={brief.id}
           readAt={brief.readAt ?? null}

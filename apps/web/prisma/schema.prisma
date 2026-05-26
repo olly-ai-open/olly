@@ -3,7 +3,7 @@
 
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  binaryTargets = ["native", "windows", "darwin", "darwin-arm64", "debian-openssl-1.1.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -121,9 +121,9 @@ model Meeting {
 model Brief {
   id          String   @id @default(cuid())
   meetingId   String
-  content     Json
+  content     String   @db.Text /// @encrypted
   confidence  String?
-  sources     Json?
+  sources     String?  @db.Text /// @encrypted
   generatedAt DateTime @default(now())
   feedback    Json?
   readAt      DateTime?
