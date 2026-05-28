@@ -11,10 +11,11 @@
   ],
   "scripts": {
     "postinstall": "npm run postinstall --workspace=apps/web",
+    "build:web": "npm run build --workspace=apps/web",
     "electron": "electron .",
     "electron:build": "electron-builder",
-    "dist:mac": "electron-builder --mac --universal",
-    "dist:win": "electron-builder --win nsis"
+    "dist:mac": "npm run build:web && electron-builder --mac --universal",
+    "dist:win": "npm run build:web && electron-builder --win nsis"
   },
   "dependencies": {
     "dotenv": "^17.2.3"
@@ -36,7 +37,34 @@
       "apps/web/public/**/*",
       "apps/web/package.json",
       "packages/core/dist/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/next",
+        "to": "node_modules/next"
+      },
+      {
+        "from": "node_modules/react",
+        "to": "node_modules/react"
+      },
+      {
+        "from": "node_modules/react-dom",
+        "to": "node_modules/react-dom"
+      },
+      {
+        "from": "apps/web/.next",
+        "to": "apps/web/.next"
+      },
+      {
+        "from": "apps/web/public",
+        "to": "apps/web/public"
+      },
+      {
+        "from": "apps/web/package.json",
+        "to": "apps/web/package.json"
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
