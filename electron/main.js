@@ -55,6 +55,13 @@ function getNextBin() {
   return path.join(getRepoRoot(), "node_modules", "next", "dist", "bin", "next");
 }
 
+function getStandaloneServerPath() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "apps", "web", ".next", "standalone", "server.js");
+  }
+  return path.join(getWebDir(), ".next", "standalone", "server.js");
+}
+
 function loadEnv() {
   const possibleEnvPaths = [
     path.join(getWebDir(), ".env.local"),
@@ -184,30 +191,47 @@ function startWebServer() {
     return;
   }
 
+  const isDev = !app.isPackaged;
   const webDir = getWebDir();
-  const nextBin = getNextBin();
-
-  if (!fs.existsSync(nextBin)) {
-    throw new Error(`Next binary not found: ${nextBin}`);
-  }
 
   if (!fs.existsSync(webDir)) {
     throw new Error(`Web directory not found: ${webDir}`);
   }
 
-  const nextArgs = app.isPackaged
-    ? [nextBin, "start", "-p", String(APP_PORT), "-H", APP_HOST]
-    : [nextBin, "dev", "-p", String(APP_PORT), "-H", APP_HOST];
+  let commandArgs = [];
+  let cwd = webDir;
 
-  log("app.isPackaged =", app.isPackaged);
-  log("Starting web server from:", webDir);
-  log("Using Next binary:", nextBin);
-  log("Using args:", nextArgs.join(" "));
+  if (isDev) {
+    const nextBin = getNextBin();
+
+    if (!fs.existsSync(nextBin)) {
+      throw new Error(`Next binary not found: ${nextBin}`);
+    }
+
+    commandArgs = [nextBin, "dev", "-p", String(APP_PORT), "-H", APP_HOST];
+
+    log("app.isPackaged =", app.isPackaged);
+    log("Starting Next dev server from:", webDir);
+    log("Using Next binary:", nextBin);
+    log("Using args:", commandArgs.join(" "));
+  } else {
+    const standaloneServerPath = getStandaloneServerPath();
+
+    if (!fs.existsSync(standaloneServerPath)) {
+      throw new Error(`Next standalone server not found: ${standaloneServerPath}`);
+    }
+
+    commandArgs = [standaloneServerPath];
+    cwd = path.dirname(standaloneServerPath);
+
+    log("app.isPackaged =", app.isPackaged);
+    log("Starting Next standalone server:", standaloneServerPath);
+  }
 
   isStartingServer = true;
 
-  const child = spawn(process.execPath, nextArgs, {
-    cwd: webDir,
+  const child = spawn(process.execPath, commandArgs, {
+    cwd,
     env: {
       ...process.env,
       PORT: String(APP_PORT),
