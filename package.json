@@ -13,7 +13,7 @@
     "postinstall": "npm run postinstall --workspace=apps/web",
     "electron": "electron .",
     "electron:build": "electron-builder",
-    "dist:mac": "electron-builder --mac --universal dmg",
+    "dist:mac": "electron-builder --mac --universal",
     "dist:win": "electron-builder --win nsis"
   },
   "dependencies": {
