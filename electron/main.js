@@ -1,80 +1,148 @@
-const { app, BrowserWindow } = require('electron')
-const { spawn } = require('child_process')
-const path = require('path')
-const http = require('http')
-const fs = require('fs')
+const { app, BrowserWindow, dialog } = require("electron");
+const { spawn } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+const http = require("http");
+const dotenv = require("dotenv");
 
-let win
-let serverProcess
+let mainWindow = null;
+let webProcess = null;
 
-// 1. STOP THE INFINITE LOOP: Only allow one instance of the app
-const gotTheLock = app.requestSingleInstanceLock()
-if (!gotTheLock) {
-  app.quit()
-} else {
-  app.on('second-instance', () => {
-    if (win) {
-      if (win.isMinimized()) win.restore()
-      win.focus()
-    }
-  })
+const APP_PORT = 3000;
+const APP_URL = `http://localhost:${APP_PORT}`;
+
+function log(...args) {
+  console.log("[olly-startup]", ...args);
 }
 
-function startServer() {
-  const isPackaged = app.isPackaged
-  const baseDir = isPackaged 
-    ? path.join(process.resourcesPath, 'app')
-    : path.join(__dirname, '..')
-    
-  const nextBin = path.join(baseDir, 'node_modules/next/dist/bin/next')
-  const webDir = path.join(baseDir, 'apps/web')
+function getRepoRoot() {
+  return path.resolve(__dirname, "..");
+}
 
-  // Use the system 'node' to avoid spawning another Electron instance
-  serverProcess = spawn('node', [nextBin, 'start', '-p', '3000'], {
-    cwd: webDir,
-    env: { 
-      ...process.env, 
-      NODE_ENV: 'production',
-      PORT: '3000'
-    },
-    shell: true
-  })
+function getWebDir() {
+  return path.join(getRepoRoot(), "apps", "web");
+}
+
+function loadEnv() {
+  const envPath = path.join(getWebDir(), ".env.local");
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    log("Loaded env from:", envPath);
+  } else {
+    log("No .env.local found at:", envPath);
+  }
+}
+
+function waitForServer(url, retries = 90) {
+  return new Promise((resolve, reject) => {
+    const tryConnect = (remaining) => {
+      http
+        .get(url, (res) => {
+          res.resume();
+          resolve(true);
+        })
+        .on("error", () => {
+          if (remaining <= 0) {
+            reject(new Error(`Server did not start in time: ${url}`));
+          } else {
+            setTimeout(() => tryConnect(remaining - 1), 1000);
+          }
+        });
+    };
+    tryConnect(retries);
+  });
 }
 
 function createWindow() {
-  win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    title: 'Olly',
-    show: true,
-    backgroundColor: '#0f172a'
-  })
+  mainWindow = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    backgroundColor: "#08142b",
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
 
-  // Show a loading screen
-  win.loadURL('data:text/html,<html><body style="background:#0f172a;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;"><div><h1>Starting Olly...</h1><p>Setting up your local environment.</p></div></body></html>')
-
-  const poll = () => {
-    http.get('http://localhost:3000', (res) => {
-      win.loadURL('http://localhost:3000')
-    }).on('error', () => {
-      setTimeout(poll, 1000)
-    })
-  }
-  poll()
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
 }
 
-app.whenReady().then(() => {
-  if (gotTheLock) {
-    startServer()
-    createWindow()
+function showFatalError(err) {
+  const message = err && err.stack ? err.stack : String(err);
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const html = `
+      <html>
+        <body style="margin:0;background:#08142b;color:white;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;">
+          <div style="max-width:840px;padding:24px;">
+            <h1>Olly failed to start</h1>
+            <pre style="white-space:pre-wrap;background:#1e293b;padding:16px;border-radius:12px;">${message}</pre>
+          </div>
+        </body>
+      </html>
+    `;
+    mainWindow.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
+  } else {
+    dialog.showErrorBox("Olly failed to start", message);
   }
-})
+}
 
-app.on('window-all-closed', () => {
-  if (serverProcess) serverProcess.kill()
-  app.quit()
-})
+function startWebServer() {
+  const webDir = getWebDir();
+  const nextBin = path.join(getRepoRoot(), "node_modules", "next", "dist", "bin", "next");
 
-app.on('before-quit', () => {
-  if (serverProcess) serverProcess.kill()
-})
+  log("Starting web server from:", webDir);
+  log("Using Next binary:", nextBin);
+
+  webProcess = spawn(process.execPath, [nextBin, "dev", "-p", String(APP_PORT)], {
+    cwd: webDir,
+    env: {
+      ...process.env,
+      PORT: String(APP_PORT),
+      NEXTAUTH_URL: APP_URL,
+      AUTH_TRUST_HOST: "true"
+    },
+    stdio: "pipe",
+    shell: false
+  });
+
+  webProcess.stdout.on("data", (data) => {
+    console.log("[next]", data.toString());
+  });
+
+  webProcess.stderr.on("data", (data) => {
+    console.error("[next]", data.toString());
+  });
+
+  webProcess.on("error", (err) => {
+    console.error("[olly-startup] web process error:", err);
+    showFatalError(err);
+  });
+
+  webProcess.on("exit", (code, signal) => {
+    console.log("[olly-startup] web process exited:", { code, signal });
+  });
+}
+
+async function bootstrap() {
+  try {
+    loadEnv();
+    createWindow();
+    startWebServer();
+    await waitForServer(APP_URL, 90);
+    await mainWindow.loadURL(APP_URL);
+  } catch (err) {
+    showFatalError(err);
+  }
+}
+
+app.whenReady().then(bootstrap);
+
+app.on("window-all-closed", () => {
+  if (webProcess && !webProcess.killed) {
+    webProcess.kill();
+  }
+  app.quit();
+});

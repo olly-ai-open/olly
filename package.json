@@ -12,7 +12,9 @@
   "scripts": {
     "postinstall": "npm run postinstall --workspace=apps/web",
     "electron": "electron .",
-    "electron:build": "electron-builder"
+    "electron:build": "electron-builder",
+    "dist:mac": "electron-builder --mac --universal dmg",
+    "dist:win": "electron-builder --win nsis"
   },
   "devDependencies": {
     "electron": "^41.7.0",
@@ -34,7 +36,21 @@
       "node_modules/**/*"
     ],
     "mac": {
-      "target": "dmg"
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
     },
     "win": {
       "target": "nsis"
