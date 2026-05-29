@@ -15,28 +15,12 @@ function getRepoRoot() {
   return path.resolve(__dirname, "..");
 }
 
-function getWebDir() {
-  return path.join(getRepoRoot(), "apps", "web");
-}
-
 function getStandaloneDir() {
-  return path.join(getWebDir(), ".next", "standalone");
+  return path.join(getRepoRoot(), "apps", "web", ".next", "standalone");
 }
 
 function getStandaloneServerPath() {
   return path.join(getStandaloneDir(), "apps", "web", "server.js");
-}
-
-function getNodeBinary() {
-  if (!app.isPackaged) {
-    return process.execPath;
-  }
-
-  if (process.platform === "darwin") {
-    return path.join(process.resourcesPath, "..", "Frameworks", "Electron Framework.framework", "Versions", "A", "Helpers", "Electron Helper (Plugin).app", "Contents", "MacOS", "Electron Helper (Plugin)");
-  }
-
-  return process.execPath;
 }
 
 function isPortOpen(port, host = "127.0.0.1") {
@@ -90,20 +74,13 @@ function waitForServer(port, timeoutMs = 30000) {
 }
 
 function startWebServer(port) {
-  const webDir = getWebDir();
   const standaloneDir = getStandaloneDir();
   const serverPath = getStandaloneServerPath();
-  const nodeBinary = getNodeBinary();
 
   console.log("[olly-startup] app.isPackaged =", app.isPackaged);
-  console.log("[olly-startup] Web dir =", webDir);
   console.log("[olly-startup] Standalone dir =", standaloneDir);
   console.log("[olly-startup] Server path =", serverPath);
-  console.log("[olly-startup] Node binary =", nodeBinary);
-
-  if (!fs.existsSync(webDir)) {
-    throw new Error(`Web directory not found: ${webDir}`);
-  }
+  console.log("[olly-startup] Exec path =", process.execPath);
 
   if (!fs.existsSync(standaloneDir)) {
     throw new Error(`Standalone directory not found: ${standaloneDir}`);
@@ -113,14 +90,11 @@ function startWebServer(port) {
     throw new Error(`Standalone server.js not found: ${serverPath}`);
   }
 
-  if (!fs.existsSync(nodeBinary)) {
-    throw new Error(`Node binary not found: ${nodeBinary}`);
-  }
-
-  webServer = spawn(nodeBinary, [serverPath], {
+  webServer = spawn(process.execPath, [serverPath], {
     cwd: standaloneDir,
     env: {
       ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       PORT: String(port),
       HOSTNAME: "127.0.0.1"
@@ -212,8 +186,5 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  if (webServer && webServer.exitCode !== null) {
-    console.log("[olly-startup] Web process exited before app shutdown.");
-  }
   stopWebServer();
 });

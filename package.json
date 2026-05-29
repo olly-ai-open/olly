@@ -35,22 +35,20 @@
       "packages/core/dist/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "apps/web/.env.local",
-        "to": "apps/web/.env.local"
-      }
-    ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64"]
+          "arch": [
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["arm64"]
+          "arch": [
+            "arm64"
+          ]
         }
       ]
     },
