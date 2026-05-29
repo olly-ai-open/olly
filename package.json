@@ -14,7 +14,7 @@
     "build:web": "set NODE_OPTIONS=--max-old-space-size=8192 && npm run build --workspace=apps/web",
     "electron": "electron .",
     "electron:build": "npm run build:web && electron-builder",
-    "dist:mac": "npm run build:web && electron-builder --mac --arm64",
+    "dist:mac": "npm run build:web && electron-builder --mac --arm64 --publish never",
     "dist:win": "npm run build:web && electron-builder --win nsis"
   },
   "dependencies": {
