@@ -55,11 +55,55 @@ function getNextBin() {
   return path.join(getRepoRoot(), "node_modules", "next", "dist", "bin", "next");
 }
 
-function getStandaloneServerPath() {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, "apps", "web", ".next", "standalone", "server.js");
+function findStandaloneServer(baseDir) {
+  const standaloneRoot = path.join(baseDir, ".next", "standalone");
+
+  if (!fs.existsSync(standaloneRoot)) {
+    throw new Error(`Standalone directory not found: ${standaloneRoot}`);
   }
-  return path.join(getWebDir(), ".next", "standalone", "server.js");
+
+  const matches = [];
+
+  function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules") continue;
+        walk(fullPath);
+        continue;
+      }
+
+      if (entry.isFile() && entry.name === "server.js") {
+        matches.push(fullPath);
+      }
+    }
+  }
+
+  walk(standaloneRoot);
+
+  const appServer = matches.find((p) =>
+    p.includes(path.join(".next", "standalone")) &&
+    p.includes(path.join("apps", "web", "server.js"))
+  );
+
+  if (appServer) {
+    return appServer;
+  }
+
+  const fallback = matches.find((p) => !p.includes(`${path.sep}node_modules${path.sep}`));
+
+  if (fallback) {
+    return fallback;
+  }
+
+  throw new Error(`No standalone app server.js found under: ${standaloneRoot}`);
+}
+
+function getStandaloneServerPath() {
+  return findStandaloneServer(getWebDir());
 }
 
 function loadEnv() {
