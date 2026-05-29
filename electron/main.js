@@ -7,6 +7,8 @@ const { spawn } = require("child_process");
 let mainWindow = null;
 let webServer = null;
 
+const FALLBACK_AUTH_SECRET = "olly-desktop-local-secret-change-this";
+
 function getRepoRoot() {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "app");
@@ -97,11 +99,17 @@ function startWebServer(port) {
   const standaloneDir = getStandaloneDir();
   const serverPath = getStandaloneServerPath();
 
+  const authSecret =
+    process.env.AUTH_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    FALLBACK_AUTH_SECRET;
+
   console.log("[olly-startup] app.isPackaged =", app.isPackaged);
   console.log("[olly-startup] Standalone dir =", standaloneDir);
   console.log("[olly-startup] Server path =", serverPath);
   console.log("[olly-startup] Exec path =", process.execPath);
   console.log("[olly-startup] Selected port =", port);
+  console.log("[olly-startup] Auth secret configured =", Boolean(authSecret));
 
   if (!fs.existsSync(standaloneDir)) {
     throw new Error(`Standalone directory not found: ${standaloneDir}`);
@@ -118,7 +126,11 @@ function startWebServer(port) {
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       PORT: String(port),
-      HOSTNAME: "127.0.0.1"
+      HOSTNAME: "127.0.0.1",
+      AUTH_SECRET: authSecret,
+      NEXTAUTH_SECRET: authSecret,
+      NEXTAUTH_URL: `http://127.0.0.1:${port}`,
+      AUTH_URL: `http://127.0.0.1:${port}`
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
