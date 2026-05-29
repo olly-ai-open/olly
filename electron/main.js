@@ -7,6 +7,7 @@ const { spawn } = require("child_process");
 let mainWindow = null;
 let webServer = null;
 
+const APP_PORT = 3000;
 const FALLBACK_AUTH_SECRET = "olly-desktop-local-secret-change-this";
 
 function getRepoRoot() {
@@ -45,27 +46,6 @@ function isPortOpen(port, host = "127.0.0.1") {
     });
 
     socket.connect(port, host);
-  });
-}
-
-function getFreePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      const port = typeof address === "object" && address ? address.port : null;
-
-      server.close(() => {
-        if (port) {
-          resolve(port);
-        } else {
-          reject(new Error("Failed to get a free port."));
-        }
-      });
-    });
-
-    server.on("error", reject);
   });
 }
 
@@ -126,11 +106,11 @@ function startWebServer(port) {
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       PORT: String(port),
-      HOSTNAME: "127.0.0.1",
+      HOSTNAME: "localhost",
       AUTH_SECRET: authSecret,
       NEXTAUTH_SECRET: authSecret,
-      NEXTAUTH_URL: `http://127.0.0.1:${port}`,
-      AUTH_URL: `http://127.0.0.1:${port}`
+      NEXTAUTH_URL: `http://localhost:${port}`,
+      AUTH_URL: `http://localhost:${port}`
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -179,7 +159,7 @@ async function createMainWindow(port) {
     mainWindow.show();
   });
 
-  await mainWindow.loadURL(`http://127.0.0.1:${port}`);
+  await mainWindow.loadURL(`http://localhost:${port}`);
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -187,7 +167,14 @@ async function createMainWindow(port) {
 }
 
 async function bootstrap() {
-  const port = await getFreePort();
+  const port = APP_PORT;
+
+  if (await isPortOpen(port, "127.0.0.1")) {
+    throw new Error(
+      `Port ${port} is already in use. Please free it before launching Olly.`
+    );
+  }
+
   startWebServer(port);
   await waitForServer(port);
   await createMainWindow(port);
@@ -204,10 +191,7 @@ app.whenReady().then(async () => {
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       try {
-        const port = await getFreePort();
-        startWebServer(port);
-        await waitForServer(port);
-        await createMainWindow(port);
+        await createMainWindow(APP_PORT);
       } catch (error) {
         console.error(error);
       }
