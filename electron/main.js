@@ -42,7 +42,7 @@ function logError(...args) {
 
 function getRepoRoot() {
   if (app.isPackaged) {
-    return process.resourcesPath;
+    return path.join(process.resourcesPath, "app");
   }
   return path.resolve(__dirname, "..");
 }
