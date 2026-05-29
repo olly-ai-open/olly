@@ -1,82 +1,39 @@
-﻿name: Build Desktop Installers
+﻿name: Build Olly macOS app
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - main
       - feature/credential-table
-  workflow_dispatch:
+      # later: main, releases/**, etc.
 
 jobs:
   build-mac:
-    name: Build Mac DMGs
     runs-on: macos-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Use Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Build Next.js
         run: |
-          cd apps/web
-          npx next build
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          npm ci
 
-      - name: Build Electron DMGs
-        run: npx electron-builder --mac dmg --x64 --arm64 --publish never
+      - name: Build macOS app (DMG)
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max-old-space-size=8192
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          npm run dist:mac
 
-      - name: Upload Mac artifacts
+      - name: Upload dist artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Olly-Mac
-          path: |
-            dist/*.dmg
-            dist/*.blockmap
-
-  build-windows:
-    name: Build Windows Installer
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Next.js
-        run: |
-          cd apps/web
-          npx next build
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-
-      - name: Build Electron Windows installer
-        run: npx electron-builder --win nsis --publish never
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Olly-Windows
-          path: |
-            dist/*.exe
-            dist/*.blockmap
-            dist/latest*.yml
+          name: olly-mac-dist
+          path: dist/*
