@@ -6,7 +6,6 @@ const { spawn } = require("child_process");
 
 let mainWindow = null;
 let webServer = null;
-const WEB_PORT = 3000;
 
 function getRepoRoot() {
   if (app.isPackaged) {
@@ -47,6 +46,27 @@ function isPortOpen(port, host = "127.0.0.1") {
   });
 }
 
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : null;
+
+      server.close(() => {
+        if (port) {
+          resolve(port);
+        } else {
+          reject(new Error("Failed to get a free port."));
+        }
+      });
+    });
+
+    server.on("error", reject);
+  });
+}
+
 function waitForServer(port, timeoutMs = 30000) {
   const startedAt = Date.now();
 
@@ -81,6 +101,7 @@ function startWebServer(port) {
   console.log("[olly-startup] Standalone dir =", standaloneDir);
   console.log("[olly-startup] Server path =", serverPath);
   console.log("[olly-startup] Exec path =", process.execPath);
+  console.log("[olly-startup] Selected port =", port);
 
   if (!fs.existsSync(standaloneDir)) {
     throw new Error(`Standalone directory not found: ${standaloneDir}`);
@@ -154,9 +175,10 @@ async function createMainWindow(port) {
 }
 
 async function bootstrap() {
-  startWebServer(WEB_PORT);
-  await waitForServer(WEB_PORT);
-  await createMainWindow(WEB_PORT);
+  const port = await getFreePort();
+  startWebServer(port);
+  await waitForServer(port);
+  await createMainWindow(port);
 }
 
 app.whenReady().then(async () => {
@@ -170,7 +192,10 @@ app.whenReady().then(async () => {
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       try {
-        await createMainWindow(WEB_PORT);
+        const port = await getFreePort();
+        startWebServer(port);
+        await waitForServer(port);
+        await createMainWindow(port);
       } catch (error) {
         console.error(error);
       }
