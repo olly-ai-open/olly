@@ -3,12 +3,35 @@ const path = require("path");
 const fs = require("fs");
 const net = require("net");
 const { spawn } = require("child_process");
+const dotenv = require("dotenv");
 
 let mainWindow = null;
 let webServer = null;
 
 const APP_PORT = 3000;
 const FALLBACK_AUTH_SECRET = "olly-desktop-local-secret-change-this";
+
+function loadPackagedEnv() {
+  const candidates = app.isPackaged
+    ? [
+        path.join(process.resourcesPath, "env", ".env.local"),
+        path.join(process.resourcesPath, "app", "apps", "web", ".env.local")
+      ]
+    : [
+        path.join(getRepoRoot(), "apps", "web", ".env.local")
+      ];
+
+  for (const envPath of candidates) {
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath, override: true });
+      console.log("[olly-startup] Loaded env from", envPath);
+      return envPath;
+    }
+  }
+
+  console.warn("[olly-startup] No .env.local file found in expected locations.");
+  return null;
+}
 
 function getRepoRoot() {
   if (app.isPackaged) {
@@ -81,6 +104,8 @@ function startWebServer(port) {
   const standaloneDir = getStandaloneDir();
   const serverPath = getStandaloneServerPath();
 
+  loadPackagedEnv();
+
   const authSecret =
     process.env.AUTH_SECRET ||
     process.env.NEXTAUTH_SECRET ||
@@ -92,6 +117,8 @@ function startWebServer(port) {
   console.log("[olly-startup] Exec path =", process.execPath);
   console.log("[olly-startup] Selected port =", port);
   console.log("[olly-startup] Auth secret configured =", Boolean(authSecret));
+  console.log("[olly-startup] Google client id configured =", Boolean(process.env.GOOGLE_CLIENT_ID));
+  console.log("[olly-startup] Google client secret configured =", Boolean(process.env.GOOGLE_CLIENT_SECRET));
 
   if (!fs.existsSync(standaloneDir)) {
     throw new Error(`Standalone directory not found: ${standaloneDir}`);
