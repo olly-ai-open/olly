@@ -25,7 +25,7 @@ function getStandaloneServerPath() {
   return path.join(getStandaloneDir(), "apps", "web", "server.js");
 }
 
-function isPortOpen(port, host = "127.0.0.1") {
+function isPortOpen(port, host = "localhost") {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     socket.setTimeout(1000);
@@ -58,7 +58,9 @@ function waitForServer(port, timeoutMs = 30000) {
         return reject(new Error("Local web server exited before becoming ready."));
       }
 
-      const ready = await isPortOpen(port);
+      const ready =
+        (await isPortOpen(port, "localhost")) ||
+        (await isPortOpen(port, "127.0.0.1"));
 
       if (ready) {
         return resolve();
@@ -169,7 +171,7 @@ async function createMainWindow(port) {
 async function bootstrap() {
   const port = APP_PORT;
 
-  if (await isPortOpen(port, "127.0.0.1")) {
+  if (await isPortOpen(port, "localhost")) {
     throw new Error(
       `Port ${port} is already in use. Please free it before launching Olly.`
     );
