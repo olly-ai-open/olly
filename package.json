@@ -13,12 +13,18 @@
     "postinstall": "npm run postinstall --workspace=apps/web",
     "build:web": "set NODE_OPTIONS=--max-old-space-size=8192 && npm run build --workspace=apps/web",
     "electron": "electron .",
-    "electron:build": "npm run build:web && electron-builder",
-    "dist:mac": "npm run build:web && electron-builder --mac --arm64 --publish never",
-    "dist:win": "npm run build:web && electron-builder --win nsis"
+    "electron:build": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && electron-builder",
+    "copy:standalone-assets": "node electron/scripts/copy-standalone-assets.js",
+    "copy:prisma-resources": "node electron/scripts/copy-prisma-resources.js",
+    "dist:mac": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && electron-builder --mac --publish never",
+    "dist:win": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && electron-builder --win nsis"
   },
   "dependencies": {
-    "dotenv": "^17.2.3"
+    "@embedded-postgres/darwin-arm64": "^17.9.0-beta.17",
+    "@embedded-postgres/darwin-x64": "^17.9.0-beta.17",
+    "dotenv": "^17.2.3",
+    "embedded-postgres": "^17.9.0-beta.17",
+    "pg": "^8.21.0"
   },
   "devDependencies": {
     "electron": "^41.7.0",
@@ -39,6 +45,14 @@
       {
         "from": "apps/web/.env.local",
         "to": "env/.env.local"
+      },
+      {
+        "from": "apps/web/prisma/migrations",
+        "to": "prisma/migrations"
+      },
+      {
+        "from": "apps/web/prisma/schema.prisma",
+        "to": "prisma/schema.prisma"
       }
     ],
     "mac": {
@@ -47,12 +61,14 @@
         {
           "target": "dmg",
           "arch": [
+            "x64",
             "arm64"
           ]
         },
         {
           "target": "zip",
           "arch": [
+            "x64",
             "arm64"
           ]
         }

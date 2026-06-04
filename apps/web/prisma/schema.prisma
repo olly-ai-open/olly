@@ -121,9 +121,9 @@ model Meeting {
 model Brief {
   id          String   @id @default(cuid())
   meetingId   String
-  content     String   @db.Text /// @encrypted
+  content     Json
   confidence  String?
-  sources     String?  @db.Text /// @encrypted
+  sources     Json?
   generatedAt DateTime @default(now())
   feedback    Json?
   readAt      DateTime?

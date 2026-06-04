@@ -1,240 +1,148 @@
-const { app, BrowserWindow } = require("electron");
-const path = require("path");
-const fs = require("fs");
-const net = require("net");
-const { spawn } = require("child_process");
+/**
+ * Olly desktop entry point.
+ *
+ * Bootstrap order:
+ *   1. Show loading window
+ *   2. Load env (.env.local)
+ *   3. Ensure local Postgres is running (embedded; downloads on first launch)
+ *   4. Apply database migrations
+ *   5. Spawn Next.js standalone server
+ *   6. Open the app window
+ *
+ * Heavy lifting lives in `electron/lib/*` modules; this file orchestrates.
+ */
+
+const { app } = require("electron");
+const fs = require("node:fs");
 const dotenv = require("dotenv");
 
-let mainWindow = null;
-let webServer = null;
+const paths = require("./lib/paths");
+const ui = require("./lib/ui");
+const server = require("./lib/server");
+const postgres = require("./lib/postgres");
+const migrations = require("./lib/migrations");
 
 const APP_PORT = 3000;
 const FALLBACK_AUTH_SECRET = "olly-desktop-local-secret-change-this";
 
+let mainWindow = null;
+let webServer = null;
+
+function log(...args) {
+  console.log("[olly-startup]", ...args);
+}
+
 function loadPackagedEnv() {
   const candidates = app.isPackaged
-    ? [
-        path.join(process.resourcesPath, "env", ".env.local"),
-        path.join(process.resourcesPath, "app", "apps", "web", ".env.local")
-      ]
-    : [
-        path.join(getRepoRoot(), "apps", "web", ".env.local")
-      ];
+    ? [paths.getPackagedEnvPath()]
+    : [paths.getDevEnvPath()];
 
   for (const envPath of candidates) {
     if (fs.existsSync(envPath)) {
       dotenv.config({ path: envPath, override: true });
-      console.log("[olly-startup] Loaded env from", envPath);
-      return envPath;
+      log("Loaded env file:", envPath);
+      return;
     }
   }
-
-  console.warn("[olly-startup] No .env.local file found in expected locations.");
-  return null;
+  log("No .env.local found; continuing with empty env");
 }
 
-function getRepoRoot() {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, "app");
+/**
+ * Decide whether to use an external DATABASE_URL (dev convenience)
+ * or the embedded Postgres (always for packaged builds).
+ *
+ * `ownsDatabase` indicates whether the desktop app manages the DB
+ * lifecycle. We only apply migrations when we own the DB; an
+ * external dev DB is managed by the developer's `prisma migrate`
+ * workflow.
+ */
+async function ensureDatabase() {
+  const externalUrl = process.env.DATABASE_URL;
+  if (!app.isPackaged && externalUrl) {
+    log("Using external DATABASE_URL from env (dev mode)");
+    return { databaseUrl: externalUrl, ownsDatabase: false };
   }
-  return path.resolve(__dirname, "..");
+  const result = await postgres.ensurePostgresRunning(log);
+  return { ...result, ownsDatabase: true };
 }
 
-function getStandaloneDir() {
-  return path.join(getRepoRoot(), "apps", "web", ".next", "standalone");
-}
-
-function getStandaloneServerPath() {
-  return path.join(getStandaloneDir(), "apps", "web", "server.js");
-}
-
-function isPortOpen(port, host = "localhost") {
-  return new Promise((resolve) => {
-    const socket = new net.Socket();
-    socket.setTimeout(1000);
-
-    socket.once("connect", () => {
-      socket.destroy();
-      resolve(true);
-    });
-
-    socket.once("timeout", () => {
-      socket.destroy();
-      resolve(false);
-    });
-
-    socket.once("error", () => {
-      socket.destroy();
-      resolve(false);
-    });
-
-    socket.connect(port, host);
-  });
-}
-
-function waitForServer(port, timeoutMs = 30000) {
-  const startedAt = Date.now();
-
-  return new Promise((resolve, reject) => {
-    const attempt = async () => {
-      if (webServer && webServer.exitCode !== null) {
-        return reject(new Error("Local web server exited before becoming ready."));
-      }
-
-      const ready =
-        (await isPortOpen(port, "localhost")) ||
-        (await isPortOpen(port, "127.0.0.1"));
-
-      if (ready) {
-        return resolve();
-      }
-
-      if (Date.now() - startedAt > timeoutMs) {
-        return reject(new Error(`Timed out waiting for local web server on port ${port}`));
-      }
-
-      setTimeout(attempt, 500);
-    };
-
-    attempt();
-  });
-}
-
-function startWebServer(port) {
-  const standaloneDir = getStandaloneDir();
-  const serverPath = getStandaloneServerPath();
+async function bootstrap() {
+  mainWindow = ui.createMainWindow();
+  ui.showLoading(mainWindow, "Starting Olly...");
 
   loadPackagedEnv();
+
+  ui.showLoading(
+    mainWindow,
+    "Setting up local database (one-time download on first launch)...",
+  );
+  const { databaseUrl, ownsDatabase } = await ensureDatabase();
+
+  if (ownsDatabase) {
+    ui.showLoading(mainWindow, "Applying database migrations...");
+    await migrations.runMigrations(databaseUrl, log);
+  } else {
+    log("Skipping migrations (external DB is developer-managed)");
+  }
+
+  ui.showLoading(mainWindow, "Starting the Olly app...");
+
+  if (await server.isPortOpen(APP_PORT)) {
+    throw new Error(
+      `Port ${APP_PORT} is already in use. Please free it before launching Olly.`,
+    );
+  }
 
   const authSecret =
     process.env.AUTH_SECRET ||
     process.env.NEXTAUTH_SECRET ||
     FALLBACK_AUTH_SECRET;
 
-  console.log("[olly-startup] app.isPackaged =", app.isPackaged);
-  console.log("[olly-startup] Standalone dir =", standaloneDir);
-  console.log("[olly-startup] Server path =", serverPath);
-  console.log("[olly-startup] Exec path =", process.execPath);
-  console.log("[olly-startup] Selected port =", port);
-  console.log("[olly-startup] Auth secret configured =", Boolean(authSecret));
-  console.log("[olly-startup] Google client id configured =", Boolean(process.env.GOOGLE_CLIENT_ID));
-  console.log("[olly-startup] Google client secret configured =", Boolean(process.env.GOOGLE_CLIENT_SECRET));
-
-  if (!fs.existsSync(standaloneDir)) {
-    throw new Error(`Standalone directory not found: ${standaloneDir}`);
-  }
-
-  if (!fs.existsSync(serverPath)) {
-    throw new Error(`Standalone server.js not found: ${serverPath}`);
-  }
-
-  webServer = spawn(process.execPath, [serverPath], {
-    cwd: standaloneDir,
+  webServer = server.startNextServer({
+    port: APP_PORT,
     env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
-      NODE_ENV: "production",
-      PORT: String(port),
-      HOSTNAME: "localhost",
+      DATABASE_URL: databaseUrl,
+      DIRECT_URL: databaseUrl,
       AUTH_SECRET: authSecret,
       NEXTAUTH_SECRET: authSecret,
-      NEXTAUTH_URL: `http://localhost:${port}`,
-      AUTH_URL: `http://localhost:${port}`
+      NEXTAUTH_URL: `http://localhost:${APP_PORT}`,
+      AUTH_URL: `http://localhost:${APP_PORT}`,
     },
-    stdio: ["ignore", "pipe", "pipe"]
+    log,
   });
 
-  console.log("[olly-startup] Web process spawned with pid:", webServer.pid);
+  await server.waitForServer(APP_PORT);
 
-  webServer.stdout.on("data", (data) => {
-    console.log(`[web stdout] ${data.toString()}`);
-  });
-
-  webServer.stderr.on("data", (data) => {
-    console.error(`[web stderr] ${data.toString()}`);
-  });
-
-  webServer.on("exit", (code, signal) => {
-    console.error("[olly-startup] Web process exited:", { code, signal });
-  });
-
-  webServer.on("error", (err) => {
-    console.error("[olly-startup] Failed to start web process:", err);
-  });
-}
-
-function stopWebServer() {
-  if (webServer && webServer.exitCode === null) {
-    webServer.kill();
-  }
-  webServer = null;
-}
-
-async function createMainWindow(port) {
-  mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 920,
-    minWidth: 1100,
-    minHeight: 700,
-    show: false,
-    autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
-  });
-
-  await mainWindow.loadURL(`http://localhost:${port}`);
-
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
-}
-
-async function bootstrap() {
-  const port = APP_PORT;
-
-  if (await isPortOpen(port, "localhost")) {
-    throw new Error(
-      `Port ${port} is already in use. Please free it before launching Olly.`
-    );
-  }
-
-  startWebServer(port);
-  await waitForServer(port);
-  await createMainWindow(port);
+  await mainWindow.loadURL(`http://localhost:${APP_PORT}`);
 }
 
 app.whenReady().then(async () => {
   try {
     await bootstrap();
-  } catch (error) {
-    console.error(error);
-    app.quit();
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.stack || err.message : String(err);
+    log("Startup failed:", message);
+    ui.showError(mainWindow, "Olly failed to start", message);
   }
-
-  app.on("activate", async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      try {
-        await createMainWindow(APP_PORT);
-      } catch (error) {
-        console.error(error);
-      }
-    }
-  });
 });
 
-app.on("window-all-closed", () => {
-  stopWebServer();
+async function shutdown() {
+  server.stopNextServer(webServer);
+  try {
+    await postgres.stopPostgres(log);
+  } catch (err) {
+    log("Shutdown error:", err && err.message);
+  }
+}
+
+app.on("window-all-closed", async () => {
+  await shutdown();
   if (process.platform !== "darwin") {
     app.quit();
   }
 });
 
-app.on("before-quit", () => {
-  stopWebServer();
+app.on("before-quit", async () => {
+  await shutdown();
 });

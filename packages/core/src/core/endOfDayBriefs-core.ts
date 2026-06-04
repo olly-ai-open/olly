@@ -132,10 +132,10 @@ export async function generateEndOfDayBriefForUserCore(
         action_items: summary.actionItems,
         docs: summary.docs,
       } as any,
-      sources: JSON.stringify(summary.docs.map((d) => {
+      sources: summary.docs.map((d) => {
         const parts = [d.source, d.title].filter(Boolean).join(": ");
         return d.link ? `${parts} -> ${d.link}` : parts;
-      })),
+      }),
     },
   });
 
