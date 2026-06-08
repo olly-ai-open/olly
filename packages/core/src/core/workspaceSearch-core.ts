@@ -49,7 +49,6 @@ export class WorkspaceSearchCore {
     }
     const token = await this.getGoogleToken();
     const timeframeDays = await getUserSearchTimeframeCore(
-      this.prisma,
       this.userId,
     );
     return searchDriveSnippetsWithToken(
@@ -85,7 +84,6 @@ export class WorkspaceSearchCore {
       finalQuery = `${finalQuery} after:${start} before:${end}`.trim();
     } else {
       const timeframeDays = await getUserSearchTimeframeCore(
-        this.prisma,
         this.userId,
       );
       if (timeframeDays && timeframeDays > 0) {

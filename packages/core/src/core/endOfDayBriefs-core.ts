@@ -52,7 +52,7 @@ export async function generateEndOfDayBriefForUserCore(
   const briefTime = opts?.briefTime ?? new Date();
   const windowHours = opts?.windowHours ?? 24;
 
-  const settings = await getUserSettingsCore(prisma, userId);
+  const settings = await getUserSettingsCore(userId);
   const timeZone = settings.timeZone || "UTC";
 
   const user = await prisma.user.findUnique({

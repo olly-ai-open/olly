@@ -43,10 +43,9 @@ export async function generateMeetingBriefForEventCore(
     force = false,
   } = opts as typeof opts & { persist?: boolean; force?: boolean };
 
-
   let settings = userSettings;
   if (!settings) {
-    settings = await getUserSettingsCore(prisma, userId);
+    settings = await getUserSettingsCore(userId);
   }
   const searchTimeframeDays = settings.searchTimeframeDays;
   const briefSystemPromptOverride = settings.briefSystemPrompt ?? null;
@@ -102,7 +101,6 @@ export async function generateMeetingBriefForEventCore(
   if (matchesIgnorePattern && force) {
   }
   if (matchesIgnorePattern && !force) {
-
     let meetingId: string | null = null;
     if (persist) {
       const existingMeeting = await prisma.meeting.findUnique({
@@ -162,7 +160,6 @@ export async function generateMeetingBriefForEventCore(
     goals: [],
     key_context: [],
   };
-  // Safely extract sources from parsed JSON (may be null if LLM returned plain text)
   const sources = (parsed as any)?.sources;
   briefResult.confidence =
     Array.isArray(sources) && sources.length >= 3

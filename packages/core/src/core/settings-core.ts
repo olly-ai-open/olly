@@ -1,14 +1,29 @@
-import type {
-  PrismaClient,
-  UserSettings as PrismaUserSettings,
-} from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
-export type UserSettings = PrismaUserSettings;
+export type UserSettings = {
+  searchTimeframeDays: number;
+  briefSystemPrompt: string | null;
+  queryPlannerSystemPrompt: string | null;
+  morningBriefSystemPrompt: string | null;
+  endOfDayBriefSystemPrompt: string | null;
+  timeZone: string | null;
+  telemetryOptIn: boolean;
+  emailNotifications: boolean;
+  webNotificationsEnabled: boolean;
+  ignoredEventPatterns: unknown[];
+};
 
-export async function getUserSettingsCore(
-  prisma: PrismaClient,
-  userId: string,
-): Promise<UserSettings> {
+async function ensureUserExists(userId: string) {
+  await prisma.user.upsert({
+    where: { id: userId },
+    update: {},
+    create: { id: userId },
+  });
+}
+
+export async function getUserSettingsCore(userId: string): Promise<UserSettings> {
+  await ensureUserExists(userId);
+
   let settings = await prisma.userSettings.findUnique({
     where: { userId },
   });
@@ -22,8 +37,8 @@ export async function getUserSettingsCore(
         queryPlannerSystemPrompt: null,
         morningBriefSystemPrompt: null,
         endOfDayBriefSystemPrompt: null,
-        telemetryOptIn: true,
         timeZone: null,
+        telemetryOptIn: true,
         emailNotifications: true,
         webNotificationsEnabled: false,
         ignoredEventPatterns: [],
@@ -31,13 +46,25 @@ export async function getUserSettingsCore(
     });
   }
 
-  return settings;
+  return {
+    searchTimeframeDays: settings.searchTimeframeDays ?? 30,
+    briefSystemPrompt: settings.briefSystemPrompt ?? null,
+    queryPlannerSystemPrompt: settings.queryPlannerSystemPrompt ?? null,
+    morningBriefSystemPrompt: settings.morningBriefSystemPrompt ?? null,
+    endOfDayBriefSystemPrompt: settings.endOfDayBriefSystemPrompt ?? null,
+    timeZone: settings.timeZone ?? null,
+    telemetryOptIn: settings.telemetryOptIn ?? true,
+    emailNotifications: settings.emailNotifications ?? true,
+    webNotificationsEnabled: settings.webNotificationsEnabled ?? false,
+    ignoredEventPatterns: Array.isArray(settings.ignoredEventPatterns)
+      ? settings.ignoredEventPatterns
+      : [],
+  };
 }
 
 export async function getUserSearchTimeframeCore(
-  prisma: PrismaClient,
   userId: string,
 ): Promise<number> {
-  const settings = await getUserSettingsCore(prisma, userId);
-  return settings.searchTimeframeDays;
+  const settings = await getUserSettingsCore(userId);
+  return settings.searchTimeframeDays ?? 30;
 }

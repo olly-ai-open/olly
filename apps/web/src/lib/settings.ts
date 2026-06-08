@@ -8,9 +8,11 @@ import {
 export type { UserSettings };
 
 export async function getUserSettings(userId: string): Promise<UserSettings> {
-  return getUserSettingsCore(prisma, userId);
+  return getUserSettingsCore(userId);
 }
 
 export async function getUserSearchTimeframe(userId: string): Promise<number> {
-  return getUserSearchTimeframeCore(prisma, userId);
+  return getUserSearchTimeframeCore(userId);
 }
+
+export { prisma };

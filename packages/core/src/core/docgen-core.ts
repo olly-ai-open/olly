@@ -104,7 +104,7 @@ export async function processDocGenRequestCore(
   });
 
   // Load user settings
-  const settings = await getUserSettingsCore(prisma, request.userId);
+  const settings = await getUserSettingsCore(request.userId);
 
   // Create the agent
   const agent = new DocGenAgent({

@@ -194,15 +194,15 @@ export async function rescheduleFailedJob(
   error: string,
 ): Promise<RunJobResult> {
   const current = await prisma.job.findUnique({
-  where: { id: jobId },
-  select: { attempts: true },
-});
+    where: { id: jobId },
+    select: { attempts: true },
+  });
 
-const attempts = current?.attempts ?? 1;
-const maxAttempts = 5;
-if (attempts >= maxAttempts) {
-  await prisma.job.updateMany({
-    where: { id: jobId, status: "RUNNING", lockToken } as any,
+  const attempts = current?.attempts ?? 1;
+  const maxAttempts = 5;
+  if (attempts >= maxAttempts) {
+    await prisma.job.updateMany({
+      where: { id: jobId, status: "RUNNING", lockToken } as any,
       data: {
         status: "FAILED",
         lastError: error,
@@ -290,19 +290,16 @@ async function dispatchJob(
       }
 
       const settings: UserSettings = await getUserSettingsCore(
-        prisma,
         job.userId,
       );
       const ignorePatterns = normalizeIgnorePatterns(settings);
 
-      // Pre-flight ignore/decline check with best available data (meeting record + fetched event)
       let title = meeting?.title || null;
       let attendees: any[] =
         (Array.isArray(meeting?.attendees) ? (meeting?.attendees as any[]) : []) ||
         [];
       let fetchedEvent: any = null;
 
-      // Fetch event if we're missing title/attendees or need organizer-derived context
       const account = await prisma.account.findFirst({
         where: { userId: job.userId, provider: "google" },
       });
@@ -366,7 +363,7 @@ async function dispatchJob(
         userSettings: settings,
         persist: true,
       });
-      
+
       if (result.briefId) {
         sendBriefReadyWebPush(prisma, {
           userId: job.userId,
@@ -432,7 +429,7 @@ async function syncCalendarForUser(
   userId: string,
   lookaheadHours: number
 ): Promise<void> {
-  const settings = await getUserSettingsCore(prisma, userId);
+  const settings = await getUserSettingsCore(userId);
   const timeZone = settings.timeZone || "UTC";
 
   const account = await prisma.account.findFirst({

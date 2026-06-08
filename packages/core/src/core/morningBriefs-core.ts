@@ -29,7 +29,7 @@ export async function generateMorningBriefForUserCore(
   userId: string,
   dayISOOverride?: string,
 ): Promise<{ briefId: string }> {
-  const settings = await getUserSettingsCore(prisma, userId);
+  const settings = await getUserSettingsCore(userId);
   const timeZone = settings.timeZone || "UTC";
   const ignorePatterns = normalizeIgnorePatterns(settings);
 
@@ -82,7 +82,6 @@ export async function generateMorningBriefForUserCore(
     brief_markdown: rawBrief,
     highlighted_action_item_ids: [],
   };
-  // Safely extract sources from parsed JSON (may be null if LLM returned plain text)
   const sources = (parsed as any)?.sources;
   const confidence =
     Array.isArray(sources) && sources.length >= 3

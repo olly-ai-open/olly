@@ -1,33 +1,49 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/settings - Get user settings
+async function ensureUserExists(userId: string) {
+  await prisma.user.upsert({
+    where: { id: userId },
+    update: {},
+    create: {
+      id: userId,
+    },
+  });
+}
+
 export async function GET() {
   const session = await auth();
+
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   try {
+    const userId = session.user.id;
+
+    await ensureUserExists(userId);
+
     let settings = await prisma.userSettings.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
     });
 
-    // Create default settings if none exist
     if (!settings) {
       settings = await prisma.userSettings.create({
         data: {
-          userId: session.user.id,
+          userId,
           searchTimeframeDays: 30,
           briefSystemPrompt: null,
           queryPlannerSystemPrompt: null,
+          morningBriefSystemPrompt: null,
           endOfDayBriefSystemPrompt: null,
+          timeZone: null,
           telemetryOptIn: true,
           emailNotifications: true,
           webNotificationsEnabled: false,
           ignoredEventPatterns: [],
-        } as any,
+        },
       });
     }
 
@@ -41,29 +57,36 @@ export async function GET() {
   }
 }
 
-// PUT /api/settings - Update user settings
 export async function PUT(req: Request) {
   const session = await auth();
+
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+
   const userId = session.user.id;
 
   try {
+    let briefSystemPrompt: string | null | undefined;
+    let queryPlannerSystemPrompt: string | null | undefined;
+    let morningBriefSystemPrompt: string | null | undefined;
+    let endOfDayBriefSystemPrompt: string | null | undefined;
+    let ignoredEventPatterns: Prisma.InputJsonValue | undefined;
+
     const body = await req.json();
+
     const {
       searchTimeframeDays,
       emailNotifications,
       webNotificationsEnabled,
-      briefSystemPrompt,
-      queryPlannerSystemPrompt,
-      morningBriefSystemPrompt,
-      endOfDayBriefSystemPrompt,
+      briefSystemPrompt: rawBriefSystemPrompt,
+      queryPlannerSystemPrompt: rawQueryPlannerSystemPrompt,
+      morningBriefSystemPrompt: rawMorningBriefSystemPrompt,
+      endOfDayBriefSystemPrompt: rawEndOfDayBriefSystemPrompt,
       timeZone,
       telemetryOptIn,
     } = body;
 
-    // Validate searchTimeframeDays
     if (
       searchTimeframeDays !== undefined &&
       (typeof searchTimeframeDays !== "number" ||
@@ -76,7 +99,6 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Validate emailNotifications
     if (
       emailNotifications !== undefined &&
       typeof emailNotifications !== "boolean"
@@ -87,7 +109,6 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Validate webNotificationsEnabled
     if (
       webNotificationsEnabled !== undefined &&
       typeof webNotificationsEnabled !== "boolean"
@@ -105,77 +126,75 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Validate admin-only fields (prompt overrides)
-    let nextBriefSystemPrompt: string | null | undefined;
-    let nextQueryPlannerSystemPrompt: string | null | undefined;
-    let nextMorningBriefSystemPrompt: string | null | undefined;
-    let nextEndOfDayBriefSystemPrompt: string | null | undefined;
-    let nextIgnoredEventPatterns: any[] | undefined;
-    let adminUser: { isAdmin: boolean } | null = null;
+    let cachedUser: { isAdmin: boolean } | null = null;
 
-    const ensureAdmin = async (uid: string) => {
-      if (!adminUser) {
-        adminUser = await prisma.user.findUnique({
-          where: { id: uid },
+    const isAdmin = async (id: string) => {
+      if (!cachedUser) {
+        cachedUser = await prisma.user.findUnique({
+          where: { id },
           select: { isAdmin: true },
         });
       }
-      return !!adminUser?.isAdmin;
+      return !!cachedUser?.isAdmin;
     };
 
     if (
-      briefSystemPrompt !== undefined ||
-      queryPlannerSystemPrompt !== undefined ||
-      morningBriefSystemPrompt !== undefined ||
-      endOfDayBriefSystemPrompt !== undefined
+      rawBriefSystemPrompt !== undefined ||
+      rawQueryPlannerSystemPrompt !== undefined ||
+      rawMorningBriefSystemPrompt !== undefined ||
+      rawEndOfDayBriefSystemPrompt !== undefined
     ) {
-      if (!(await ensureAdmin(userId))) {
+      if (!(await isAdmin(userId))) {
         return NextResponse.json(
           { error: "forbidden: prompt overrides are admin-only" },
           { status: 403 },
         );
       }
 
-      if (briefSystemPrompt !== undefined) {
-        const v =
-          typeof briefSystemPrompt === "string" ? briefSystemPrompt.trim() : "";
-        nextBriefSystemPrompt = v.length ? v : null;
-      }
-      if (queryPlannerSystemPrompt !== undefined) {
-        const v =
-          typeof queryPlannerSystemPrompt === "string"
-            ? queryPlannerSystemPrompt.trim()
+      if (rawBriefSystemPrompt !== undefined) {
+        const value =
+          typeof rawBriefSystemPrompt === "string"
+            ? rawBriefSystemPrompt.trim()
             : "";
-        nextQueryPlannerSystemPrompt = v.length ? v : null;
+        briefSystemPrompt = value.length ? value : null;
       }
-      if (morningBriefSystemPrompt !== undefined) {
-        const v =
-          typeof morningBriefSystemPrompt === "string"
-            ? morningBriefSystemPrompt.trim()
+
+      if (rawQueryPlannerSystemPrompt !== undefined) {
+        const value =
+          typeof rawQueryPlannerSystemPrompt === "string"
+            ? rawQueryPlannerSystemPrompt.trim()
             : "";
-        nextMorningBriefSystemPrompt = v.length ? v : null;
+        queryPlannerSystemPrompt = value.length ? value : null;
       }
-      if (endOfDayBriefSystemPrompt !== undefined) {
-        const v =
-          typeof endOfDayBriefSystemPrompt === "string"
-            ? endOfDayBriefSystemPrompt.trim()
+
+      if (rawMorningBriefSystemPrompt !== undefined) {
+        const value =
+          typeof rawMorningBriefSystemPrompt === "string"
+            ? rawMorningBriefSystemPrompt.trim()
             : "";
-        nextEndOfDayBriefSystemPrompt = v.length ? v : null;
+        morningBriefSystemPrompt = value.length ? value : null;
+      }
+
+      if (rawEndOfDayBriefSystemPrompt !== undefined) {
+        const value =
+          typeof rawEndOfDayBriefSystemPrompt === "string"
+            ? rawEndOfDayBriefSystemPrompt.trim()
+            : "";
+        endOfDayBriefSystemPrompt = value.length ? value : null;
       }
     }
 
-    // Validate timeZone (user-level)
-    if (timeZone !== undefined && timeZone !== null) {
+    if (timeZone != null) {
       if (typeof timeZone !== "string") {
         return NextResponse.json(
           { error: "timeZone must be a string or null" },
           { status: 400 },
         );
       }
+
       const trimmed = timeZone.trim();
       if (trimmed) {
         try {
-          // Validate that the timezone identifier is understood by Intl
           new Intl.DateTimeFormat("en-US", { timeZone: trimmed });
         } catch {
           return NextResponse.json(
@@ -190,9 +209,10 @@ export async function PUT(req: Request) {
     }
 
     if (Array.isArray(body?.ignoredEventPatterns)) {
-      nextIgnoredEventPatterns = body.ignoredEventPatterns;
+      ignoredEventPatterns =
+        body.ignoredEventPatterns as Prisma.InputJsonValue;
     } else if (body?.ignoredEventPatterns === null) {
-      nextIgnoredEventPatterns = [];
+      ignoredEventPatterns = [];
     } else if (body?.ignoredEventPatterns !== undefined) {
       return NextResponse.json(
         {
@@ -203,52 +223,45 @@ export async function PUT(req: Request) {
       );
     }
 
+    await ensureUserExists(userId);
+
     const settings = await prisma.userSettings.upsert({
-      where: { userId: session.user.id },
+      where: { userId },
       update: {
         ...(searchTimeframeDays !== undefined && { searchTimeframeDays }),
         ...(emailNotifications !== undefined && { emailNotifications }),
         ...(webNotificationsEnabled !== undefined && {
           webNotificationsEnabled,
         }),
-        ...(telemetryOptIn !== undefined && {
-          telemetryOptIn,
+        ...(telemetryOptIn !== undefined && { telemetryOptIn }),
+        ...(briefSystemPrompt !== undefined && { briefSystemPrompt }),
+        ...(queryPlannerSystemPrompt !== undefined && {
+          queryPlannerSystemPrompt,
         }),
-        ...(nextBriefSystemPrompt !== undefined && {
-          briefSystemPrompt: nextBriefSystemPrompt,
+        ...(morningBriefSystemPrompt !== undefined && {
+          morningBriefSystemPrompt,
         }),
-        ...(nextQueryPlannerSystemPrompt !== undefined && {
-          queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt,
-        }),
-        ...(nextMorningBriefSystemPrompt !== undefined && {
-          morningBriefSystemPrompt: nextMorningBriefSystemPrompt,
-        }),
-        ...(nextEndOfDayBriefSystemPrompt !== undefined && {
-          endOfDayBriefSystemPrompt: nextEndOfDayBriefSystemPrompt,
+        ...(endOfDayBriefSystemPrompt !== undefined && {
+          endOfDayBriefSystemPrompt,
         }),
         ...(timeZone !== undefined && {
           timeZone: timeZone === null ? null : timeZone.trim() || null,
         }),
-        ...(nextIgnoredEventPatterns !== undefined && {
-          ignoredEventPatterns: nextIgnoredEventPatterns,
-        }),
+        ...(ignoredEventPatterns !== undefined && { ignoredEventPatterns }),
       },
       create: {
-        userId: session.user.id,
+        userId,
         searchTimeframeDays: searchTimeframeDays ?? 30,
-        briefSystemPrompt: nextBriefSystemPrompt ?? null,
-        queryPlannerSystemPrompt: nextQueryPlannerSystemPrompt ?? null,
-        morningBriefSystemPrompt: nextMorningBriefSystemPrompt ?? null,
-        endOfDayBriefSystemPrompt: nextEndOfDayBriefSystemPrompt ?? null,
-        timeZone:
-          timeZone === undefined || timeZone === null
-            ? null
-            : timeZone.trim() || null,
+        briefSystemPrompt: briefSystemPrompt ?? null,
+        queryPlannerSystemPrompt: queryPlannerSystemPrompt ?? null,
+        morningBriefSystemPrompt: morningBriefSystemPrompt ?? null,
+        endOfDayBriefSystemPrompt: endOfDayBriefSystemPrompt ?? null,
+        timeZone: timeZone == null ? null : timeZone.trim() || null,
         emailNotifications: emailNotifications ?? true,
         webNotificationsEnabled: webNotificationsEnabled ?? false,
         telemetryOptIn: telemetryOptIn ?? true,
-        ignoredEventPatterns: nextIgnoredEventPatterns ?? [],
-      } as any,
+        ignoredEventPatterns: ignoredEventPatterns ?? [],
+      },
     });
 
     return NextResponse.json(settings);

@@ -20,11 +20,13 @@
     "dist:win": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && electron-builder --win nsis"
   },
   "dependencies": {
-    "@embedded-postgres/darwin-arm64": "^17.9.0-beta.17",
-    "@embedded-postgres/darwin-x64": "^17.9.0-beta.17",
     "dotenv": "^17.2.3",
     "embedded-postgres": "^17.9.0-beta.17",
     "pg": "^8.21.0"
+  },
+  "optionalDependencies": {
+    "@embedded-postgres/darwin-arm64": "^17.9.0-beta.17",
+    "@embedded-postgres/darwin-x64": "^17.9.0-beta.17"
   },
   "devDependencies": {
     "electron": "^41.7.0",
