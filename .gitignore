@@ -1,4 +1,7 @@
 dist-lambda
 node_modules
-.env.local
 dist/
+
+.env.local
+.env*.local
+apps/web/.env.local
