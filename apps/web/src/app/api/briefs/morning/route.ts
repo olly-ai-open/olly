@@ -27,11 +27,58 @@ function toDayInTimeZone(now: Date, timeZone: string): string {
   return `${obj.year}-${obj.month}-${obj.day}`;
 }
 
+function getFriendlyLLMError(error: any): {
+  code: string;
+  message: string;
+  status: number;
+} | null {
+  const message = String(error?.message || "");
+  const responseBody = String(error?.responseBody || "");
+  const combined = `${message}\n${responseBody}`;
+
+  if (
+    combined.includes("Your credit balance is too low") ||
+    combined.includes("Plans & Billing")
+  ) {
+    return {
+      code: "llm_billing",
+      message:
+        "Morning brief is temporarily unavailable because the configured Anthropic API account has no credits. Add credits or switch providers in settings.",
+      status: 503,
+    };
+  }
+
+  if (
+    combined.includes("invalid x-api-key") ||
+    combined.includes("authentication_error") ||
+    combined.includes("ANTHROPIC_API_KEY not configured") ||
+    combined.includes("OPENAI_API_KEY not configured") ||
+    combined.includes("GEMINI_API_KEY not configured")
+  ) {
+    return {
+      code: "llm_auth",
+      message:
+        "Morning brief is temporarily unavailable because the LLM API key is missing or invalid. Update the provider credentials in settings.",
+      status: 503,
+    };
+  }
+
+  if (
+    combined.includes("insufficient_quota") ||
+    combined.includes("You exceeded your current quota")
+  ) {
+    return {
+      code: "llm_quota",
+      message:
+        "Morning brief is temporarily unavailable because the configured LLM account has no remaining quota. Update billing or switch providers in settings.",
+      status: 503,
+    };
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
-  // NOTE: Ephemeral meeting-brief mode:
-  // When true, we treat per-meeting briefs used during morning-brief generation
-  // as ephemeral: generateMeetingBriefForEvent is called with persist=false so
-  // no Meeting/Brief rows are created or updated.
   const USE_EPHEMERAL_MEETING_BRIEFS_FOR_MORNING = true;
 
   const session = await auth();
@@ -41,6 +88,7 @@ export async function POST(req: Request) {
       { status: 401 },
     );
   }
+
   const userId = session.user.id;
 
   let body: any = {};
@@ -51,6 +99,7 @@ export async function POST(req: Request) {
     const form = await req.formData();
     body = { day: form.get("day") as string | null };
   }
+
   const scheduled = body?.scheduled === true;
 
   try {
@@ -65,6 +114,7 @@ export async function POST(req: Request) {
     const account = await prisma.account.findFirst({
       where: { userId, provider: "google" },
     });
+
     if (!account) {
       return NextResponse.json(
         { ok: false, error: "no_account" },
@@ -90,7 +140,6 @@ export async function POST(req: Request) {
         )
       : (events as any[]);
 
-    // Look up existing meetings and their latest briefs (for goals)
     const eventIds = filteredEvents.map((e: any) => e.id as string);
     const existingMeetings = await prisma.meeting.findMany({
       where: { userId, externalId: { in: eventIds } },
@@ -122,8 +171,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // For events without a stored brief/goals, generate an in-memory brief
-    // (no DB writes) to extract goals for the morning summary.
     for (const evt of filteredEvents as any[]) {
       const externalId = evt.id as string;
       if (goalsByExternalId.has(externalId)) continue;
@@ -136,12 +183,14 @@ export async function POST(req: Request) {
           userSettings: settings,
           persist: !USE_EPHEMERAL_MEETING_BRIEFS_FOR_MORNING ? true : false,
         });
+
         const content: any = result.content as any;
         const goals: string[] = Array.isArray(content?.goals)
           ? (content.goals as any[])
               .map((g: any) => (typeof g === "string" ? g.trim() : ""))
               .filter(Boolean)
           : [];
+
         if (goals.length) {
           goalsByExternalId.set(externalId, goals.slice(0, 5));
         }
@@ -154,7 +203,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Candidate action items: open/self tasks, limited set
     const actionItemsDb = await prisma.actionItem.findMany({
       where: {
         userId,
@@ -188,6 +236,7 @@ export async function POST(req: Request) {
           });
         }
       }
+
       for (const bp of ai.brief?.people || []) {
         if (bp.person) {
           relatedPeopleSet.set(bp.person.id, {
@@ -212,20 +261,42 @@ export async function POST(req: Request) {
       };
     });
 
-    const agent = new MorningBriefAgent({
-      telemetryEnabled: settings.telemetryOptIn !== false,
-    });
-    const rawBrief = await agent.generateMorningBrief(userId, {
-      date: dayISO,
-      timeZone,
-      actionItems: actionItemsForBrief,
-    });
+    let rawBrief: string;
+    try {
+      const agent = new MorningBriefAgent({
+        telemetryEnabled: settings.telemetryOptIn !== false,
+      });
+
+      rawBrief = await agent.generateMorningBrief(userId, {
+        date: dayISO,
+        timeZone,
+        actionItems: actionItemsForBrief,
+      });
+    } catch (error: any) {
+      await flushLangfuse().catch(() => {});
+      const friendly = getFriendlyLLMError(error);
+
+      if (friendly) {
+        console.error("Morning brief LLM error:", error);
+        return NextResponse.json(
+          {
+            ok: false,
+            error: friendly.code,
+            message: friendly.message,
+          },
+          { status: friendly.status },
+        );
+      }
+
+      throw error;
+    }
+
     const parsed = safeParseMorningBriefJSON(rawBrief);
     const morning: MorningBriefJSON = parsed ?? {
       brief_markdown: rawBrief,
       highlighted_action_item_ids: [],
     };
-    // Safely extract sources from parsed JSON (may be null if LLM returned plain text)
+
     const sources = (parsed as any)?.sources;
     const confidence =
       Array.isArray(sources) && sources.length >= 3
@@ -233,11 +304,11 @@ export async function POST(req: Request) {
         : Array.isArray(sources) && sources.length > 0
           ? "medium"
           : "low";
+
     const formattedSources = Array.isArray(sources)
       ? sources.map((src: any) => `${src.type}: ${src.title} -> ${src.url}`)
       : [];
 
-    // Create a synthetic "meeting" to host the morning brief
     const externalId = `morning:${dayISO}`;
     const morningMeeting = await prisma.meeting.upsert({
       where: { userId_externalId: { userId, externalId } },
@@ -277,6 +348,7 @@ export async function POST(req: Request) {
         console.error("Failed to send morning brief web push", err);
       });
     }
+
     await flushLangfuse();
 
     return NextResponse.json({
@@ -284,9 +356,27 @@ export async function POST(req: Request) {
       briefId: saved.id,
     });
   } catch (error: any) {
+    await flushLangfuse().catch(() => {});
     console.error("Failed to generate morning brief:", error);
+
+    const friendly = getFriendlyLLMError(error);
+    if (friendly) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: friendly.code,
+          message: friendly.message,
+        },
+        { status: friendly.status },
+      );
+    }
+
     return NextResponse.json(
-      { ok: false, error: error?.message || "failed" },
+      {
+        ok: false,
+        error: "failed",
+        message: "Morning brief generation failed.",
+      },
       { status: 500 },
     );
   }

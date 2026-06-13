@@ -4,14 +4,18 @@
  * Bootstrap order:
  *   1. Show loading window
  *   2. Load env (.env.local)
- *   3. Ensure local Postgres is running (embedded; downloads on first launch)
- *   4. Apply database migrations
- *   5. Spawn Next.js standalone server
- *   6. Open the app window
+ *   3. Load user secrets overlay (secrets.env)
+ *   4. Ensure local Postgres is running (embedded; downloads on first launch)
+ *   5. Apply database migrations
+ *   6. Spawn Next.js standalone server
+ *   7. Open the app window (or setup flow if LLM keys are missing)
  *
  * Heavy lifting lives in `electron/lib/*` modules; this file orchestrates.
  */
-
+const {
+  applyUserSecretsToProcessEnv,
+  hasRequiredLlmEnv,
+} = require("./lib/user-secrets");
 const { app } = require("electron");
 const fs = require("node:fs");
 const dotenv = require("dotenv");
@@ -44,6 +48,7 @@ function loadPackagedEnv() {
       return;
     }
   }
+
   log("No .env.local found; continuing with empty env");
 }
 
@@ -58,10 +63,12 @@ function loadPackagedEnv() {
  */
 async function ensureDatabase() {
   const externalUrl = process.env.DATABASE_URL;
+
   if (!app.isPackaged && externalUrl) {
     log("Using external DATABASE_URL from env (dev mode)");
     return { databaseUrl: externalUrl, ownsDatabase: false };
   }
+
   const result = await postgres.ensurePostgresRunning(log);
   return { ...result, ownsDatabase: true };
 }
@@ -71,6 +78,10 @@ async function bootstrap() {
   ui.showLoading(mainWindow, "Starting Olly...");
 
   loadPackagedEnv();
+  applyUserSecretsToProcessEnv();
+
+  const needsLlmSetup = !hasRequiredLlmEnv();
+  log("LLM setup required:", needsLlmSetup);
 
   ui.showLoading(
     mainWindow,
@@ -107,13 +118,21 @@ async function bootstrap() {
       NEXTAUTH_SECRET: authSecret,
       NEXTAUTH_URL: `http://localhost:${APP_PORT}`,
       AUTH_URL: `http://localhost:${APP_PORT}`,
+      LLM_PROVIDER: process.env.LLM_PROVIDER || "",
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
     },
     log,
   });
 
   await server.waitForServer(APP_PORT);
 
-  await mainWindow.loadURL(`http://localhost:${APP_PORT}`);
+  const targetUrl = needsLlmSetup
+    ? `http://localhost:${APP_PORT}/setup`
+    : `http://localhost:${APP_PORT}`;
+
+  log("Opening URL:", targetUrl);
+  await mainWindow.loadURL(targetUrl);
 }
 
 app.whenReady().then(async () => {
@@ -129,6 +148,7 @@ app.whenReady().then(async () => {
 
 async function shutdown() {
   server.stopNextServer(webServer);
+
   try {
     await postgres.stopPostgres(log);
   } catch (err) {
