@@ -16,7 +16,7 @@ const {
   applyUserSecretsToProcessEnv,
   hasRequiredLlmEnv,
 } = require("./lib/user-secrets");
-const { app } = require("electron");
+const { app, ipcMain } = require("electron");
 const fs = require("node:fs");
 const dotenv = require("dotenv");
 
@@ -134,6 +134,23 @@ async function bootstrap() {
   log("Opening URL:", targetUrl);
   await mainWindow.loadURL(targetUrl);
 }
+
+/**
+ * Relaunch the app cleanly. The setup screen calls this after saving the
+ * LLM key so the new instance boots with the key in its env. We stop the
+ * server + embedded Postgres first so the relaunched instance doesn't find
+ * the DB port still held.
+ */
+ipcMain.on("olly:restart", async () => {
+  log("Restart requested from renderer");
+  try {
+    await shutdown();
+  } catch (err) {
+    log("Restart shutdown error:", err && err.message);
+  }
+  app.relaunch();
+  app.exit(0);
+});
 
 app.whenReady().then(async () => {
   try {

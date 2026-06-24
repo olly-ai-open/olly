@@ -18,5 +18,10 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico).*)"],
+  // Exclude Next internals, the favicon, and static/public assets (images,
+  // fonts, sw.js, etc.). Without the asset exclusion, the no-LLM-key redirect
+  // intercepts requests like /olly-mascot.png and breaks them on /setup.
+  matcher: [
+    "/((?!_next|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf|otf|js|css|map)).*)",
+  ],
 };

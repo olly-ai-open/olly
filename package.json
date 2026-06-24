@@ -13,11 +13,13 @@
     "postinstall": "npm run postinstall --workspace=apps/web",
     "build:web": "set NODE_OPTIONS=--max-old-space-size=8192 && npm run build --workspace=apps/web",
     "electron": "electron .",
-    "electron:build": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && electron-builder",
+    "electron:build": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && npm run build:packaged-env && npm run check:packaged-env && electron-builder",
     "copy:standalone-assets": "node electron/scripts/copy-standalone-assets.js",
     "copy:prisma-resources": "node electron/scripts/copy-prisma-resources.js",
-    "dist:mac": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && electron-builder --mac --publish never",
-    "dist:win": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && electron-builder --win nsis"
+    "build:packaged-env": "node electron/scripts/build-packaged-env.js",
+    "check:packaged-env": "node electron/scripts/check-packaged-env.js",
+    "dist:mac": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && npm run build:packaged-env && npm run check:packaged-env && electron-builder --mac --publish never",
+    "dist:win": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && npm run build:packaged-env && npm run check:packaged-env && electron-builder --win nsis"
   },
   "dependencies": {
     "@embedded-postgres/windows-x64": "^17.9.0-beta.17",
@@ -46,7 +48,7 @@
     ],
     "extraResources": [
       {
-        "from": "apps/web/.env.local",
+        "from": "apps/web/.env.packaged.local",
         "to": "env/.env.local"
       },
       {

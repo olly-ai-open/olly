@@ -4,6 +4,7 @@
  * we don't need a separate UI framework before the Next server is up.
  */
 
+const path = require("node:path");
 const { BrowserWindow, dialog } = require("electron");
 
 function createMainWindow() {
@@ -18,6 +19,7 @@ function createMainWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, "..", "preload.js"),
     },
   });
 }

@@ -5,3 +5,5 @@ dist/
 .env.local
 .env*.local
 apps/web/.env.local
+desktop-installer-handover.md
+.DS_Store
