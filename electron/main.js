@@ -175,9 +175,10 @@ async function shutdown() {
 
 app.on("window-all-closed", async () => {
   await shutdown();
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  // Quit on every platform when the window is closed. The usual macOS
+  // convention keeps the app alive in the dock after the window closes, but
+  // for Olly closing the window should fully quit (same as Olly → Quit).
+  app.quit();
 });
 
 app.on("before-quit", async () => {

@@ -271,9 +271,12 @@ export default async function IntegrationsPage() {
                         (starts with <code>ntn_</code>) and paste it above.
                       </li>
                       <li>
-                        In Notion, open each page/database you want Olly to read,
-                        click <strong>•••  → Connections</strong>, and add your
-                        integration. Olly can only see pages you share with it.
+                        On the same integration page, open the{" "}
+                        <strong>Content Access</strong> tab and add the
+                        pages/databases you want Olly to read (this is the same
+                        as opening each page and clicking{" "}
+                        <strong>••• → Connections</strong>). Olly can only see
+                        pages you share with it.
                       </li>
                     </ol>
                   </details>
