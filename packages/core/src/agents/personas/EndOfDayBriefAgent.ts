@@ -102,6 +102,22 @@ function normalizeDocsFromToolCalls(
       });
       if (docs.length >= maxDocs) return docs;
     }
+    if (call.toolName === 'notion') {
+      // NotionTool returns pages/items/results depending on the operation.
+      const notionItems = [
+        ...(Array.isArray(call.result.pages) ? call.result.pages : []),
+        ...(Array.isArray(call.result.items) ? call.result.items : []),
+        ...(Array.isArray(call.result.results) ? call.result.results : []),
+      ];
+      for (const item of notionItems) {
+        addDoc({
+          title: typeof item?.title === 'string' ? item.title : 'Notion page',
+          link: typeof item?.url === 'string' ? item.url : null,
+          source: 'notion',
+        });
+        if (docs.length >= maxDocs) return docs;
+      }
+    }
   }
 
   return docs;
@@ -383,8 +399,10 @@ export class EndOfDayBriefAgent extends BaseAgent {
       `- Slack: search for status updates, decisions, blockers, and action items. Use timeframe ${windowStart.toISOString()} to ${windowEnd.toISOString()}.`,
       `- Gmail: search for updates/decisions/blockers (use newer_than:${searchDays}d in the query).`,
       `- Drive: search for docs updated in the window (modifiedAfter/modifiedBefore). Open top results to extract content.`,
+      `- Notion: use the notion tool to search for pages/databases updated in the window related to the day's work.`,
       '',
       'Guidelines:',
+      '- Only use sources for tools that return results; skip any integration that is not connected.',
       '- Prefer cleaned summaries if you find them.',
       '- Ignore boilerplate or system-generated noise.',
       '- Track EACH individual source used and include it in docs (title, link, source).',

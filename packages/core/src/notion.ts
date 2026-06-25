@@ -6,20 +6,21 @@ import { searchNotion, queryNotionDatabase, getNotionPageBlocks, extractPlainTex
  */
 export async function getNotionToken(userId: string): Promise<string | null> {
   const prisma = await getPrisma();
-  
+
   try {
-    const account = await prisma.account.findFirst({
-      where: {
-        userId,
-        provider: 'notion',
-      },
+    // The connect flow saves the token to the encrypted Credential table
+    // (provider "notion", data = JSON { accessToken, ... }). Read from the
+    // same store so Notion content actually reaches briefs.
+    const credential = await prisma.credential.findUnique({
+      where: { userId_provider: { userId, provider: 'notion' } },
     });
-    
-    if (!account || !account.access_token) {
+
+    if (!credential?.data) {
       return null;
     }
-    
-    return account.access_token;
+
+    const data = JSON.parse(credential.data) as { accessToken?: string };
+    return data.accessToken ?? null;
   } catch (error) {
     console.error('Error getting Notion token:', error);
     return null;

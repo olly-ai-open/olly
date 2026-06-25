@@ -45,10 +45,12 @@ export async function searchNotion(
     body.query = query;
   }
   
-  if (filter) {
-    body.filter = filter;
+  if (filter?.value) {
+    // Notion's /v1/search only supports filtering by the "object" property.
+    // The filter MUST include property: "object" or the API returns 400.
+    body.filter = { property: 'object', value: filter.value };
   }
-  
+
   const resp = await fetch(url, {
     method: 'POST',
     headers: {
@@ -58,9 +60,10 @@ export async function searchNotion(
     },
     body: JSON.stringify(body),
   });
-  
+
   if (!resp.ok) {
-    throw new Error(`Notion search failed: ${resp.statusText}`);
+    const detail = await resp.text().catch(() => '');
+    throw new Error(`Notion search failed: ${resp.statusText} ${detail}`.trim());
   }
   
   return await resp.json();

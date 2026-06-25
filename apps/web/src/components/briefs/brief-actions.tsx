@@ -1,31 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  getAdminModeEnabled,
-  subscribeAdminModeEnabled,
-} from "@/lib/adminMode";
 
-export default function BriefActions({
-  briefId,
-  isAdmin = false,
-}: {
-  briefId: string;
-  readAt: string | Date | null;
-  isAdmin?: boolean;
-}) {
-  const [adminModeEnabled, setAdminModeEnabled] = useState(() =>
-    getAdminModeEnabled(),
-  );
+export default function BriefActions({ briefId }: { briefId: string }) {
   const [thumb, setThumb] = useState<"up" | "down" | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
-
-  useEffect(() => {
-    return subscribeAdminModeEnabled(setAdminModeEnabled);
-  }, []);
-
-  const effectiveAdmin = isAdmin && adminModeEnabled;
 
   async function sendFeedback(v: "up" | "down") {
     setThumb(v);
@@ -70,41 +50,37 @@ export default function BriefActions({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {effectiveAdmin && (
-        <>
-          <button
-            disabled={isDeleting}
-            onClick={deleteBrief}
-            className="rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
-          >
-            {isDeleting ? (
-              <>
-                <svg
-                  className="w-4 h-4 animate-spin"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeDasharray="31.416"
-                    strokeDashoffset="31.416"
-                    className="animate-spin"
-                  />
-                </svg>
-                Deleting...
-              </>
-            ) : (
-              "Delete Brief"
-            )}
-          </button>
-        </>
-      )}
+      <button
+        disabled={isDeleting}
+        onClick={deleteBrief}
+        className="rounded-md bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+      >
+        {isDeleting ? (
+          <>
+            <svg
+              className="w-4 h-4 animate-spin"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeDasharray="31.416"
+                strokeDashoffset="31.416"
+                className="animate-spin"
+              />
+            </svg>
+            Deleting...
+          </>
+        ) : (
+          "Delete Brief"
+        )}
+      </button>
 
       <div className="ml-auto flex items-center gap-2">
         <button

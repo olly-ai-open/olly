@@ -14,27 +14,18 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { isAdmin: true },
-    });
-
-    if (!user?.isAdmin) {
-      return NextResponse.json(
-        { error: "Admin access required" },
-        { status: 403 },
-      );
-    }
-
-    // Find the brief to ensure it exists
+    // Only the owner of the brief may delete it (ownership is via the meeting).
     const brief = await prisma.brief.findUnique({
       where: { id },
-      include: { meeting: true },
+      select: { meeting: { select: { userId: true } } },
     });
 
     if (!brief) {
       return NextResponse.json({ error: "Brief not found" }, { status: 404 });
+    }
+
+    if (brief.meeting?.userId !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Delete the brief (cascading delete will handle related records)

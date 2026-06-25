@@ -36,8 +36,8 @@ export class MorningBriefAgent extends BaseAgent {
           \"highlighted_action_item_ids\": string[], // IDs of most important action items for today
           \"sources\": [                       // list of sources used to generate the brief
             {
-              \"type\": \"email\" | \"drive\" | \"slack\" | \"calendar\",
-              \"title\": string,              // e.g. email subject, doc name, channel name
+              \"type\": \"email\" | \"drive\" | \"slack\" | \"calendar\" | \"notion\",
+              \"title\": string,              // e.g. email subject, doc name, channel name, Notion page title
               \"url\": string                 // link to the source if available
             }
           ],
@@ -103,10 +103,12 @@ Steps:
 2. Search for recent important emails from the past ${searchTimeframeDays} days that relate to today's meetings or action items
 3. Search for relevant documents in Drive that might be needed for today's meetings
 4. Check Slack for recent important messages or discussions related to today's activities
-5. Synthesize all information into a concise, actionable morning brief
+5. Search Notion (use the notion tool) for pages or databases related to today's meetings or action items
+6. Synthesize all information into a concise, actionable morning brief
 
 Important:
-- Track EVERY individual source (email, document, Slack message, calendar event)
+- Only use sources for tools that return results; skip any integration that isn't connected.
+- Track EVERY individual source (email, document, Slack message, calendar event, Notion page)
 - For each meeting today, identify what preparation is needed
 - Highlight only the MOST important action items that should be addressed today
 - Focus on practical, actionable insights for the day ahead

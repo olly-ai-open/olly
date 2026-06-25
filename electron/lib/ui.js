@@ -5,10 +5,18 @@
  */
 
 const path = require("node:path");
-const { BrowserWindow, dialog } = require("electron");
+const { BrowserWindow, dialog, shell } = require("electron");
+
+// The app itself is served from localhost; everything else is "external".
+function isInternalUrl(url) {
+  return (
+    url.startsWith("http://localhost:3000") ||
+    url.startsWith("http://127.0.0.1:3000")
+  );
+}
 
 function createMainWindow() {
-  return new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1100,
@@ -22,6 +30,20 @@ function createMainWindow() {
       preload: path.join(__dirname, "..", "preload.js"),
     },
   });
+
+  // Open external links (e.g. the Notion integration setup, which only renders
+  // its Save button in a real browser) in the user's default browser instead
+  // of a bare Electron window. We only intercept window.open / target="_blank";
+  // in-window navigations (used by Google OAuth sign-in) are left untouched.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url) && !isInternalUrl(url)) {
+      shell.openExternal(url);
+      return { action: "deny" };
+    }
+    return { action: "deny" };
+  });
+
+  return win;
 }
 
 function htmlPage(title, body) {

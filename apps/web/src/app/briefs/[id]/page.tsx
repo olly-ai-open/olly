@@ -41,11 +41,6 @@ export default async function BriefDetail({
   }
   const settings = await getUserSettings(session.user.id);
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { isAdmin: true },
-  });
-
   const brief = await getBriefForUser({
     id,
     userId: session.user.id,
@@ -375,11 +370,7 @@ export default async function BriefDetail({
           </div>
         ) : null}
 
-        <BriefActions
-          briefId={brief.id}
-          readAt={brief.readAt ?? null}
-          isAdmin={user?.isAdmin ?? false}
-        />
+        <BriefActions briefId={brief.id} />
       </div>
 
       <div className="mt-6">

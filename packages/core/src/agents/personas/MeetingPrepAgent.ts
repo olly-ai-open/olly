@@ -40,8 +40,8 @@ export class MeetingPrepAgent extends BaseAgent {
           \"key_context\": string [],  // a list of up to 3 key context points
           \"sources\": [              // list of INDIVIDUAL sources used to generate the brief
             {
-              \"type\": \"email\" | \"drive\" | \"slack\" | \"calendar\",
-              \"title\": string,      // e.g. email subject, doc name, channel name, meeting title
+              \"type\": \"email\" | \"drive\" | \"slack\" | \"calendar\" | \"notion\",
+              \"title\": string,      // e.g. email subject, doc name, channel name, meeting title, Notion page title
               \"url\": string         // link to the source if available
             }
           ]
@@ -53,14 +53,16 @@ export class MeetingPrepAgent extends BaseAgent {
         - For documents: use the document name as title and the webViewLink.
         - For Slack: use the message text snippet or channel name as title and the permalink.
         - For calendar: use the event title/summary and the event URL.
-        
+        - For Notion: use the page/database title and the Notion URL.
+
         Example sources format:
         \"sources\": [
           {\"type\": \"calendar\", \"title\": \"Q4 Planning Meeting\", \"url\": \"https://calendar.google.com/...\"},
           {\"type\": \"email\", \"title\": \"Re: Q4 Budget Proposal\", \"url\": \"https://mail.google.com/mail/u/0/#all/abc123\"},
           {\"type\": \"email\", \"title\": \"Meeting Agenda - Q4 Planning\", \"url\": \"https://mail.google.com/mail/u/0/#all/def456\"},
           {\"type\": \"drive\", \"title\": \"Q4 Strategy Deck.pptx\", \"url\": \"https://docs.google.com/presentation/d/...\"},
-          {\"type\": \"slack\", \"title\": \"Discussion about Q4 metrics in #planning\", \"url\": \"https://company.slack.com/archives/...\"}
+          {\"type\": \"slack\", \"title\": \"Discussion about Q4 metrics in #planning\", \"url\": \"https://company.slack.com/archives/...\"},
+          {\"type\": \"notion\", \"title\": \"Q4 Planning Notes\", \"url\": \"https://www.notion.so/...\"}
         ]`
     });
   }
@@ -89,7 +91,10 @@ Steps:
 2. Search for relevant emails from/to the attendees in the past ${searchTimeframeDays} days
 3. Search for relevant documents in Drive related to the meeting topic or attendees
 4. Search for relevant conversations in Slack related to the meeting topic or attendees
-5. Synthesize all information into a concise, actionable brief
+5. Search Notion (use the notion tool) for pages or databases related to the meeting topic or attendees
+6. Synthesize all information into a concise, actionable brief
+
+Only use sources for tools that return results; skip any integration that isn't connected.
 
 Important: As you gather information:
 - Track EVERY individual email, document, Slack message, and calendar event you find

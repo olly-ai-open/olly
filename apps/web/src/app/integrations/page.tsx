@@ -219,16 +219,66 @@ export default async function IntegrationsPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-4">
-                {!notionHealth.connected && (
-                  <Link
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                    href="/api/auth/notion-connect"
+              {!notionHealth.connected && (
+                <div className="mt-4">
+                  <div className="text-sm text-muted-foreground mb-2">
+                    Paste your Notion internal integration token to connect.
+                  </div>
+                  <form
+                    action="/api/auth/notion-connect"
+                    method="post"
+                    className="flex gap-2"
                   >
-                    Connect Notion
-                  </Link>
-                )}
-              </div>
+                    <input
+                      type="password"
+                      name="accessToken"
+                      placeholder="ntn_... or secret_..."
+                      autoComplete="off"
+                      className="flex-1 rounded-md border border-border px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    >
+                      Connect Notion
+                    </button>
+                  </form>
+                  <details className="mt-3 text-sm text-muted-foreground">
+                    <summary className="cursor-pointer font-medium text-foreground">
+                      How do I get a token?
+                    </summary>
+                    <ol className="mt-2 list-decimal space-y-1 pl-5">
+                      <li>
+                        Go to{" "}
+                        <a
+                          href="https://www.notion.so/my-integrations"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          notion.so/my-integrations
+                        </a>{" "}
+                        and click <strong>New integration</strong> (type:
+                        Internal).
+                      </li>
+                      <li>
+                        Under <strong>Capabilities</strong>, enable{" "}
+                        <strong>Read content</strong> (required — without it,
+                        Olly sees no pages even after connecting).
+                      </li>
+                      <li>
+                        Copy the <strong>Internal Integration Secret</strong>{" "}
+                        (starts with <code>ntn_</code>) and paste it above.
+                      </li>
+                      <li>
+                        In Notion, open each page/database you want Olly to read,
+                        click <strong>•••  → Connections</strong>, and add your
+                        integration. Olly can only see pages you share with it.
+                      </li>
+                    </ol>
+                  </details>
+                </div>
+              )}
 
               {notionHealth.connected && (
                 <div className="mt-4 pt-4 border-t border-border">

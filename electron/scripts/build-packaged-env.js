@@ -23,8 +23,16 @@ const webDir = path.join(repoRoot, "apps", "web");
 const srcEnv = path.join(webDir, ".env.local");
 const outEnv = path.join(webDir, ".env.packaged.local");
 
-// Keys the user supplies at first-run setup — never ship these.
-const STRIP_KEYS = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "LLM_PROVIDER"];
+// Keys the user supplies themselves — never ship these in the installer.
+// LLM keys come from first-run setup; Notion is now a per-user token paste,
+// so the old app-level Notion OAuth creds (incl. a real secret) must not ship.
+const STRIP_KEYS = [
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "LLM_PROVIDER",
+  "NOTION_CLIENT_ID",
+  "NOTION_CLIENT_SECRET",
+];
 
 function keyOfLine(line) {
   // Match `KEY=...` or commented `#KEY=...` (with optional surrounding space).

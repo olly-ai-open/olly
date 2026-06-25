@@ -23,7 +23,7 @@ export class NotionTool extends BaseTool<NotionToolInputType, any> {
   
   async execute(input: NotionToolInputType, context: ToolContext): Promise<any> {
     const { operation, query, databaseId, pageId, maxResults, timeframe } = input;
-    
+
     const token = await getNotionToken(context.userId);
     if (!token) {
       throw new Error('Notion not connected for user');

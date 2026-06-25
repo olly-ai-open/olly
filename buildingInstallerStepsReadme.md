@@ -231,7 +231,35 @@ Record each build/test attempt here so we can track regressions and improvements
 
 ---
 
+## Notion integration notes (resolved 2026-06-24)
+
+Notion now works in briefs (Morning, Meeting, End-of-Day). Getting there
+required fixing a chain of issues — recorded so we don't re-debug:
+
+1. **Connect model:** switched from OAuth to a per-user **internal integration
+   token** (paste `ntn_…` on the Integrations page). No `NOTION_CLIENT_ID/SECRET`.
+2. **Token storage:** connect saves to the `Credential` table; core
+   `getNotionToken` was reading the `Account` table → fixed to read `Credential`.
+3. **Search 400:** `searchNotion` sent `filter: { value: 'page' }`; Notion's
+   `/v1/search` requires `{ property: 'object', value: 'page' }`. Fixed in
+   `packages/core/src/notion-http.ts`.
+4. **Agent prompts:** added `notion` to the `sources` schema + explicit "search
+   Notion" steps in all three brief agents (+ EOD source extraction).
+5. **User-side gotcha (most common cause of 0 results):** the Notion integration
+   must have **Read content** capability enabled AND the specific pages must be
+   **shared** with it (page ••• → Connections). Without Read content, every
+   search returns 0 even with a valid token. This is now spelled out in the
+   in-app Integrations guidance.
+
 ## Future improvements (backlog)
+
+- [ ] **Airtable & Jira in briefs:** both are connectable in the Integrations UI
+  but have **no agent tool** (`AirtableTool`/`JiraTool` don't exist in
+  `packages/core/src/agents/tools/`), so they cannot feed brief/summary
+  generation. Building those tools (and adding them to the brief agents +
+  source schemas, like Notion) is needed to include them. Deferred — noted
+  2026-06-24, not for now.
+
 
 - [ ] Fix `NODE_OPTIONS` cross-platform setting in `build:web` (use `cross-env`).
 - [ ] Switch Mac signing from **Apple Development** to **Developer ID** + notarization (current builds will trip Gatekeeper on other machines).
