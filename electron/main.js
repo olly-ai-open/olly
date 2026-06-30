@@ -36,6 +36,20 @@ function log(...args) {
   console.log("[olly-startup]", ...args);
 }
 
+// embedded-postgres registers its own AsyncExitHook whose gracefulShutdown()
+// unconditionally calls done(). On Node's synchronous 'exit' event,
+// async-exit-hook invokes the hook with no callback, so done is undefined and
+// `done()` throws "done is not a function" as an unhandled rejection on every
+// quit. We already stop Postgres cleanly in shutdown(), so this is harmless
+// noise — swallow only this exact error and surface anything else.
+process.on("unhandledRejection", (reason) => {
+  const message = reason && reason.message ? String(reason.message) : String(reason);
+  if (reason instanceof TypeError && message.includes("done is not a function")) {
+    return;
+  }
+  log("Unhandled rejection:", message);
+});
+
 function loadPackagedEnv() {
   const candidates = app.isPackaged
     ? [paths.getPackagedEnvPath()]
