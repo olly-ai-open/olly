@@ -68,14 +68,36 @@ async function ensurePostgresRunning(log = console.log) {
   log(`[postgres] starting on port ${state.postgresPort}...`);
   await pg.start();
 
+  // Check for the database before creating it. Issuing CREATE DATABASE
+  // unconditionally makes Postgres log a scary server-side
+  // `ERROR: database "olly" already exists` on every launch after the first,
+  // even though we catch it. Probing pg_database first keeps the log clean.
+  let dbExists = false;
+  const probe = pg.getPgClient();
   try {
-    await pg.createDatabase(POSTGRES_DB);
-    log(`[postgres] created database "${POSTGRES_DB}"`);
-  } catch (err) {
-    if (!String(err && err.message).toLowerCase().includes("already exists")) {
-      throw err;
-    }
+    await probe.connect();
+    const res = await probe.query(
+      "SELECT 1 FROM pg_database WHERE datname = $1",
+      [POSTGRES_DB],
+    );
+    dbExists = res.rowCount > 0;
+  } finally {
+    await probe.end().catch(() => {});
+  }
+
+  if (dbExists) {
     log(`[postgres] database "${POSTGRES_DB}" already exists`);
+  } else {
+    try {
+      await pg.createDatabase(POSTGRES_DB);
+      log(`[postgres] created database "${POSTGRES_DB}"`);
+    } catch (err) {
+      // Tolerate a race (another launch created it between probe and create).
+      if (!String(err && err.message).toLowerCase().includes("already exists")) {
+        throw err;
+      }
+      log(`[postgres] database "${POSTGRES_DB}" already exists`);
+    }
   }
 
   runningInstance = pg;

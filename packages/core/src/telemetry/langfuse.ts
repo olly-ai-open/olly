@@ -24,12 +24,14 @@ function canEnable(): boolean {
 
 export function ensureLangfuseInitialized(): boolean {
   const envReady = canEnable();
+  // No keys (e.g. the desktop build, which strips telemetry creds): stay
+  // completely silent — this runs on every agent/tool/generation call.
+  if (!envReady) return false;
   console.log("[langfuse] init check", {
     initialized,
     enabled,
     envReady,
   });
-  if (!envReady) return false;
   try {
     if (initialized && enabled) return true;
     initialized = true;

@@ -23,15 +23,47 @@ const webDir = path.join(repoRoot, "apps", "web");
 const srcEnv = path.join(webDir, ".env.local");
 const outEnv = path.join(webDir, ".env.packaged.local");
 
-// Keys the user supplies themselves — never ship these in the installer.
-// LLM keys come from first-run setup; Notion is now a per-user token paste,
-// so the old app-level Notion OAuth creds (incl. a real secret) must not ship.
+// Keys that must NEVER ship inside the installer.
+//
+// Three buckets:
+//   1. LLM keys — the user supplies these via first-run /setup, and bundling
+//      one also suppresses the setup gate.
+//   2. Notion app creds — Notion is now a per-user token paste, so the old
+//      app-level OAuth creds (incl. a real secret) are obsolete.
+//   3. Telemetry + hosted-backend creds — the desktop build is local-only and
+//      must not phone home. The packaged app always uses embedded Postgres
+//      (electron/main.js `ensureDatabase` ignores DATABASE_URL when packaged),
+//      so the hosted DB URLs are unused at runtime AND would otherwise leak a
+//      production Supabase connection string in plaintext inside every DMG/EXE.
+//      With the Langfuse keys gone, `canEnable()` is false and tracing no-ops.
 const STRIP_KEYS = [
+  // (1) LLM keys — user supplies their own via first-run /setup
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
+  "GEMINI_API_KEY",
   "LLM_PROVIDER",
+  // (2) Notion app creds (now a per-user token paste)
   "NOTION_CLIENT_ID",
   "NOTION_CLIENT_SECRET",
+  // (2) Jira — these are a developer's PERSONAL Jira account creds, not app-level
+  "JIRA_API_TOKEN",
+  "JIRA_EMAIL",
+  "JIRA_BASE_URL",
+  // (3) Telemetry — must not send user data to our servers
+  "LANGFUSE_PUBLIC_KEY",
+  "LANGFUSE_SECRET_KEY",
+  "LANGFUSE_BASE_URL",
+  "NEW_RELIC_LICENSE_KEY",
+  "NEW_RELIC_APP_NAME",
+  // (3) Debug capture — flag + our S3 bucket name; desktop must not upload debug data
+  "ENABLE_DEBUG_CAPTURE",
+  "S3_DEBUG_BUCKET",
+  // (3) Hosted backend DB — desktop uses embedded Postgres; never ship prod creds
+  "DATABASE_URL",
+  "PRISMA_DATABASE_URL",
+  "DIRECT_URL",
+  "SUPABASE_URL",
+  "SUPABASE_ANON_KEY",
 ];
 
 function keyOfLine(line) {

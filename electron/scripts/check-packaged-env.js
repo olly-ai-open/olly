@@ -27,8 +27,25 @@ const readline = require("node:readline");
 const repoRoot = path.resolve(__dirname, "..", "..");
 const packagedEnv = path.join(repoRoot, "apps", "web", ".env.packaged.local");
 
-// LLM API keys: these both leak a secret AND suppress the /setup gate.
-const LLM_KEY_NAMES = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"];
+// Secrets that must never ship in the installer. LLM keys also suppress the
+// /setup gate; telemetry + hosted-DB creds make the "local-only" desktop build
+// phone home / leak a production connection string in plaintext.
+const FORBIDDEN_KEY_NAMES = [
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "GEMINI_API_KEY",
+  "JIRA_API_TOKEN",
+  "ENABLE_DEBUG_CAPTURE",
+  "S3_DEBUG_BUCKET",
+  "LANGFUSE_PUBLIC_KEY",
+  "LANGFUSE_SECRET_KEY",
+  "LANGFUSE_BASE_URL",
+  "NEW_RELIC_LICENSE_KEY",
+  "DATABASE_URL",
+  "PRISMA_DATABASE_URL",
+  "DIRECT_URL",
+  "SUPABASE_URL",
+];
 
 function keyOfLine(line) {
   // Match `KEY=...` or commented `#KEY=...` (with optional surrounding space).
@@ -40,7 +57,7 @@ function findLlmKeyLines(text) {
   const hits = [];
   text.split(/\r?\n/).forEach((rawLine, i) => {
     const key = keyOfLine(rawLine);
-    if (key && LLM_KEY_NAMES.includes(key)) {
+    if (key && FORBIDDEN_KEY_NAMES.includes(key)) {
       hits.push({ line: i + 1, key, commented: /^\s*#/.test(rawLine) });
     }
   });
