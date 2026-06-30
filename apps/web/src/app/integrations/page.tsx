@@ -17,8 +17,27 @@ export const metadata: Metadata = {
   description: "Integrations",
 };
 
-export default async function IntegrationsPage() {
+const JIRA_ERROR_MESSAGES: Record<string, string> = {
+  missing_fields: "Please fill in your Jira URL, email, and API token.",
+  invalid_credentials:
+    "Jira rejected those credentials. Double-check the site URL, email, and API token (tokens expire and are tied to a specific Atlassian account).",
+  connect_failed:
+    "Couldn't reach Jira. Check the site URL and your network connection, then try again.",
+};
+
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   noStore();
+  const params = await searchParams;
+  const jiraConnectedParam = params.jira_connected === "true";
+  const jiraErrorParam =
+    typeof params.jira_error === "string" ? params.jira_error : undefined;
+  const jiraErrorMessage = jiraErrorParam
+    ? JIRA_ERROR_MESSAGES[jiraErrorParam] ?? "Failed to connect Jira. Please try again."
+    : undefined;
   const session = await auth();
   if (!session?.user?.id) {
     return (
@@ -357,6 +376,18 @@ export default async function IntegrationsPage() {
       )}
     </div>
   </div>
+
+  {jiraErrorMessage && (
+    <div className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+      {jiraErrorMessage}
+    </div>
+  )}
+
+  {jiraConnectedParam && jiraHealth.connected && (
+    <div className="mt-3 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-700">
+      Jira connected successfully.
+    </div>
+  )}
 
   {!jiraHealth.connected && (
     <div className="mt-4">

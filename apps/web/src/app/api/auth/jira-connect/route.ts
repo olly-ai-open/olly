@@ -18,6 +18,11 @@ export async function POST(req: NextRequest) {
     const email = formData.get("email") as string;
 
     if (!accessToken || !baseUrl || !email) {
+      console.warn("[jira-connect] missing fields", {
+        hasBaseUrl: !!baseUrl,
+        hasEmail: !!email,
+        hasAccessToken: !!accessToken,
+      });
       return NextResponse.redirect(
         new URL("/integrations?jira_error=missing_fields", process.env.NEXTAUTH_URL!)
       );
@@ -30,6 +35,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      console.error("[jira-connect] credential validation failed", {
+        baseUrl: cleanBaseUrl,
+        email,
+        status: resp.status,
+        statusText: resp.statusText,
+        body: body.slice(0, 500),
+      });
       return NextResponse.redirect(
         new URL("/integrations?jira_error=invalid_credentials", process.env.NEXTAUTH_URL!)
       );
