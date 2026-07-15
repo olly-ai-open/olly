@@ -4,7 +4,7 @@ Living document for building and testing the Olly desktop app installers
 (Mac DMGs for Intel + Apple Silicon, Windows EXE). Keep this up to date as the
 build process evolves.
 
-Last updated: 2026-06-24
+Last updated: 2026-07-14
 
 ---
 
@@ -97,6 +97,81 @@ prompt only appears if the strip is bypassed or a new LLM key name slips in.
 > ⚠️ **Important for the Intel test:** the Intel DMG is `olly-1.0.2.dmg`
 > (the one WITHOUT an arch suffix). `-arm64` is Apple Silicon. Easy to grab the
 > wrong one.
+
+---
+
+## Building the Windows EXE via GitHub Actions (no Windows machine needed)
+
+Workflow: `.github/workflows/build-windows.yml` — runs `npm run dist:win` on a
+real `windows-latest` runner (no Wine) and uploads the NSIS `.exe` installer as
+a build artifact. Purely additive: it does not change any npm script, and the
+existing Mac workflows are untouched.
+
+Because `apps/web/.env.local` is gitignored, the runner reconstructs it from a
+repo secret (`OLLY_WEB_ENV_LOCAL`). The normal `build:packaged-env` step then
+strips LLM keys / hosted-DB creds exactly as it does locally, and the workflow
+sets `OLLY_STRICT_ENV_CHECK=1` so the build **aborts** (instead of warning) if
+any forbidden key would ship in the installer.
+
+### One-time setup: create the secret
+
+From the repo root on your Mac (needs `gh` authenticated), upload your local
+env file as the secret:
+
+```bash
+gh secret set OLLY_WEB_ENV_LOCAL --repo getolly-ai/olly < apps/web/.env.local
+```
+
+Or via the GitHub UI: repo → **Settings → Secrets and variables → Actions →
+New repository secret**, name `OLLY_WEB_ENV_LOCAL`, paste the full contents of
+`apps/web/.env.local`.
+
+The build **fails fast with a clear error** if the secret is missing (otherwise
+the exe would silently ship with no Google OAuth / NextAuth secrets). If you
+rotate anything in `.env.local`, re-run the `gh secret set` command.
+
+### Step-by-step: verify the CI path works
+
+1. **Set the secret** (above) — do this BEFORE pushing, or the first run fails.
+2. **Commit and push the workflow** on `fix/desktop-install-and-briefs`:
+   ```bash
+   git add .github/workflows/build-windows.yml buildingInstallerStepsReadme.md
+   git commit -m "Add windows-latest CI build for the desktop installer"
+   git push origin fix/desktop-install-and-briefs
+   ```
+   The workflow has a `push` trigger on this branch, so the push itself starts
+   a build immediately — no manual triggering needed.
+3. **Watch the run**: repo → **Actions** tab → "Build Windows Installer", or
+   from the terminal:
+   ```bash
+   gh run watch --repo getolly-ai/olly
+   ```
+   Expect roughly 15–25 minutes (Next.js build dominates).
+4. **Download the exe**: on the finished run's page, scroll to **Artifacts** →
+   `olly-windows-installer` (a zip containing `olly Setup 1.0.2.exe`). Or:
+   ```bash
+   gh run download --repo getolly-ai/olly --name olly-windows-installer
+   ```
+5. **Sanity-check on a Windows machine**: run the exe. SmartScreen will warn
+   (unsigned — expected, same as the locally built exe; "More info" → "Run
+   anyway"). Confirm the first-run flow: loading window → embedded Postgres →
+   migrations → `/setup` screen asking for an LLM key (if `/setup` is skipped,
+   an LLM key leaked into the bundle — the strict check should have caught it).
+
+### Gotchas / notes
+
+- **Manual "Run workflow" button**: GitHub only shows `workflow_dispatch`
+  workflows in the Actions UI once the file exists on the **default branch**
+  (`main`). Until this branch is merged, the `push` trigger is how builds
+  start. After merging to main, the button appears and the
+  `push: fix/desktop-install-and-briefs` trigger can be removed.
+- Every push to `fix/desktop-install-and-briefs` triggers a ~20-min Windows
+  build. If that gets noisy before merge, delete the `push:` block and trigger
+  merged-to-main builds via the button instead.
+- Artifacts expire after 90 days (GitHub default) — download exes you want to
+  keep.
+- The `set NODE_OPTIONS=...` cmd syntax in `build:web` (the Mac caveat above)
+  is *correct* on the Windows runner — npm scripts run under cmd.exe there.
 
 ---
 

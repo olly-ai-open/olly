@@ -1,0 +1,63 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/desktop-install-and-briefs
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # apps/web/.env.local is gitignored, but build-packaged-env.js needs it to
+      # produce the sanitized env bundled into the installer (Google OAuth creds,
+      # NEXTAUTH_SECRET, etc.). CI reconstructs it from the OLLY_WEB_ENV_LOCAL
+      # repo secret; the build script then strips LLM keys / hosted-DB creds
+      # exactly as it does locally, and OLLY_STRICT_ENV_CHECK below aborts the
+      # build if anything forbidden survives.
+      - name: Write apps/web/.env.local from secret
+        shell: pwsh
+        env:
+          OLLY_WEB_ENV_LOCAL: ${{ secrets.OLLY_WEB_ENV_LOCAL }}
+        run: |
+          if (-not $env:OLLY_WEB_ENV_LOCAL) {
+            Write-Error "Repo secret OLLY_WEB_ENV_LOCAL is not set. Paste the contents of your local apps/web/.env.local into it (Settings > Secrets and variables > Actions). Without it the installer would ship with no OAuth/auth secrets."
+            exit 1
+          }
+          Set-Content -Path apps/web/.env.local -Value $env:OLLY_WEB_ENV_LOCAL -Encoding utf8
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows installer
+        run: npm run dist:win
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+          NEXT_TELEMETRY_DISABLED: "1"
+          OLLY_STRICT_ENV_CHECK: "1"
+
+      - name: List dist output
+        if: always()
+        shell: pwsh
+        run: Get-ChildItem dist -ErrorAction SilentlyContinue
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: olly-windows-installer
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+          if-no-files-found: error
