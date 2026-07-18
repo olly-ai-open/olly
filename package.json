@@ -81,6 +81,9 @@
     },
     "win": {
       "target": "nsis"
+    },
+    "nsis": {
+      "createDesktopShortcut": "always"
     }
   }
 }
