@@ -148,7 +148,7 @@ rotate anything in `.env.local`, re-run the `gh secret set` command.
    ```
    Expect roughly 15–25 minutes (Next.js build dominates).
 4. **Download the exe**: on the finished run's page, scroll to **Artifacts** →
-   `olly-windows-installer` (a zip containing `olly Setup 1.0.2.exe`). Or:
+   `olly-windows-installer` (a zip containing `olly Setup <version>.exe`). Or:
    ```bash
    gh run download --repo getolly-ai/olly --name olly-windows-installer
    ```
@@ -157,6 +157,16 @@ rotate anything in `.env.local`, re-run the `gh secret set` command.
    anyway"). Confirm the first-run flow: loading window → embedded Postgres →
    migrations → `/setup` screen asking for an LLM key (if `/setup` is skipped,
    an LLM key leaked into the bundle — the strict check should have caught it).
+
+### Versioning of CI builds
+
+- The base semver comes from `version` in the root `package.json` and is bumped
+  **manually** when something meaningful ships (e.g. `1.0.2` → `1.0.3`).
+- CI stamps the GitHub run number onto it at build time via
+  `--config.extraMetadata.version`, so each exe is uniquely identifiable, e.g.
+  `olly Setup 1.0.3-build.14.exe`. Two CI exes never share a version string.
+- Local builds (Mac or the Windows machine) are unaffected — they use the plain
+  `package.json` version.
 
 ### Gotchas / notes
 

@@ -41,8 +41,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Stamp the GitHub run number into the app version (e.g. 1.0.3-build.14)
+      # so every CI exe is uniquely identifiable. Local builds are unaffected;
+      # the base semver still comes from package.json and is bumped manually.
       - name: Build Windows installer
-        run: npm run dist:win
+        shell: pwsh
+        run: |
+          $base = node -p "require('./package.json').version"
+          $stamped = "$base-build.$env:GITHUB_RUN_NUMBER"
+          Write-Host "Building version $stamped"
+          npm run dist:win -- --config.extraMetadata.version=$stamped
         env:
           NODE_OPTIONS: --max-old-space-size=8192
           NEXT_TELEMETRY_DISABLED: "1"
