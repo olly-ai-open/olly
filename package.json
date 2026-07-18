@@ -83,7 +83,8 @@
       "target": "nsis"
     },
     "nsis": {
-      "createDesktopShortcut": "always"
+      "createDesktopShortcut": "always",
+      "deleteAppDataOnUninstall": true
     }
   }
 }

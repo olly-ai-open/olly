@@ -168,6 +168,39 @@ rotate anything in `.env.local`, re-run the `gh secret set` command.
 - Local builds (Mac or the Windows machine) are unaffected — they use the plain
   `package.json` version.
 
+### Testing on Windows: install layout and clean-slate reset
+
+Where things live on a Windows test machine (per-user install; `AppData` is a
+hidden folder — type paths into Explorer's address bar or use Win+R):
+
+| What | Where |
+|------|-------|
+| App program files | `%LOCALAPPDATA%\Programs\olly` |
+| App data: embedded Postgres DB, `state.json` | `%APPDATA%\olly` |
+| Saved LLM key | `%APPDATA%\olly\secrets.env` |
+| Shortcuts | Desktop + Start Menu Programs |
+
+First-run behaviors are gated on `%APPDATA%\olly`: `initdb` only runs if
+`postgres-data` is missing, and the `/setup` LLM-key screen only appears if
+`secrets.env` has no key. So a reinstall only behaves like a true first run if
+that folder is gone.
+
+**Clean-slate reset:** since `deleteAppDataOnUninstall: true` (added
+2026-07-18), a normal uninstall (Settings → Apps → olly → Uninstall) wipes
+`%APPDATA%\olly` automatically — uninstall + reinstall = true first run.
+Updates (running a newer installer over an existing install) preserve app data.
+
+For exes built **before** 2026-07-18, or if state lingers, wipe manually in
+PowerShell after quitting Olly:
+
+```powershell
+Remove-Item "$env:APPDATA\olly" -Recurse -Force
+```
+
+Also note `createDesktopShortcut: "always"`: reinstalls/updates recreate the
+desktop shortcut even if the user deleted it. The Start Menu entry has no
+"always" option but comes back on any clean install.
+
 ### Gotchas / notes
 
 - **Manual "Run workflow" button**: GitHub only shows `workflow_dispatch`
