@@ -80,12 +80,21 @@ export class MeetingPrepAgent extends BaseAgent {
     options?: {
       token?: string;
       searchTimeframeDays?: number;
+      timeZone?: string;
     }
   ): Promise<string> {
-    const { searchTimeframeDays = 30 } = options || {};
-    
+    const { searchTimeframeDays = 30, timeZone = 'UTC' } = options || {};
+
+    const nowLabel = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      dateStyle: 'full',
+      timeStyle: 'short',
+    }).format(new Date());
+
     const prompt = `Prepare a comprehensive brief for meeting ID: ${meetingId}.
-    
+
+Current time: ${nowLabel} (${timeZone}). Present all meeting times in this timezone. If you mention how far away the meeting is (e.g. "in 3 hours"), compute it against this current time — calendar and tool data may use other timezones or UTC offsets, so convert before comparing.
+
 Steps:
 1. First, get the meeting details using the calendar tool
 2. Search for relevant emails from/to the attendees in the past ${searchTimeframeDays} days

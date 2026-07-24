@@ -227,27 +227,47 @@ export default async function HomeDashboard({ day }: { day?: string }) {
           const account = await prisma.account.findFirst({
             where: { userId, provider: "google" },
           });
-          if (!account)
+          if (!account) {
+            console.log(`[dash-debug] ${targetDay} no google account`);
             return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
+          }
 
           // Check if user has calendar scope
           const hasCalendarScope = account.scope?.includes("calendar.readonly");
           if (!hasCalendarScope) {
             // User only has basic auth, no calendar access
+            console.log(`[dash-debug] ${targetDay} no calendar scope`);
             return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
           }
 
+          const tokenStart = Date.now();
           const token = await getAccessTokenFromAccount(account);
-          return listEventsByDayWithToken(token, targetDay, timeZone);
+          const tokenMs = Date.now() - tokenStart;
+          const fetchStart = Date.now();
+          const events = await listEventsByDayWithToken(
+            token,
+            targetDay,
+            timeZone,
+          );
+          const fetchMs = Date.now() - fetchStart;
+          console.log(
+            `[dash-debug] ${targetDay} token=${token ? "ok" : "MISSING"} (${tokenMs}ms) fetched=${events.length} (${fetchMs}ms)`,
+          );
+          return events;
         } catch (error: any) {
           console.error(
-            "Failed to load calendar events:",
+            `[dash-debug] ${targetDay} FETCH ERROR:`,
             error?.message || error,
           );
           return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
         }
       })()
     : [];
+
+  // TEMP DEBUG: one heartbeat line per dashboard render (remove after diagnosis)
+  console.log(
+    `[dash-render] ${new Date().toISOString()} day=${targetDay} meetings=${meetings.length}`,
+  );
 
   // Map existing meetings/briefs by Google event id for badge/status
   const byExternalId =
@@ -418,6 +438,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                 <>
                   <Link
                     href={`/?date=${prev}`}
+                    prefetch={false}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-muted text-sm font-semibold text-foreground hover:bg-accent/50"
                   >
                     <span aria-hidden="true">‹</span>
@@ -431,6 +452,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                   </div>
                   <Link
                     href={`/?date=${next}`}
+                    prefetch={false}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-muted text-sm font-semibold text-foreground hover:bg-accent/50"
                   >
                     <span aria-hidden="true">›</span>

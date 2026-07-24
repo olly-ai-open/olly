@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { defaultTimeZone } from "@olly/core";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -47,7 +48,10 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json(settings);
+    return NextResponse.json({
+      ...settings,
+      timeZone: settings.timeZone ?? defaultTimeZone(),
+    });
   } catch (error) {
     console.error("Failed to get user settings:", error);
     return NextResponse.json(

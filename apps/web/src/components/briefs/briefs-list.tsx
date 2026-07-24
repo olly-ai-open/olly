@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { format } from "date-fns";
+import { getUserSettings } from "@/lib/settings";
 import { unstable_noStore as noStore } from "next/cache";
 
 export default async function BriefsList() {
@@ -11,6 +11,12 @@ export default async function BriefsList() {
       <p className="text-sm text-muted-foreground">Sign in to view briefs.</p>
     );
   }
+  const settings = await getUserSettings(session.user.id);
+  const whenFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: settings.timeZone || "UTC",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
   const briefs = await prisma.brief.findMany({
     where: { meeting: { userId: session.user.id } },
     orderBy: { generatedAt: "desc" },
@@ -25,7 +31,7 @@ export default async function BriefsList() {
     <ul className="divide-y divide-border rounded-lg border border-border bg-card shadow-sm">
       {briefs.map((b: any) => {
         const when = b.meeting?.startsAt
-          ? format(b.meeting.startsAt, "PPpp")
+          ? whenFmt.format(b.meeting.startsAt)
           : "";
         const content = b.content as any;
         const text =

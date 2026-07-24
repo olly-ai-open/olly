@@ -153,6 +153,7 @@ export async function generateMeetingBriefForEventCore(
   const agentBrief = await agent.prepareMeetingBrief(eventId, userId, {
     token,
     searchTimeframeDays,
+    timeZone: settings.timeZone ?? undefined,
   });
   const parsed = safeParseBriefJSON(agentBrief);
   briefResult.content = parsed ?? {

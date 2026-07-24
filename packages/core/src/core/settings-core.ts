@@ -13,6 +13,18 @@ export type UserSettings = {
   ignoredEventPatterns: unknown[];
 };
 
+// When the user hasn't picked a timezone, fall back to the host machine's
+// zone. On the desktop app the server runs on the user's machine, so this is
+// their local zone; on cloud hosts it resolves to UTC, matching the old
+// behavior of `settings.timeZone || "UTC"` consumers.
+export function defaultTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 async function ensureUserExists(userId: string) {
   await prisma.user.upsert({
     where: { id: userId },
@@ -52,7 +64,7 @@ export async function getUserSettingsCore(userId: string): Promise<UserSettings>
     queryPlannerSystemPrompt: settings.queryPlannerSystemPrompt ?? null,
     morningBriefSystemPrompt: settings.morningBriefSystemPrompt ?? null,
     endOfDayBriefSystemPrompt: settings.endOfDayBriefSystemPrompt ?? null,
-    timeZone: settings.timeZone ?? null,
+    timeZone: settings.timeZone ?? defaultTimeZone(),
     telemetryOptIn: settings.telemetryOptIn ?? true,
     emailNotifications: settings.emailNotifications ?? true,
     webNotificationsEnabled: settings.webNotificationsEnabled ?? false,
