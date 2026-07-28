@@ -94,7 +94,10 @@ export class NotionTool extends BaseTool<NotionToolInputType, any> {
     try {
       let filter;
       if (timeframe?.startDate) {
-        filter = { property: 'Last edited time', date: { on_or_after: timeframe.startDate } };
+        // Timestamp filters are the only way to filter by last-edited without
+        // knowing the database's property names; a `property` filter with a
+        // guessed name returns HTTP 400 from Notion.
+        filter = { timestamp: 'last_edited_time', last_edited_time: { on_or_after: timeframe.startDate } };
       }
       const results = await queryNotionDatabase(token, databaseId, filter, [{ timestamp: 'last_edited_time', direction: 'descending' }], maxResults || 10);
       return { items: results.results.map(this.formatPage), count: results.results.length, database_id: databaseId };
@@ -123,14 +126,51 @@ export class NotionTool extends BaseTool<NotionToolInputType, any> {
   }
   
   private formatPage(page: any) {
-    const titleProp = page.properties?.title || page.properties?.Name;
+    const props: Record<string, any> = page.properties || {};
+    // Database rows key their title under the user-chosen property name
+    // (e.g. "Task"), not "title"/"Name" — fall back to the property type.
+    const titleProp =
+      props.title ||
+      props.Name ||
+      Object.values(props).find((p: any) => p?.type === 'title');
     const title = titleProp?.title ? extractPlainText(titleProp.title) : 'Untitled';
-    return { id: page.id, title, url: page.url, last_edited: page.last_edited_time, created: page.created_time, archived: page.archived };
+
+    // Surface task-style fields (status, due date, assignee, ...) so
+    // database rows are usable by agents, not just a bare title.
+    const fields: Record<string, string> = {};
+    for (const [name, prop] of Object.entries<any>(props)) {
+      if (!prop || prop.type === 'title') continue;
+      let value = '';
+      switch (prop.type) {
+        case 'status': value = prop.status?.name ?? ''; break;
+        case 'select': value = prop.select?.name ?? ''; break;
+        case 'multi_select': value = (prop.multi_select || []).map((s: any) => s.name).join(', '); break;
+        case 'date': value = prop.date?.start ?? ''; break;
+        case 'checkbox': value = prop.checkbox ? 'checked' : 'unchecked'; break;
+        case 'people': value = (prop.people || []).map((u: any) => u.name).filter(Boolean).join(', '); break;
+        case 'rich_text': value = extractPlainText(prop.rich_text); break;
+      }
+      if (value) fields[name] = value;
+    }
+
+    return {
+      id: page.id,
+      title,
+      url: page.url,
+      last_edited: page.last_edited_time,
+      created: page.created_time,
+      archived: page.archived,
+      ...(Object.keys(fields).length ? { fields } : {}),
+    };
   }
-  
+
   private extractTitle(item: any): string {
     if ('object' in item && item.object === 'page') {
-      const titleProp = item.properties?.title || item.properties?.Name;
+      const props: Record<string, any> = item.properties || {};
+      const titleProp =
+        props.title ||
+        props.Name ||
+        Object.values(props).find((p: any) => p?.type === 'title');
       return titleProp?.title ? extractPlainText(titleProp.title) : 'Untitled';
     } else {
       return item.title ? extractPlainText(item.title) : 'Untitled Database';

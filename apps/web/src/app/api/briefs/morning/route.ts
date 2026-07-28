@@ -263,7 +263,13 @@ export async function POST(req: Request) {
 
     let rawBrief: string;
     try {
+      const systemPromptOverride =
+        typeof settings.morningBriefSystemPrompt === "string" &&
+        settings.morningBriefSystemPrompt.trim().length
+          ? settings.morningBriefSystemPrompt.trim()
+          : undefined;
       const agent = new MorningBriefAgent({
+        systemPrompt: systemPromptOverride,
         telemetryEnabled: settings.telemetryOptIn !== false,
       });
 

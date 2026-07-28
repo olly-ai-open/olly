@@ -20,6 +20,9 @@ export class MorningBriefAgent extends BaseAgent {
     super({
       name: 'MorningBriefAgent',
       description: 'Generates comprehensive morning briefs with today\'s priorities and relevant context',
+      // 5 tools + a final synthesis step won't fit in the BaseAgent default
+      // of 5 steps; Notion (listed last) gets cut off without this.
+      maxToolRoundtrips: 8,
       ...config,
       tools: [
         new CalendarTool(),

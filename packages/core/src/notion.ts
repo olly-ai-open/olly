@@ -7,24 +7,38 @@ import { searchNotion, queryNotionDatabase, getNotionPageBlocks, extractPlainTex
 export async function getNotionToken(userId: string): Promise<string | null> {
   const prisma = await getPrisma();
 
-  try {
-    // The connect flow saves the token to the encrypted Credential table
-    // (provider "notion", data = JSON { accessToken, ... }). Read from the
-    // same store so Notion content actually reaches briefs.
-    const credential = await prisma.credential.findUnique({
-      where: { userId_provider: { userId, provider: 'notion' } },
-    });
+  // The connect flow saves the token to the encrypted Credential table
+  // (provider "notion", data = JSON { accessToken, ... }). Read from the
+  // same store so Notion content actually reaches briefs.
+  const credential = await prisma.credential.findUnique({
+    where: { userId_provider: { userId, provider: 'notion' } },
+  });
 
-    if (!credential?.data) {
-      return null;
-    }
-
-    const data = JSON.parse(credential.data) as { accessToken?: string };
-    return data.accessToken ?? null;
-  } catch (error) {
-    console.error('Error getting Notion token:', error);
+  if (!credential?.data) {
     return null;
   }
+
+  let data: { accessToken?: string };
+  try {
+    data = JSON.parse(credential.data) as { accessToken?: string };
+  } catch (error) {
+    // Distinguish "no credential" (null) from "credential unreadable".
+    // A parse failure here almost always means the row was encrypted with a
+    // different PRISMA_FIELD_ENCRYPTION_KEY than this runtime is using.
+    console.error('Notion credential exists but is unreadable:', error);
+    throw new Error(
+      'Notion credential exists but could not be decrypted/parsed; ' +
+        'verify PRISMA_FIELD_ENCRYPTION_KEY matches the key used when the credential was saved, or reconnect Notion',
+    );
+  }
+
+  if (!data.accessToken) {
+    throw new Error(
+      'Notion credential exists but has no accessToken (saved by an older connect flow); reconnect Notion',
+    );
+  }
+
+  return data.accessToken;
 }
 
 /**
@@ -62,7 +76,10 @@ export async function fetchRecentNotionPages(
   sinceDate?: Date,
   maxResults = 10
 ): Promise<NotionSnippet[]> {
-  const token = await getNotionToken(userId);
+  const token = await getNotionToken(userId).catch((error) => {
+    console.error('Error getting Notion token:', error);
+    return null;
+  });
   if (!token) {
     return [];
   }
@@ -113,7 +130,10 @@ export async function searchNotionContent(
   query: string,
   maxResults = 10
 ): Promise<NotionSnippet[]> {
-  const token = await getNotionToken(userId);
+  const token = await getNotionToken(userId).catch((error) => {
+    console.error('Error getting Notion token:', error);
+    return null;
+  });
   if (!token) {
     return [];
   }

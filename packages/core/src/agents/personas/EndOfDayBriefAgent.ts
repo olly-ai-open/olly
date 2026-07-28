@@ -188,6 +188,9 @@ export class EndOfDayBriefAgent extends BaseAgent {
       name: 'EndOfDayBriefAgent',
       description: 'Generates end-of-day summaries from recent workspace updates',
       model: config?.model, // Let BaseAgent handle provider-aware model selection
+      // 4 tools + a final synthesis step is exactly at the BaseAgent default
+      // of 5 steps; leave headroom so the last tool isn't traded for output.
+      maxToolRoundtrips: 8,
       ...config,
       tools: [
         new EmailTool(),

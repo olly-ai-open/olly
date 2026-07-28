@@ -69,7 +69,13 @@ export async function generateMorningBriefForUserCore(
     status: ai.status as string,
   }));
 
+  const systemPromptOverride =
+    typeof settings.morningBriefSystemPrompt === "string" &&
+    settings.morningBriefSystemPrompt.trim().length
+      ? settings.morningBriefSystemPrompt.trim()
+      : undefined;
   const agent = new MorningBriefAgent({
+    systemPrompt: systemPromptOverride,
     telemetryEnabled: settings.telemetryOptIn !== false,
   });
   const rawBrief = await agent.generateMorningBrief(userId, {

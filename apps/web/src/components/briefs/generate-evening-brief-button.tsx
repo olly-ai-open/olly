@@ -18,10 +18,12 @@ export default function GenerateEveningBriefButton({
   windowHours,
 }: GenerateEveningBriefButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleGenerate = async () => {
     setIsGenerating(true);
+    setError(null);
     try {
       const payloadBriefTime = briefTime ?? new Date().toISOString();
       const payloadWindowHours =
@@ -35,7 +37,12 @@ export default function GenerateEveningBriefButton({
         }),
       });
       if (!response.ok) {
-        console.error("Failed to generate end of day summary");
+        const payload = await response.json().catch(() => ({}) as any);
+        console.error("Failed to generate end of day summary", payload);
+        setError(
+          payload?.message ||
+            "Couldn't generate the end of day summary. Please try again.",
+        );
         setIsGenerating(false);
         return;
       }
@@ -48,6 +55,7 @@ export default function GenerateEveningBriefButton({
       }
     } catch (error) {
       console.error("Error generating end of day summary:", error);
+      setError("Couldn't generate the end of day summary. Please try again.");
       setIsGenerating(false);
     }
   };
@@ -63,12 +71,15 @@ export default function GenerateEveningBriefButton({
   }
 
   return (
-    <BriefActionPill
-      label="Generate end of day summary"
-      loadingLabel="Generating..."
-      onClick={handleGenerate}
-      disabled={isGenerating}
-      isLoading={isGenerating}
-    />
+    <span className="inline-flex flex-col items-start gap-1">
+      <BriefActionPill
+        label="Generate end of day summary"
+        loadingLabel="Generating..."
+        onClick={handleGenerate}
+        disabled={isGenerating}
+        isLoading={isGenerating}
+      />
+      {error ? <span className="text-xs text-red-600">{error}</span> : null}
+    </span>
   );
 }

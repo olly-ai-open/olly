@@ -5,12 +5,20 @@ import { getOAuthClient } from "../google-http";
 export async function getAccessTokenFromAccountCore(
   prisma: PrismaClient,
   account: GoogleAccountLike & { id?: string; userId?: string },
+  options?: { forceRefresh?: boolean },
 ): Promise<string> {
   const oAuth2Client = getOAuthClient();
   const expiresAt = account.expires_at ? account.expires_at * 1000 : undefined;
 
   const now = Date.now();
-  const isExpired = expiresAt ? now >= expiresAt : false;
+  // Refresh a few minutes early: Google often rejects tokens before expires_at,
+  // and waiting for a 401 adds a full failed round-trip on every first load.
+  const skewMs = 5 * 60 * 1000;
+  const isExpired = options?.forceRefresh
+    ? true
+    : expiresAt
+      ? now >= expiresAt - skewMs
+      : false;
 
   oAuth2Client.setCredentials({
     access_token: account.access_token || undefined,

@@ -15,8 +15,9 @@ export type GoogleAccountLike = {
 
 export async function getAccessTokenFromAccount(
   account: GoogleAccountLike & { id?: string; userId?: string },
+  options?: { forceRefresh?: boolean },
 ): Promise<string> {
-  return getAccessTokenFromAccountCore(prisma, account);
+  return getAccessTokenFromAccountCore(prisma, account, options);
 }
 
 export async function getUserGoogleAuth(userId: string) {

@@ -9,7 +9,6 @@ import {
 import {
   getAccessTokenFromAccount,
   listEventsByDayWithToken,
-  checkGoogleHealth,
 } from "@/lib/google";
 import { unstable_noStore as noStore } from "next/cache";
 import {
@@ -219,50 +218,103 @@ export default async function HomeDashboard({ day }: { day?: string }) {
         })()
       : toLocalISODate(now));
 
-  // Check if user has advanced Google scopes
-  const googleHealth = userId ? await checkGoogleHealth(userId) : null;
-  const meetings = userId
+  const { meetings, googleHealth } = userId
     ? await (async () => {
         try {
           const account = await prisma.account.findFirst({
             where: { userId, provider: "google" },
+            orderBy: { expires_at: "desc" },
           });
           if (!account) {
             console.log(`[dash-debug] ${targetDay} no google account`);
-            return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
+            return {
+              meetings: [] as Awaited<
+                ReturnType<typeof listEventsByDayWithToken>
+              >,
+              googleHealth: {
+                connected: false as const,
+                hasAdvancedScopes: false,
+                reason: "no_account",
+              },
+            };
           }
 
-          // Check if user has calendar scope
-          const hasCalendarScope = account.scope?.includes("calendar.readonly");
+          const scope = account.scope || "";
+          const hasCalendarScope = scope.includes("calendar.readonly");
+
           if (!hasCalendarScope) {
-            // User only has basic auth, no calendar access
             console.log(`[dash-debug] ${targetDay} no calendar scope`);
-            return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
+            return {
+              meetings: [] as Awaited<
+                ReturnType<typeof listEventsByDayWithToken>
+              >,
+              googleHealth: {
+                connected: true as const,
+                hasAdvancedScopes: false,
+                reason: "basic_auth_only",
+              },
+            };
           }
 
-          const tokenStart = Date.now();
           const token = await getAccessTokenFromAccount(account);
-          const tokenMs = Date.now() - tokenStart;
-          const fetchStart = Date.now();
-          const events = await listEventsByDayWithToken(
-            token,
-            targetDay,
-            timeZone,
-          );
-          const fetchMs = Date.now() - fetchStart;
+          let events: Awaited<ReturnType<typeof listEventsByDayWithToken>>;
+          try {
+            events = await listEventsByDayWithToken(token, targetDay, timeZone);
+          } catch (err: any) {
+            // Google can reject a token before expires_at says it's stale;
+            // force one refresh and retry so the bad token can't wedge the
+            // dashboard until the user reconnects.
+            if (
+              !String(err?.message || "").includes("events_list_failed: 401")
+            ) {
+              throw err;
+            }
+            console.log(
+              `[dash-debug] ${targetDay} 401 from calendar — forcing token refresh and retrying`,
+            );
+            const freshToken = await getAccessTokenFromAccount(account, {
+              forceRefresh: true,
+            });
+            events = await listEventsByDayWithToken(
+              freshToken,
+              targetDay,
+              timeZone,
+            );
+          }
           console.log(
-            `[dash-debug] ${targetDay} token=${token ? "ok" : "MISSING"} (${tokenMs}ms) fetched=${events.length} (${fetchMs}ms)`,
+            `[dash-debug] ${targetDay} token=${token ? "ok" : "MISSING"} fetched=${events.length}`,
           );
-          return events;
+          return {
+            meetings: events,
+            // Skip a second Google calendarList round-trip — a successful
+            // events fetch is enough proof the connection is healthy.
+            googleHealth: {
+              connected: true as const,
+              hasAdvancedScopes: true,
+            },
+          };
         } catch (error: any) {
           console.error(
             `[dash-debug] ${targetDay} FETCH ERROR:`,
             error?.message || error,
           );
-          return [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>;
+          const msg = String(error?.message || "unknown_error");
+          return {
+            meetings: [] as Awaited<
+              ReturnType<typeof listEventsByDayWithToken>
+            >,
+            googleHealth: {
+              connected: false as const,
+              hasAdvancedScopes: true,
+              reason: msg,
+            },
+          };
         }
       })()
-    : [];
+    : {
+        meetings: [] as Awaited<ReturnType<typeof listEventsByDayWithToken>>,
+        googleHealth: null,
+      };
 
   // TEMP DEBUG: one heartbeat line per dashboard render (remove after diagnosis)
   console.log(
@@ -438,7 +490,6 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                 <>
                   <Link
                     href={`/?date=${prev}`}
-                    prefetch={false}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-muted text-sm font-semibold text-foreground hover:bg-accent/50"
                   >
                     <span aria-hidden="true">‹</span>
@@ -452,7 +503,6 @@ export default async function HomeDashboard({ day }: { day?: string }) {
                   </div>
                   <Link
                     href={`/?date=${next}`}
-                    prefetch={false}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-muted text-sm font-semibold text-foreground hover:bg-accent/50"
                   >
                     <span aria-hidden="true">›</span>
@@ -480,6 +530,33 @@ export default async function HomeDashboard({ day }: { day?: string }) {
             )}
           </div>
         </div>
+
+        {/* Google token dead / revoked — calendar calls fail with 401 */}
+        {userId &&
+          googleHealth &&
+          googleHealth.hasAdvancedScopes &&
+          googleHealth.connected === false && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-red-600">⚠️</span>
+                <div className="flex-1">
+                  <div className="font-medium text-red-900">
+                    Google Calendar connection needs attention
+                  </div>
+                  <div className="mt-1 text-sm text-red-700">
+                    We couldn&apos;t load your meetings. Reconnect Google to
+                    refresh access.
+                  </div>
+                  <Link
+                    href="/integrations"
+                    className="mt-3 inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+                  >
+                    Reconnect Google →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
 
         {/* Show a notice if user doesn't have advanced scopes */}
         {userId && googleHealth && !googleHealth.hasAdvancedScopes && (
@@ -632,7 +709,7 @@ export default async function HomeDashboard({ day }: { day?: string }) {
         <div className="space-y-4">
           <div className="rounded-2xl border border-border/70 bg-gradient-brand-light p-4 shadow-card">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              This week
+              Today
             </div>
             <div className="space-y-3 text-sm">
               <div className="flex items-baseline justify-between">

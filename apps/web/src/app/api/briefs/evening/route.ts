@@ -2,8 +2,19 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { generateEndOfDayBriefForUser } from "@/lib/endOfDayBriefs";
 import { prisma } from "@/lib/prisma";
+import { getUserSettings } from "@/lib/settings";
 import { sendBriefReadyWebPush } from "@olly/core";
 import { flushLangfuse } from "@olly/core/src/telemetry/langfuse";
+
+// en-CA formats as YYYY-MM-DD, so day strings compare lexicographically
+function dayInTimeZone(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -30,10 +41,31 @@ export async function POST(req: Request) {
       ? body.windowHours
       : 24;
 
+  const effectiveBriefTime = Number.isNaN(briefTime.getTime())
+    ? new Date()
+    : briefTime;
+
   try {
+    const settings = await getUserSettings(session.user.id);
+    const timeZone = settings.timeZone || "UTC";
+    if (
+      dayInTimeZone(effectiveBriefTime, timeZone) >
+      dayInTimeZone(new Date(), timeZone)
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "future_not_allowed",
+          message:
+            "End of day summaries can't be generated for future dates.",
+        },
+        { status: 400 },
+      );
+    }
+
     const result = await generateEndOfDayBriefForUser({
       userId: session.user.id,
-      briefTime: Number.isNaN(briefTime.getTime()) ? new Date() : briefTime,
+      briefTime: effectiveBriefTime,
       windowHours,
     });
 
