@@ -13,6 +13,10 @@ export default function GenerateBriefButton({
 }: GenerateBriefButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Optimistic handoff: once the API returns a brief id, show "View Brief"
+  // immediately instead of waiting for router.refresh() to remount the card
+  // (that soft refresh often never clears the spinner in the desktop app).
+  const [completedBriefId, setCompletedBriefId] = useState<string | null>(null);
   const router = useRouter();
 
   const handleGenerate = async () => {
@@ -32,12 +36,19 @@ export default function GenerateBriefButton({
       });
 
       if (response.ok) {
-        // Stay on the dashboard: refresh so the meeting card swaps to
-        // "View Brief" and shows the Key Context summary inline.
+        const payload = await response.json().catch(() => ({}) as any);
+        const briefId = payload?.brief?.id as string | undefined;
+        if (briefId) {
+          setCompletedBriefId(briefId);
+          setIsGenerating(false);
+          // Best-effort: refresh so Key Context bullets appear under the card.
+          // Do not depend on this to clear the spinner.
+          router.refresh();
+          return;
+        }
+        setError("Brief was generated but no id was returned. Refresh the page.");
+        setIsGenerating(false);
         router.refresh();
-        // Keep the spinner up briefly so the refresh can remount the card
-        // before we clear local loading state (the Generate button unmounts
-        // once the server re-render sees the new brief).
         return;
       }
 
@@ -53,6 +64,16 @@ export default function GenerateBriefButton({
       setIsGenerating(false);
     }
   };
+
+  if (completedBriefId) {
+    return (
+      <BriefActionPill
+        href={`/briefs/${completedBriefId}`}
+        label="View Brief"
+        isNew
+      />
+    );
+  }
 
   return (
     <span className="inline-flex flex-col items-start gap-1">
