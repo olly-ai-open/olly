@@ -6,6 +6,7 @@ const DEFAULT_MEETING_BRIEF_LEAD_MS = 5 * 60 * 1000;
 const DEFAULT_MEETING_LOOKAHEAD_MS = 2 * 60 * 60 * 1000;
 const DEFAULT_CALENDAR_SYNC_INTERVAL_MIN = 60;
 const DEFAULT_CALENDAR_SYNC_LOOKAHEAD_HOURS = 24;
+const DEFAULT_SCHEDULING_POLL_INTERVAL_MIN = 5;
 
 export interface SchedulerTickOptions {
   now?: Date;
@@ -19,6 +20,7 @@ export interface SchedulerTickResult {
   calendarSyncJobsCreated: number;
   meetingJobsCreated: number;
   meetingJobsUpdated: number;
+  schedulingPollJobsCreated: number;
 }
 
 export async function runSchedulerTick(
@@ -180,12 +182,51 @@ export async function runSchedulerTick(
     meetingJobsCreated += 1;
   }
 
+  // Poll active meeting-scheduling negotiations for new email replies.
+  let schedulingPollJobsCreated = 0;
+  const pollDueBefore = new Date(
+    now.getTime() - DEFAULT_SCHEDULING_POLL_INTERVAL_MIN * 60 * 1000,
+  );
+  const activeRequests = await prisma.schedulingRequest.findMany({
+    where: {
+      status: { in: ["AWAITING_REPLIES", "NEGOTIATING"] },
+      OR: [{ lastPolledAt: null }, { lastPolledAt: { lte: pollDueBefore } }],
+    },
+    select: { id: true, userId: true },
+    take: 100,
+  });
+
+  for (const request of activeRequests) {
+    const existingPoll = await prisma.job.findFirst({
+      where: {
+        kind: "SCHEDULING_POLL",
+        userId: request.userId,
+        payload: { path: ["requestId"], equals: request.id },
+        status: { in: ["PENDING", "QUEUED", "RUNNING"] },
+      },
+      select: { id: true },
+    });
+    if (existingPoll) continue;
+
+    await prisma.job.create({
+      data: {
+        kind: "SCHEDULING_POLL",
+        payload: { requestId: request.id },
+        status: "PENDING",
+        userId: request.userId,
+        runAt: now,
+      },
+    });
+    schedulingPollJobsCreated += 1;
+  }
+
   return {
     schedulesScanned: dueSchedules.length,
     schedulesScheduled,
     calendarSyncJobsCreated,
     meetingJobsCreated,
     meetingJobsUpdated,
+    schedulingPollJobsCreated,
   };
 }
 

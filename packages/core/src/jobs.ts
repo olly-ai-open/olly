@@ -9,6 +9,7 @@ import {
   type UserSettings,
 } from "./core/settings-core";
 import { getAccessTokenFromAccountCore } from "./core/google-core";
+import { pollSchedulingRequestCore } from "./core/meetingScheduling-core";
 import {
   listEventsInRangeWithToken,
   getEventDetailsWithToken,
@@ -26,7 +27,8 @@ export type JobKind =
   | "MORNING_BRIEF"
   | "EVENING_BRIEF"
   | "MEETING_BRIEF"
-  | "CALENDAR_SYNC";
+  | "CALENDAR_SYNC"
+  | "SCHEDULING_POLL";
 
 export interface RunJobResult {
   jobId: string;
@@ -402,6 +404,14 @@ async function dispatchJob(
           console.error("Failed to send evening brief web push", err);
         });
       }
+      return;
+    }
+    case "SCHEDULING_POLL": {
+      const requestId = payload.requestId as string | undefined;
+      if (!requestId) {
+        throw new Error("missing_requestId_for_scheduling_poll");
+      }
+      await pollSchedulingRequestCore(prisma, requestId);
       return;
     }
     case "CALENDAR_SYNC": {

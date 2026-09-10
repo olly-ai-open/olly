@@ -15,6 +15,14 @@ export { DriveTool } from './tools/DriveTool';
 
 // Agent Personas
 export { MeetingPrepAgent } from './personas/MeetingPrepAgent';
+export {
+  parseSchedulingDirection,
+  draftSchedulingEmailBody,
+  parseSchedulingReply,
+  formatSlotForEmail,
+  type ParsedSchedulingDirection,
+  type ParsedSchedulingReply,
+} from './personas/SchedulingAgent';
 export { MorningBriefAgent } from './personas/MorningBriefAgent';
 export { EndOfDayBriefAgent } from './personas/EndOfDayBriefAgent';
 export {

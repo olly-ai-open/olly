@@ -43,6 +43,7 @@ model User {
   notionCredential  NotionCredential?
   airtableCredential AirtableCredential?
   jiraCredential    JiraCredential?
+  schedulingRequests SchedulingRequest[]
 }
 
 model Account {
@@ -250,6 +251,7 @@ model Person {
   meetings MeetingParticipant[]
   briefs   BriefParticipant[]
   assigned ActionItemAssignee[]
+  schedulingAttendees SchedulingAttendee[]
 
   @@index([userId, email])
 }
@@ -319,6 +321,13 @@ model UserSettings {
   webNotificationsEnabled Boolean @default(false)
 
   ignoredEventPatterns Json?
+
+  // Scheduling preferences (standing constraints for Olly-arranged meetings)
+  workingHoursStart        String? // "09:00" local to timeZone
+  workingHoursEnd          String? // "17:00"
+  workingDays              Json?   // ISO weekday numbers, e.g. [1,2,3,4,5]
+  meetingBufferMinutes     Int     @default(0)
+  minSchedulingNoticeHours Int     @default(24)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -508,4 +517,79 @@ model Credential {
 
   @@unique([userId, provider])
   @@index([userId, provider])
+}
+
+model SchedulingRequest {
+  id              String  @id @default(cuid())
+  userId          String
+  title           String
+  durationMinutes Int     @default(30)
+  // DRAFT | AWAITING_REPLIES | NEGOTIATING | AWAITING_APPROVAL | READY_TO_BOOK | BOOKED | NEEDS_ATTENTION | CANCELLED
+  status          String  @default("DRAFT")
+  // Date window, preferred times of day, allowed weekdays, free-form notes
+  constraints     Json?
+  // Current round's candidate slots: [{ startISO, endISO }]
+  proposedSlots   Json?
+  round           Int     @default(0)
+  gmailThreadId   String?
+  // Short token embedded in email subjects so off-thread replies can be found
+  referenceToken  String  @unique
+  autoBook        Boolean @default(true)
+  // Proceed autonomously when attendees counter-propose times INSIDE the date window
+  autoAltTimes    Boolean @default(true)
+  // Proceed autonomously when attendees counter-propose times OUTSIDE the date window
+  autoAltDates    Boolean @default(false)
+  // Attendee-suggested slots awaiting the owner's approval:
+  // [{ startISO, endISO, suggestedBy }]
+  pendingSlots    Json?
+  bookedEventId   String?
+  bookedSlot      Json?
+  attentionReason String?
+  lastPolledAt    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendees SchedulingAttendee[]
+  messages  SchedulingMessage[]
+
+  @@index([userId, status])
+  @@index([status, updatedAt])
+}
+
+model SchedulingAttendee {
+  id                 String  @id @default(cuid())
+  requestId          String
+  personId           String?
+  email              String
+  name               String?
+  required           Boolean @default(true)
+  // PENDING | ACCEPTED | DECLINED | COUNTERED
+  responseStatus     String  @default("PENDING")
+  // Slot acceptances and stated constraints parsed from their replies
+  parsedAvailability Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  request SchedulingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  person  Person?           @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@unique([requestId, email])
+}
+
+model SchedulingMessage {
+  id             String   @id @default(cuid())
+  requestId      String
+  direction      String // outbound | inbound
+  gmailMessageId String?
+  fromEmail      String?
+  snippet        String?  @db.Text
+  parsedIntent   Json?
+  round          Int?
+  createdAt      DateTime @default(now())
+
+  request SchedulingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, gmailMessageId])
+  @@index([requestId, createdAt])
 }

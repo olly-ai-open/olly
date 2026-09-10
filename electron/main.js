@@ -16,7 +16,7 @@ const {
   applyUserSecretsToProcessEnv,
   hasRequiredLlmEnv,
 } = require("./lib/user-secrets");
-const { app, ipcMain } = require("electron");
+const { app, ipcMain, powerMonitor } = require("electron");
 const fs = require("node:fs");
 const dotenv = require("dotenv");
 
@@ -25,12 +25,15 @@ const ui = require("./lib/ui");
 const server = require("./lib/server");
 const postgres = require("./lib/postgres");
 const migrations = require("./lib/migrations");
+const cron = require("./lib/cron");
+const { randomBytes } = require("node:crypto");
 
 const APP_PORT = 3000;
 const FALLBACK_AUTH_SECRET = "olly-desktop-local-secret-change-this";
 
 let mainWindow = null;
 let webServer = null;
+let cronLoop = null;
 
 function log(...args) {
   console.log("[olly-startup]", ...args);
@@ -123,6 +126,11 @@ async function bootstrap() {
     process.env.NEXTAUTH_SECRET ||
     FALLBACK_AUTH_SECRET;
 
+  // The cron routes require a secret in production builds; generate one per
+  // session so only this Electron process can drive the local job loop.
+  const cronSecret =
+    process.env.CRON_SECRET || randomBytes(24).toString("hex");
+
   webServer = server.startNextServer({
     port: APP_PORT,
     env: {
@@ -135,11 +143,23 @@ async function bootstrap() {
       LLM_PROVIDER: process.env.LLM_PROVIDER || "",
       OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+      CRON_SECRET: cronSecret,
     },
     log,
   });
 
   await server.waitForServer(APP_PORT);
+
+  // Scheduled briefs and meeting-scheduling negotiations run through the
+  // job loop; on desktop we drive it ourselves while the app is open.
+  cronLoop = cron.startCronLoop({ port: APP_PORT, secret: cronSecret, log });
+
+  // Timers are frozen while the Mac sleeps, so ticks silently stop firing.
+  // Run a catch-up tick as soon as the machine wakes.
+  powerMonitor.on("resume", () => {
+    log("[cron] system resumed — running catch-up tick");
+    if (cronLoop) cronLoop.runNow();
+  });
 
   const targetUrl = needsLlmSetup
     ? `http://localhost:${APP_PORT}/setup`
@@ -178,6 +198,10 @@ app.whenReady().then(async () => {
 });
 
 async function shutdown() {
+  if (cronLoop) {
+    cronLoop.stop();
+    cronLoop = null;
+  }
   server.stopNextServer(webServer);
 
   try {

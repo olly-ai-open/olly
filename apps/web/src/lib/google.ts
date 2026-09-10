@@ -59,6 +59,25 @@ async function getValidAccessToken(userId: string): Promise<string> {
   return await getAccessTokenFromAccount(account);
 }
 
+/**
+ * Scheduling (email negotiation + booking) needs write scopes that were not
+ * part of the original connect flow. Users who connected before these were
+ * added must reconnect Google to grant them.
+ */
+export async function hasSchedulingScopes(userId: string): Promise<boolean> {
+  const accounts = await prisma.account.findMany({
+    where: { userId, provider: "google" },
+    select: { scope: true },
+  });
+  return accounts.some((a) => {
+    const scopes = a.scope || "";
+    return (
+      scopes.includes("auth/calendar.events") &&
+      scopes.includes("auth/gmail.send")
+    );
+  });
+}
+
 export async function checkGoogleHealth(userId: string) {
   const accounts = await prisma.account.findMany({
     where: { userId, provider: "google" },

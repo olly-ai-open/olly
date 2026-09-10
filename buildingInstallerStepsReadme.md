@@ -386,3 +386,13 @@ required fixing a chain of issues — recorded so we don't re-debug:
 - [ ] Hot-reload of `secrets.env` so setup doesn't require an app restart.
 - [ ] De-duplicate env-parsing logic shared between electron lib and API route.
 - [ ] Document and script the Windows EXE build/test flow in this doc.
+- [ ] **Upgrade vs erase vs fresh install (desktop):** a DMG/EXE reinstall
+  already **upgrades in place** — `/Applications/Olly.app` (or the Windows
+  program files) is replaced, but `~/Library/Application Support/olly` /
+  `%APPDATA%\olly` (Postgres, `state.json`, `secrets.env`) is left alone and
+  new migrations apply on launch. Windows uninstall already wipes app data
+  (`deleteAppDataOnUninstall: true`). What's missing is an in-product
+  **Erase and start from scratch** (Settings + Help menu; confirm, quit,
+  delete that folder, relaunch into `/setup`). Optional tester shortcut:
+  hold Option on launch. Do **not** prompt "upgrade or wipe?" on every
+  version bump — upgrade stays the silent default. Deferred 2026-08-15.

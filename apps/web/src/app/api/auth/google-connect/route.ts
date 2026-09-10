@@ -15,9 +15,11 @@ export async function GET() {
   // Advanced scopes for calendar, drive, and gmail
   const scopes = [
     "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events", // Needed to create events when Olly books a meeting
     "https://www.googleapis.com/auth/drive.readonly", // Needed for Google Picker to browse all folders
     "https://www.googleapis.com/auth/drive.file", // Needed to maintain access to selected folders
     "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send", // Needed for scheduling outreach emails sent on the user's behalf
   ];
 
   const authUrl = oAuth2Client.generateAuthUrl({

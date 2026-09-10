@@ -257,6 +257,8 @@ export async function listEventsInRangeWithToken(
     title: (e.summary as string) || "(no title)",
     start: e.start?.dateTime || e.start?.date || null,
     end: e.end?.dateTime || e.end?.date || null,
+    status: (e.status as string) || "confirmed",
+    transparency: (e.transparency as string) || "opaque",
     attendees: Array.isArray(e.attendees)
       ? e.attendees.map((a: any) => ({
           email: a.email,
@@ -269,6 +271,175 @@ export async function listEventsInRangeWithToken(
       (e.conferenceData?.entryPoints?.[0]?.uri ?? null),
     description: e.description || null,
   }));
+}
+
+export type FreeBusyResult = {
+  email: string;
+  busy: Array<{ start: string; end: string }>;
+  /** Non-empty when the calendar is not visible to the requesting user. */
+  errors: Array<{ domain?: string; reason?: string }>;
+};
+
+export async function queryFreeBusyWithToken(
+  token: string,
+  emails: string[],
+  timeMin: Date,
+  timeMax: Date,
+): Promise<FreeBusyResult[]> {
+  const resp = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      items: emails.map((id) => ({ id })),
+    }),
+  });
+  if (!resp.ok) throw new Error(`freebusy_failed: ${resp.status}`);
+  const data: any = await resp.json();
+  const calendars = data.calendars || {};
+  // Google may key the result as "primary" or as the account email; keep both.
+  const ids = Array.from(new Set([...emails, ...Object.keys(calendars)]));
+  return ids.map((email) => ({
+    email,
+    busy: ((calendars[email]?.busy as any[]) || []).map((b) => ({
+      start: b.start as string,
+      end: b.end as string,
+    })),
+    errors: (calendars[email]?.errors as any[]) || [],
+  }));
+}
+
+export async function createCalendarEventWithToken(
+  token: string,
+  event: {
+    summary: string;
+    description?: string;
+    startISO: string;
+    endISO: string;
+    timeZone?: string;
+    attendeeEmails: string[];
+  },
+) {
+  const url = new URL(
+    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+  );
+  // Google emails real invites to every attendee.
+  url.searchParams.set("sendUpdates", "all");
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      summary: event.summary,
+      description: event.description,
+      start: { dateTime: event.startISO, timeZone: event.timeZone },
+      end: { dateTime: event.endISO, timeZone: event.timeZone },
+      attendees: event.attendeeEmails.map((email) => ({ email })),
+    }),
+  });
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`event_create_failed: ${resp.status} ${body}`);
+  }
+  const e: any = await resp.json();
+  return {
+    id: e.id as string,
+    htmlLink: (e.htmlLink as string) || null,
+    hangoutLink: (e.hangoutLink as string) || null,
+  };
+}
+
+/** RFC 2047 encoding for non-ASCII header values (e.g. subjects). */
+function encodeMimeHeaderValue(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x00-\x7F]*$/.test(value)) return value;
+  return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+}
+
+export async function sendGmailMessageWithToken(
+  token: string,
+  opts: {
+    to: string[];
+    cc?: string[];
+    subject: string;
+    bodyText: string;
+    /** Gmail thread to append this message to (keeps replies together). */
+    threadId?: string;
+    /** RFC 822 Message-ID of the message being replied to. */
+    inReplyTo?: string;
+    references?: string;
+  },
+): Promise<{ id: string; threadId: string }> {
+  const headers = [
+    `To: ${opts.to.join(", ")}`,
+    ...(opts.cc?.length ? [`Cc: ${opts.cc.join(", ")}`] : []),
+    `Subject: ${encodeMimeHeaderValue(opts.subject)}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    ...(opts.inReplyTo
+      ? [
+          `In-Reply-To: ${opts.inReplyTo}`,
+          `References: ${opts.references || opts.inReplyTo}`,
+        ]
+      : []),
+  ];
+  const bodyBase64 = Buffer.from(opts.bodyText, "utf8").toString("base64");
+  const raw = headers.join("\r\n") + "\r\n\r\n" + bodyBase64;
+  const encoded = Buffer.from(raw, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const resp = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        raw: encoded,
+        ...(opts.threadId ? { threadId: opts.threadId } : {}),
+      }),
+    },
+  );
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`gmail_send_failed: ${resp.status} ${body}`);
+  }
+  const data: any = await resp.json();
+  return { id: data.id as string, threadId: data.threadId as string };
+}
+
+export async function getGmailThreadWithToken(token: string, threadId: string) {
+  const resp = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(threadId)}?format=full`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!resp.ok) throw new Error(`gmail_thread_get_failed: ${resp.status}`);
+  const data: any = await resp.json();
+  return {
+    id: data.id as string,
+    messages: (data.messages as any[]) || [],
+  };
+}
+
+export function getGmailHeader(message: any, name: string): string | null {
+  const headers = message?.payload?.headers;
+  if (!Array.isArray(headers)) return null;
+  const match = headers.find(
+    (h: any) => typeof h?.name === "string" && h.name.toLowerCase() === name.toLowerCase(),
+  );
+  return match?.value ?? null;
 }
 
 export async function getDriveFilesByIdsWithToken(

@@ -15,6 +15,11 @@ interface UserSettings {
   webNotificationsEnabled: boolean;
   telemetryOptIn: boolean;
   ignoredEventPatterns?: Array<string | { type?: string; value?: string }>;
+  workingHoursStart?: string | null;
+  workingHoursEnd?: string | null;
+  workingDays?: number[] | null;
+  meetingBufferMinutes?: number;
+  minSchedulingNoticeHours?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +38,7 @@ interface Schedule {
 interface WeekdaySelectorProps {
   value: number[];
   onChange: (value: number[]) => void;
+  days?: { label: string; value: number }[];
 }
 
 const WEEKDAYS: { label: string; value: number }[] = [
@@ -45,7 +51,22 @@ const WEEKDAYS: { label: string; value: number }[] = [
   { label: "S", value: 6 },
 ];
 
-function WeekdaySelector({ value, onChange }: WeekdaySelectorProps) {
+// ISO weekday numbering (Mon=1..Sun=7), used by scheduling working days
+const ISO_WEEKDAYS: { label: string; value: number }[] = [
+  { label: "M", value: 1 },
+  { label: "T", value: 2 },
+  { label: "W", value: 3 },
+  { label: "T", value: 4 },
+  { label: "F", value: 5 },
+  { label: "S", value: 6 },
+  { label: "S", value: 7 },
+];
+
+function WeekdaySelector({
+  value,
+  onChange,
+  days = WEEKDAYS,
+}: WeekdaySelectorProps) {
   const toggle = (day: number) => {
     const set = new Set(value);
     if (set.has(day)) {
@@ -59,11 +80,11 @@ function WeekdaySelector({ value, onChange }: WeekdaySelectorProps) {
 
   return (
     <div className="inline-flex rounded-md border border-border bg-background p-1">
-      {WEEKDAYS.map((d) => {
+      {days.map((d) => {
         const active = value.includes(d.value);
         return (
           <button
-            key={d.value}
+            key={`${d.value}-${d.label}`}
             type="button"
             onClick={() => toggle(d.value)}
             className={[
@@ -345,6 +366,11 @@ export default function SettingsForm() {
           webNotificationsEnabled: settings.webNotificationsEnabled,
           telemetryOptIn: settings.telemetryOptIn,
           ignoredEventPatterns: parseIgnoredPatterns(ignoredPatternsText),
+          workingHoursStart: settings.workingHoursStart ?? null,
+          workingHoursEnd: settings.workingHoursEnd ?? null,
+          workingDays: settings.workingDays ?? [1, 2, 3, 4, 5],
+          meetingBufferMinutes: settings.meetingBufferMinutes ?? 0,
+          minSchedulingNoticeHours: settings.minSchedulingNoticeHours ?? 24,
         }),
       });
 
@@ -728,6 +754,123 @@ export default function SettingsForm() {
                   }
                 />
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 className="mb-4 text-lg font-medium">Scheduling Preferences</h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          Used when Olly finds meeting times on your behalf. Proposed slots
+          always stay within these bounds and avoid your existing meetings.
+        </p>
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="workingHoursStart"
+                className="mb-1 block text-xs font-medium text-foreground"
+              >
+                Earliest meeting time
+              </label>
+              <input
+                id="workingHoursStart"
+                type="time"
+                value={settings.workingHoursStart ?? "09:00"}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    workingHoursStart: e.target.value,
+                  })
+                }
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="workingHoursEnd"
+                className="mb-1 block text-xs font-medium text-foreground"
+              >
+                Latest meeting end time
+              </label>
+              <input
+                id="workingHoursEnd"
+                type="time"
+                value={settings.workingHoursEnd ?? "17:00"}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    workingHoursEnd: e.target.value,
+                  })
+                }
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-foreground">
+              Days available for meetings
+            </label>
+            <WeekdaySelector
+              days={ISO_WEEKDAYS}
+              value={settings.workingDays ?? [1, 2, 3, 4, 5]}
+              onChange={(days) =>
+                setSettings({ ...settings, workingDays: days })
+              }
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="meetingBufferMinutes"
+                className="mb-1 block text-xs font-medium text-foreground"
+              >
+                Buffer between meetings
+              </label>
+              <select
+                id="meetingBufferMinutes"
+                value={settings.meetingBufferMinutes ?? 0}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    meetingBufferMinutes: parseInt(e.target.value, 10),
+                  })
+                }
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value={0}>None</option>
+                <option value={5}>5 minutes</option>
+                <option value={10}>10 minutes</option>
+                <option value={15}>15 minutes</option>
+                <option value={30}>30 minutes</option>
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="minSchedulingNoticeHours"
+                className="mb-1 block text-xs font-medium text-foreground"
+              >
+                Minimum notice for new meetings
+              </label>
+              <select
+                id="minSchedulingNoticeHours"
+                value={settings.minSchedulingNoticeHours ?? 24}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    minSchedulingNoticeHours: parseInt(e.target.value, 10),
+                  })
+                }
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value={0}>No minimum</option>
+                <option value={4}>4 hours</option>
+                <option value={12}>12 hours</option>
+                <option value={24}>1 day</option>
+                <option value={48}>2 days</option>
+                <option value={72}>3 days</option>
+              </select>
             </div>
           </div>
         </div>

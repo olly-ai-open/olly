@@ -413,10 +413,102 @@ export default async function HomeDashboard({ day }: { day?: string }) {
       })
     : [];
 
+  // Scheduling requests blocked on the user (approve a suggested time, book,
+  // or resolve a stall) — surfaced as time-critical items at the top.
+  const schedulingAttention = userId
+    ? await prisma.schedulingRequest.findMany({
+        where: {
+          userId,
+          status: { in: ["AWAITING_APPROVAL", "READY_TO_BOOK", "NEEDS_ATTENTION"] },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          pendingSlots: true,
+          bookedSlot: true,
+          attentionReason: true,
+        },
+      })
+    : [];
+  const fmtSlotInZone = (slot: { startISO: string }) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(slot.startISO));
+  const schedulingLine = (r: (typeof schedulingAttention)[number]) => {
+    if (r.status === "AWAITING_APPROVAL") {
+      const pending = (r.pendingSlots as Array<{
+        startISO: string;
+        suggestedBy: string;
+        calendarStatus?: string;
+        conflictTitle?: string | null;
+      }>) || [];
+      const first = pending[0];
+      if (!first) return "A suggested time needs your approval";
+      const more = pending.length > 1 ? ` (+${pending.length - 1} more)` : "";
+      const cal =
+        first.calendarStatus === "busy"
+          ? first.conflictTitle
+            ? `busy — conflicts with “${first.conflictTitle}”`
+            : "busy on your calendar"
+          : first.calendarStatus === "free"
+            ? "free on your calendar"
+            : null;
+      return `${first.suggestedBy} suggested ${fmtSlotInZone(first)}${cal ? ` (${cal})` : ""}${more} — needs your approval`;
+    }
+    if (r.status === "READY_TO_BOOK") {
+      const slot = r.bookedSlot as { startISO: string } | null;
+      return slot
+        ? `Everyone agreed on ${fmtSlotInZone(slot)} — ready to book`
+        : "Everyone agreed — ready to book";
+    }
+    return r.attentionReason || "Needs your attention";
+  };
+
   return (
     <div className="mt-0 flex items-start gap-6">
       {/* Center column */}
       <div className="flex-1">
+        {schedulingAttention.length ? (
+          <div className="mb-4 rounded-2xl border border-warning/40 bg-warning/5 p-4 shadow-card">
+            <div className="text-sm font-semibold">
+              Scheduling needs your attention
+            </div>
+            <ul className="mt-2 space-y-2">
+              {schedulingAttention.map((r) => (
+                <li key={r.id}>
+                  <Link
+                    href={`/scheduling/${r.id}`}
+                    className="group flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm"
+                  >
+                    <span>
+                      <span className="font-medium group-hover:underline">
+                        {r.title}
+                      </span>
+                      <span className="ml-2 text-muted-foreground">
+                        {schedulingLine(r)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs font-medium text-primary">
+                      {r.status === "AWAITING_APPROVAL"
+                        ? "Review →"
+                        : r.status === "READY_TO_BOOK"
+                          ? "Book →"
+                          : "Resolve →"}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-card bg-gradient-brand-light">
             <div className="text-sm font-medium text-muted-foreground">

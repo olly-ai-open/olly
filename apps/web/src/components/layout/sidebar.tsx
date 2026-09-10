@@ -6,6 +6,7 @@ import NavLinkActive from "@/components/layout/nav-link-active";
 import AdminNavLabel from "@/components/admin/admin-nav-label";
 import {
   Calendar,
+  CalendarClock,
   Users,
   CheckSquare,
   FileText,
@@ -88,6 +89,7 @@ export default async function Sidebar() {
     { path: "/", label: "Dashboard", icon: Calendar },
     { path: "/people", label: "People", icon: Users },
     { path: "/action-items", label: "Action Items", icon: CheckSquare },
+    { path: "/scheduling", label: "Scheduling", icon: CalendarClock },
     { path: "/generate", label: "Generate Docs", icon: FileText },
     { path: "/integrations", label: "Integrations", icon: CircuitBoard },
     { path: "/settings", label: "Settings", icon: Settings },

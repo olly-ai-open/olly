@@ -89,7 +89,64 @@ export async function PUT(req: Request) {
       endOfDayBriefSystemPrompt: rawEndOfDayBriefSystemPrompt,
       timeZone,
       telemetryOptIn,
+      workingHoursStart,
+      workingHoursEnd,
+      workingDays,
+      meetingBufferMinutes,
+      minSchedulingNoticeHours,
     } = body;
+
+    const isValidTimeOfDay = (value: unknown) =>
+      typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+
+    for (const [key, value] of [
+      ["workingHoursStart", workingHoursStart],
+      ["workingHoursEnd", workingHoursEnd],
+    ] as const) {
+      if (value !== undefined && value !== null && !isValidTimeOfDay(value)) {
+        return NextResponse.json(
+          { error: `${key} must be HH:MM (24h) or null` },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (
+      workingDays !== undefined &&
+      (!Array.isArray(workingDays) ||
+        workingDays.some(
+          (d: unknown) => typeof d !== "number" || d < 1 || d > 7,
+        ))
+    ) {
+      return NextResponse.json(
+        { error: "workingDays must be an array of ISO weekday numbers (1-7)" },
+        { status: 400 },
+      );
+    }
+
+    if (
+      meetingBufferMinutes !== undefined &&
+      (typeof meetingBufferMinutes !== "number" ||
+        meetingBufferMinutes < 0 ||
+        meetingBufferMinutes > 120)
+    ) {
+      return NextResponse.json(
+        { error: "meetingBufferMinutes must be between 0 and 120" },
+        { status: 400 },
+      );
+    }
+
+    if (
+      minSchedulingNoticeHours !== undefined &&
+      (typeof minSchedulingNoticeHours !== "number" ||
+        minSchedulingNoticeHours < 0 ||
+        minSchedulingNoticeHours > 336)
+    ) {
+      return NextResponse.json(
+        { error: "minSchedulingNoticeHours must be between 0 and 336" },
+        { status: 400 },
+      );
+    }
 
     if (
       searchTimeframeDays !== undefined &&
@@ -252,6 +309,13 @@ export async function PUT(req: Request) {
           timeZone: timeZone === null ? null : timeZone.trim() || null,
         }),
         ...(ignoredEventPatterns !== undefined && { ignoredEventPatterns }),
+        ...(workingHoursStart !== undefined && { workingHoursStart }),
+        ...(workingHoursEnd !== undefined && { workingHoursEnd }),
+        ...(workingDays !== undefined && { workingDays }),
+        ...(meetingBufferMinutes !== undefined && { meetingBufferMinutes }),
+        ...(minSchedulingNoticeHours !== undefined && {
+          minSchedulingNoticeHours,
+        }),
       },
       create: {
         userId,
@@ -265,6 +329,11 @@ export async function PUT(req: Request) {
         webNotificationsEnabled: webNotificationsEnabled ?? false,
         telemetryOptIn: telemetryOptIn ?? true,
         ignoredEventPatterns: ignoredEventPatterns ?? [],
+        workingHoursStart: workingHoursStart ?? null,
+        workingHoursEnd: workingHoursEnd ?? null,
+        workingDays: workingDays ?? [1, 2, 3, 4, 5],
+        meetingBufferMinutes: meetingBufferMinutes ?? 0,
+        minSchedulingNoticeHours: minSchedulingNoticeHours ?? 24,
       },
     });
 

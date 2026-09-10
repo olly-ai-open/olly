@@ -11,7 +11,14 @@ export type UserSettings = {
   emailNotifications: boolean;
   webNotificationsEnabled: boolean;
   ignoredEventPatterns: unknown[];
+  workingHoursStart: string | null;
+  workingHoursEnd: string | null;
+  workingDays: number[];
+  meetingBufferMinutes: number;
+  minSchedulingNoticeHours: number;
 };
+
+export const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5]; // Mon-Fri (ISO weekday)
 
 // When the user hasn't picked a timezone, fall back to the host machine's
 // zone. On the desktop app the server runs on the user's machine, so this is
@@ -71,6 +78,13 @@ export async function getUserSettingsCore(userId: string): Promise<UserSettings>
     ignoredEventPatterns: Array.isArray(settings.ignoredEventPatterns)
       ? settings.ignoredEventPatterns
       : [],
+    workingHoursStart: settings.workingHoursStart ?? null,
+    workingHoursEnd: settings.workingHoursEnd ?? null,
+    workingDays: Array.isArray(settings.workingDays)
+      ? (settings.workingDays as number[])
+      : DEFAULT_WORKING_DAYS,
+    meetingBufferMinutes: settings.meetingBufferMinutes ?? 0,
+    minSchedulingNoticeHours: settings.minSchedulingNoticeHours ?? 24,
   };
 }
 
