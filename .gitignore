@@ -7,3 +7,4 @@ dist/
 apps/web/.env.local
 desktop-installer-handover.md
 .DS_Store
+AWSCLIV2.pkg
