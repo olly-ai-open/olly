@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "concurrently -k -n next,tsc \"next dev\" \"node scripts/dev-typecheck.mjs\"",
     "build": "next build",
+    "vercel-build": "prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
