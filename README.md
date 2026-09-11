@@ -24,7 +24,7 @@ Olly pulls context from your workspace and helps you stay ahead of your day:
 - Pre-meeting briefs with context and talking points
 - Morning brief for what matters now
 - End-of-day summary and action-item rollup
-- Generated docs from connected data sources
+- Generates documents (recurring or one-off) from connected data sources
 
 ## Quick Links
 

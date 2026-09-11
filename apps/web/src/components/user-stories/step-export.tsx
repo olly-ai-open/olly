@@ -1,12 +1,15 @@
 "use client";
 
+
 import { useState } from "react";
 import { WizardData } from "./user-stories-wizard";
+
 
 interface Props {
   data: WizardData;
   onBack: () => void;
 }
+
 
 export default function StepExport({ data, onBack }: Props) {
   const [projectKey, setProjectKey] = useState("");
@@ -15,7 +18,9 @@ export default function StepExport({ data, onBack }: Props) {
   const [results, setResults] = useState<Array<{ key: string; url: string; title: string }>>([]);
   const [activeExport, setActiveExport] = useState<"jira" | "notion" | "download" | null>(null);
 
+
   const selectedStories = data.generatedStories.filter((s) => s.selected);
+
 
   const handlePushToJira = async () => {
     if (!projectKey) {
@@ -49,6 +54,7 @@ export default function StepExport({ data, onBack }: Props) {
     setIsPushing(false);
   };
 
+
   const handleDownloadCSV = () => {
     const headers = ["Title", "Description", "Priority"];
     const rows = selectedStories.map((s) => [
@@ -66,6 +72,7 @@ export default function StepExport({ data, onBack }: Props) {
     URL.revokeObjectURL(url);
   };
 
+
   const handleDownloadMarkdown = () => {
     const md = selectedStories
       .map(
@@ -82,6 +89,7 @@ export default function StepExport({ data, onBack }: Props) {
     URL.revokeObjectURL(url);
   };
 
+
   return (
     <div className="space-y-6">
       <div>
@@ -90,6 +98,7 @@ export default function StepExport({ data, onBack }: Props) {
           Export {selectedStories.length} selected stories to your preferred tool
         </p>
       </div>
+
 
       {/* Selected stories summary */}
       <div className="rounded-lg border border-border bg-muted/50 p-4">
@@ -105,6 +114,7 @@ export default function StepExport({ data, onBack }: Props) {
           ))}
         </ul>
       </div>
+
 
       {/* Export options */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -122,6 +132,7 @@ export default function StepExport({ data, onBack }: Props) {
           <div className="text-xs text-muted-foreground">Push as tickets</div>
         </button>
 
+
         <button
           type="button"
           onClick={() => setActiveExport("notion")}
@@ -136,6 +147,7 @@ export default function StepExport({ data, onBack }: Props) {
           <div className="text-xs text-muted-foreground">Save to Notion</div>
         </button>
 
+
         <button
           type="button"
           onClick={handleDownloadCSV}
@@ -145,6 +157,7 @@ export default function StepExport({ data, onBack }: Props) {
           <div className="text-sm font-medium">CSV</div>
           <div className="text-xs text-muted-foreground">Download as CSV</div>
         </button>
+
 
         <button
           type="button"
@@ -156,6 +169,7 @@ export default function StepExport({ data, onBack }: Props) {
           <div className="text-xs text-muted-foreground">Download as .md</div>
         </button>
       </div>
+
 
       {/* Jira export form */}
       {activeExport === "jira" && results.length === 0 && (
@@ -186,6 +200,7 @@ export default function StepExport({ data, onBack }: Props) {
         </div>
       )}
 
+
       {/* Notion export - coming soon */}
       {activeExport === "notion" && (
         <div className="rounded-lg border border-border p-6">
@@ -202,6 +217,7 @@ export default function StepExport({ data, onBack }: Props) {
           </button>
         </div>
       )}
+
 
       {/* Jira success */}
       {results.length > 0 && (
@@ -242,6 +258,7 @@ export default function StepExport({ data, onBack }: Props) {
           </div>
         </div>
       )}
+
 
       {results.length === 0 && (
         <div className="flex justify-between pt-4 border-t border-border">
