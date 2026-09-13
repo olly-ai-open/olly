@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/getolly-ai/olly-open.git"
+    "url": "https://github.com/olly-ai-open/olly.git"
   },
-  "homepage": "https://github.com/getolly-ai/olly-open#readme",
+  "homepage": "https://github.com/olly-ai-open/olly#readme",
   "bugs": {
-    "url": "https://github.com/getolly-ai/olly-open/issues"
+    "url": "https://github.com/olly-ai-open/olly/issues"
   },
   "private": true,
   "main": "electron/main.js",
