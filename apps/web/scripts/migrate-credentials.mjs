@@ -168,7 +168,19 @@ async function migrateNotion() {
 async function migrateAirtable() {
   log("--- Airtable ---");
 
-  const airtableCredentials = await prisma.airtableCredential.findMany();
+  // The AirtableCredential table only ever existed on branches that ran the
+  // original version of the add_credential_table migration. Databases migrated
+  // from main never had it, so skip cleanly instead of aborting the whole run.
+  let airtableCredentials;
+  try {
+    airtableCredentials = await prisma.airtableCredential.findMany();
+  } catch (err) {
+    if (err?.code === "P2021") {
+      log("AirtableCredential table does not exist in this database, skipping.");
+      return;
+    }
+    throw err;
+  }
 
   log(`Found ${airtableCredentials.length} AirtableCredential record(s).`);
 
