@@ -1,39 +1,74 @@
-﻿name: Build Olly macOS app
+name: Build macOS installers
 
+# Manual only. Run it from the Actions tab of your own fork after adding the
+# OLLY_WEB_ENV_LOCAL secret. See docs/desktop-build.md.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/credential-table
-      # later: main, releases/**, etc.
 
 jobs:
   build-mac:
     runs-on: macos-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Use Node.js 20
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
+          cache: npm
+
+      # apps/web/.env.local is gitignored. The build needs it to produce the
+      # sanitized env bundled into the installer (your Google OAuth client and
+      # optional Slack app). Store its contents in the OLLY_WEB_ENV_LOCAL
+      # secret. build-packaged-env.js strips LLM keys, encryption and auth
+      # secrets, telemetry and hosted-database values; OLLY_STRICT_ENV_CHECK
+      # aborts the build if anything forbidden survives.
+      - name: Write apps/web/.env.local from secret
+        env:
+          OLLY_WEB_ENV_LOCAL: ${{ secrets.OLLY_WEB_ENV_LOCAL }}
+        run: |
+          if [ -z "$OLLY_WEB_ENV_LOCAL" ]; then
+            echo "::error::Repo secret OLLY_WEB_ENV_LOCAL is not set. Paste the contents of your apps/web/.env.local into it (Settings > Secrets and variables > Actions). Without it the installer cannot sign in to Google."
+            exit 1
+          fi
+          printf '%s\n' "$OLLY_WEB_ENV_LOCAL" > apps/web/.env.local
 
       - name: Install dependencies
-        run: |
-          npm ci
+        run: npm ci
 
-      - name: Build macOS app (DMG)
+      # npm only installs the embedded Postgres binaries for the runner's own
+      # CPU. The DMGs must ship both Mac architectures.
+      - name: Install embedded Postgres for both Mac architectures
+        run: npm install --no-save --force @embedded-postgres/darwin-x64@17.9.0-beta.17 @embedded-postgres/darwin-arm64@17.9.0-beta.17
+
+      # Stamp the run number into the app version (e.g. 1.0.3-build.14) so
+      # every CI build is uniquely identifiable. Local builds are unaffected.
+      - name: Build macOS installers (Intel + Apple Silicon)
         env:
           NODE_OPTIONS: --max-old-space-size=8192
           NEXT_TELEMETRY_DISABLED: "1"
+          OLLY_STRICT_ENV_CHECK: "1"
+          # No signing identity on a fresh fork: skip code signing entirely.
+          # Users must right-click > Open the app on first launch.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
-          npm run dist:mac
+          base=$(node -p "require('./package.json').version")
+          stamped="$base-build.$GITHUB_RUN_NUMBER"
+          echo "Building version $stamped"
+          npm run dist:mac -- --config.extraMetadata.version="$stamped"
 
-      - name: Upload dist artifacts
+      - name: List dist output
+        if: always()
+        run: ls -la dist || true
+
+      - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: olly-mac-dist
-          path: dist/*
+          name: olly-mac-installers
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error

@@ -1,10 +1,9 @@
-name: Build Windows Installer
+name: Build Windows installer
 
+# Manual only. Run it from the Actions tab of your own fork after adding the
+# OLLY_WEB_ENV_LOCAL secret. See docs/desktop-build.md.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - fix/desktop-install-and-briefs
 
 jobs:
   build-windows:
@@ -21,19 +20,19 @@ jobs:
           node-version: 22
           cache: npm
 
-      # apps/web/.env.local is gitignored, but build-packaged-env.js needs it to
-      # produce the sanitized env bundled into the installer (Google OAuth creds,
-      # NEXTAUTH_SECRET, etc.). CI reconstructs it from the OLLY_WEB_ENV_LOCAL
-      # repo secret; the build script then strips LLM keys / hosted-DB creds
-      # exactly as it does locally, and OLLY_STRICT_ENV_CHECK below aborts the
-      # build if anything forbidden survives.
+      # apps/web/.env.local is gitignored. The build needs it to produce the
+      # sanitized env bundled into the installer (your Google OAuth client and
+      # optional Slack app). Store its contents in the OLLY_WEB_ENV_LOCAL
+      # secret. build-packaged-env.js strips LLM keys, encryption and auth
+      # secrets, telemetry and hosted-database values; OLLY_STRICT_ENV_CHECK
+      # aborts the build if anything forbidden survives.
       - name: Write apps/web/.env.local from secret
         shell: pwsh
         env:
           OLLY_WEB_ENV_LOCAL: ${{ secrets.OLLY_WEB_ENV_LOCAL }}
         run: |
           if (-not $env:OLLY_WEB_ENV_LOCAL) {
-            Write-Error "Repo secret OLLY_WEB_ENV_LOCAL is not set. Paste the contents of your local apps/web/.env.local into it (Settings > Secrets and variables > Actions). Without it the installer would ship with no OAuth/auth secrets."
+            Write-Error "Repo secret OLLY_WEB_ENV_LOCAL is not set. Paste the contents of your apps/web/.env.local into it (Settings > Secrets and variables > Actions). Without it the installer cannot sign in to Google."
             exit 1
           }
           Set-Content -Path apps/web/.env.local -Value $env:OLLY_WEB_ENV_LOCAL -Encoding utf8

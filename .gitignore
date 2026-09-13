@@ -1,12 +1,16 @@
-dist-lambda
 node_modules
 dist/
-
-.env.local
-.env*.local
-apps/web/.env.local
-desktop-installer-handover.md
+.next/
 .DS_Store
-AWSCLIV2.pkg
 .vercel
+*.log
+
+# Environment files. Keep the template tracked.
 .env*
+!.env.example
+
+# Local notes that must never ship
+desktop-installer-handover.md
+
+# Local installers that sometimes land in the repo root
+*.pkg
