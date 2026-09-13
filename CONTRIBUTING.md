@@ -1,8 +1,9 @@
 # Contributing
 
-Olly is published as-is. Pull requests are welcome, but there is no
-maintainer on duty and no promise that anything will be reviewed or merged.
-The most reliable way to get a change you need is to fork.
+> [!WARNING]
+> Olly is published as-is. Pull requests are welcome, but there is no
+> maintainer on duty and no promise that anything will be reviewed or merged.
+> **The most reliable way to get a change you need is to fork.**
 
 If you do open a PR, the notes below make it more likely to be useful to the
 next person who reads it.
