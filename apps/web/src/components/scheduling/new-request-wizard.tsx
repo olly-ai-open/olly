@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 type DraftAttendee = { email: string; name: string; required: boolean };
@@ -48,17 +49,57 @@ const inputCls =
 
 export default function NewRequestWizard({
   onCreated,
+  scopesOk = true,
 }: {
   onCreated?: () => void;
+  scopesOk?: boolean;
 }) {
   const [step, setStep] = useState<"describe" | "review">("describe");
   const [direction, setDirection] = useState("");
   const [draft, setDraft] = useState<Draft>(defaultDraft());
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+
+  // Users who connected Google before scheduling existed have a token
+  // without the send-email and calendar-events permissions. Instead of
+  // letting the request fail at Google, stop here and offer the reconnect.
+  const ensureScopes = () => {
+    if (scopesOk) return true;
+    setNeedsReconnect(true);
+    return false;
+  };
+
+  const reconnectPrompt = needsReconnect ? (
+    <div
+      role="alert"
+      className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm"
+    >
+      <p>
+        Scheduling needs permission to send email and create calendar events
+        on your behalf. Reconnect Google to grant it, then come back here.
+      </p>
+      <div className="mt-2 flex items-center gap-3">
+        <Link
+          href="/api/auth/google-connect"
+          className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Reconnect Google
+        </Link>
+        <button
+          type="button"
+          onClick={() => setNeedsReconnect(false)}
+          className="text-sm text-muted-foreground hover:underline"
+        >
+          Not now
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   const parseDirection = async () => {
     if (!direction.trim()) return;
+    if (!ensureScopes()) return;
     setWorking(true);
     setError("");
     try {
@@ -113,6 +154,7 @@ export default function NewRequestWizard({
   };
 
   const submit = async () => {
+    if (!ensureScopes()) return;
     setWorking(true);
     setError("");
     try {
@@ -168,6 +210,7 @@ export default function NewRequestWizard({
             className={inputCls}
             placeholder='e.g. "Find 30 minutes with Alice and Bob next week in the mornings"'
           />
+          {reconnectPrompt}
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -382,6 +425,7 @@ export default function NewRequestWizard({
 
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
+          {reconnectPrompt}
           <div className="flex items-center gap-3">
             <button
               type="button"

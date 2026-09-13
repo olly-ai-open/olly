@@ -54,7 +54,7 @@ export default async function SchedulingPage() {
               to grant access.
             </div>
           ) : null}
-          <SchedulingDashboard />
+          <SchedulingDashboard scopesOk={scopesOk} />
         </div>
       </div>
     </main>

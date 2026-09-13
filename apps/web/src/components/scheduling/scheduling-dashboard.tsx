@@ -9,7 +9,13 @@ import {
   type SchedulingRequestSummary,
 } from "./scheduling-shared";
 
-export default function SchedulingDashboard() {
+export default function SchedulingDashboard({
+  scopesOk = true,
+}: {
+  /** False when the user's Google connection lacks the send-email and
+   *  calendar-events permissions scheduling needs. */
+  scopesOk?: boolean;
+}) {
   const [requests, setRequests] = useState<SchedulingRequestSummary[] | null>(
     null,
   );
@@ -33,7 +39,7 @@ export default function SchedulingDashboard() {
 
   return (
     <div className="space-y-6">
-      <NewRequestWizard onCreated={load} />
+      <NewRequestWizard onCreated={load} scopesOk={scopesOk} />
 
       <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-card">
         <h2 className="text-lg font-medium">Requests</h2>
