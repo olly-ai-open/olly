@@ -20,7 +20,7 @@ const DEFAULT_MODELS: Record<LLMProvider, string> = {
  * Get the current LLM provider from environment
  */
 export function getLLMProvider(): LLMProvider {
-  const provider = process.env.LLM_PROVIDER?.toLowerCase();
+  const provider = process.env.LLM_PROVIDER?.trim().toLowerCase();
   if (provider === "anthropic" || provider === "gemini") {
     return provider;
   }
