@@ -17,119 +17,95 @@
   <img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT License" />
 </p>
 
-## What It Does
+Olly reads your calendar, email, Slack, and Notion, and writes the briefs you
+would write for yourself if you had the time: what is coming up, what
+matters, what you promised, and what happened today.
 
-Olly pulls context from your workspace and helps you stay ahead of your day:
+> **Published as-is.** This repository is provided without support, without
+> prebuilt installers, and without a hosted service. It works, it is
+> documented, and you are on your own. Issues and pull requests may not get
+> a response.
 
-- Pre-meeting briefs with context and talking points
-- Morning brief for what matters now
-- End-of-day summary and action-item rollup
-- Generates documents (recurring or one-off) from connected data sources
+## Two ways to run it
 
-## Quick Links
+| | Desktop app | Self-hosted server |
+|---|---|---|
+| Runs on | Your Mac or Windows PC | Vercel or any Node host |
+| Data lives | On your machine, in a private Postgres | In your Postgres, held by you as operator |
+| Users | You | Anyone who can sign in with Google |
+| Briefs generate | While the app is open | Always |
+| Push notifications | No | Yes |
+| Setup effort | Your own Google OAuth client, then one build | Your own Google OAuth client, a database, and a deploy |
+| Guide | [Olly Desktop](docs/desktop.md), then [Build the desktop app](docs/desktop-build.md) | [Self-host the server](docs/self-hosting.md) |
 
-- [Quickstart](#quickstart-local)
-- [Deployment](#deployment-vercel-recommended)
-- [Environment Variables](#environment-variables)
-- [Contributing](CONTRIBUTING.md)
-- [Security](SECURITY.md)
+Both run the same code. Read [Architecture and extending Olly](docs/architecture.md)
+before changing either.
 
-## Monorepo Layout
+## What it does
 
-- `apps/web`: Next.js application (main product)
-- `packages/core`: shared business logic (LLM, jobs, integrations)
+- **Morning brief.** Today's meetings, the context behind them, and the
+  action items that matter now.
+- **Meeting briefs.** Five minutes before each meeting: attendees, recent
+  threads, related documents, talking points.
+- **End-of-day brief.** What happened, what was decided, what is still open.
+- **Action items.** Extracted from briefs, tracked, and rolled forward.
+- **People.** A page per person you meet with, built from your interactions.
+- **Meeting scheduling.** Describe a meeting, and Olly negotiates a time
+  with attendees over email, checks your calendar, and asks you to approve.
+- **Generate documents.** One-off documents drafted from the sources you
+  pick, and user stories that export to Jira.
+- **Integrations.** Google Calendar, Gmail, and Drive; Slack; Notion; Jira;
+  Airtable.
+- **Bring your own model.** OpenAI, Anthropic, or Gemini.
 
-## Tech Stack
+## Quick start for developers
 
-- Next.js 15 (App Router)
-- React 19
-- Prisma + PostgreSQL
-- NextAuth (Google sign-in)
-- OpenAI / Anthropic / Gemini (runtime-selectable)
-- Optional integrations: Google Workspace, Slack, Notion, Langfuse
-
-## Prerequisites
-
-- Node.js 22+
-- npm 10+
-- PostgreSQL
-- Google OAuth app credentials (required for login)
-
-## Quickstart (local)
-
-1. Install dependencies.
+This runs the web app against a local Postgres. For a desktop build or a
+production deployment, use the guides above.
 
 ```bash
 npm install
-```
-
-2. Create local env file from template.
-
-```bash
-cp .env.example apps/web/.env.local
-```
-
-3. Run migrations.
-
-```bash
+cp .env.example apps/web/.env.local   # then fill in DATABASE_URL, Google OAuth, an LLM key
 cd apps/web
 npx prisma migrate deploy
-```
-
-4. Start the app.
-
-```bash
 npm run dev
 ```
 
-Alternative from repo root:
+Open [http://localhost:3000](http://localhost:3000). Google sign-in needs
+the redirect URIs listed in the [desktop build guide](docs/desktop-build.md#2-create-your-google-oauth-client).
+
+Scheduled briefs need the cron routes to be called. In development, with no
+`CRON_SECRET` set, you can hit them by hand:
 
 ```bash
-npm run dev --workspace=apps/web
+curl http://localhost:3000/api/cron/scheduler
+curl http://localhost:3000/api/cron/worker
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000).
+## Repository layout
 
-## OAuth Callback URLs
+- `apps/web` Next.js application: UI, API routes, database schema
+- `packages/core` shared logic: agents, tools, jobs, prompts, HTTP clients
+- `electron` desktop shell: window, embedded Postgres, job loop
+- `docs` the guides linked above
 
-Add these to your OAuth provider config (adjust host for non-local env):
+## Tech stack
 
-- Google sign-in (NextAuth): `http://localhost:3000/api/auth/callback/google`
-- Google advanced connect: `http://localhost:3000/api/auth/google-connect/callback`
-- Slack connect: `http://localhost:3000/api/auth/slack-connect/callback`
-- Notion connect: `http://localhost:3000/api/auth/notion-connect/callback`
+Next.js 15, React 19, TypeScript, Tailwind CSS 4, Prisma with PostgreSQL,
+NextAuth with Google sign-in, the Vercel AI SDK with OpenAI, Anthropic, and
+Gemini providers, and Electron for the desktop build.
 
-## Deployment (Vercel recommended)
+## Documentation
 
-Olly is configured to deploy `apps/web` on Vercel.
+- [Olly Desktop](docs/desktop.md): what it is, what stays on your machine, what does not work
+- [Build the desktop app](docs/desktop-build.md)
+- [Self-host the server](docs/self-hosting.md)
+- [Architecture and extending Olly](docs/architecture.md)
+- [Agent framework](packages/core/src/agents/README.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
 
-1. Create/import the project in Vercel.
-2. Add env vars from [`.env.example`](.env.example).
-3. Set `NEXTAUTH_URL` to your production domain.
-4. Set `CRON_SECRET` in production.
-5. Deploy.
+## License
 
-Cron routes are defined in [`apps/web/vercel.json`](apps/web/vercel.json):
-
-- `/api/cron/scheduler` every minute
-- `/api/cron/worker` every minute
-
-## Why Olly
-
-| Capability | Why it helps |
-| --- | --- |
-| Meeting prep | Walk in with context, not guesswork. |
-| Morning brief | Start with priorities, not inbox chaos. |
-| End-of-day summary | Capture outcomes and close loops. |
-| Action items | Keep commitments visible and assignable. |
-
-## Environment Variables
-
-See [`.env.example`](.env.example) for the full list and defaults.
-
-## Open Source
-
-- [LICENSE](LICENSE)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- [SECURITY.md](SECURITY.md)
+[MIT](LICENSE).

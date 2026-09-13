@@ -16,11 +16,14 @@ agents/
 │   ├── CalendarTool.ts     # Google Calendar access
 │   ├── EmailTool.ts        # Gmail search & retrieval
 │   ├── DriveTool.ts        # Google Drive search
-│   └── SlackTool.ts        # Slack search & retrieval
+│   ├── SlackTool.ts        # Slack search & retrieval
+│   └── NotionTool.ts       # Notion search, database queries, page content
 └── personas/               # Agent personalities
     ├── MeetingPrepAgent.ts # Meeting preparation specialist
     ├── MorningBriefAgent.ts # Morning brief generator
-    └── EndOfDayBriefAgent.ts # End-of-day summary generator
+    ├── EndOfDayBriefAgent.ts # End-of-day summary generator
+    ├── DocGenAgent.ts      # Generates documents from connected sources
+    └── SchedulingAgent.ts  # Negotiates meeting times over email
 ```
 
 ## Key Components
@@ -40,6 +43,8 @@ Tools give agents the ability to interact with external systems:
 - **CalendarTool**: Access calendar events, search meetings, get attendees
 - **EmailTool**: Search Gmail, retrieve threads, get attachments
 - **DriveTool**: Search files, retrieve content, get metadata
+- **SlackTool**: Search messages and channels the user can see
+- **NotionTool**: Search pages, query databases, read page content
 
 ### 3. Agent Personas
 
@@ -48,6 +53,8 @@ Specialized agents for specific tasks:
 - **MeetingPrepAgent**: Proactively prepares meeting briefs by gathering context from multiple sources
 - **MorningBriefAgent**: Generates morning briefs with today's priorities
 - **EndOfDayBriefAgent**: Summarizes recent work into an end-of-day brief
+- **DocGenAgent**: Generates a document from the sources the user selects
+- **SchedulingAgent**: Runs the email negotiation for meeting scheduling
 
 ### 4. Memory System
 
@@ -71,10 +78,12 @@ const brief = await agent.prepareMeetingBrief(meetingId, userId);
 ### Environment Variables
 
 ```bash
-# OpenAI configuration (used by agents)
+# Provider selection: openai | anthropic | gemini (see packages/core/src/llm.ts)
+LLM_PROVIDER=openai
+LLM_TEMPERATURE=0.2
 OPENAI_API_KEY=your-key
-OPENAI_MODEL=gpt-4-turbo
-OPENAI_TEMPERATURE=0.2
+OPENAI_MODEL=gpt-4.1-mini
+# or ANTHROPIC_API_KEY + ANTHROPIC_MODEL, or GEMINI_API_KEY + GOOGLE_MODEL
 ```
 
 ## Creating New Agents
@@ -130,5 +139,3 @@ export class MyTool extends BaseTool {
 - [ ] Implement agent self-evaluation and improvement
 - [ ] Add observability and monitoring
 - [ ] Create agent testing framework
-
-```

@@ -1,124 +1,89 @@
 # Olly
 
-AI-powered productivity assistant that generates intelligent briefings from calendar, emails, and work integrations.
+AI chief of staff: generates morning, meeting, and end-of-day briefs from a
+user's calendar, email, Slack, and Notion, tracks action items, schedules
+meetings over email, and drafts documents.
 
-## Tech Stack
+**One product, two runtimes.** A desktop Electron app with an embedded
+Postgres, and a self-hosted Next.js server. Same code, different shell.
+Read `docs/architecture.md` before changing anything structural.
+
+## Tech stack
 
 | Layer | Technology |
-|-------|------------|
-| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 4 |
+|---|---|
+| Frontend | Next.js 15 App Router, React 19, TypeScript, Tailwind CSS 4 |
 | Backend | Next.js API routes, Node.js 22 |
-| Database | PostgreSQL + Prisma ORM 6.18 (with field encryption) |
-| Infrastructure | AWS CDK, Lambda, SQS, EventBridge, S3, SSM |
-| AI/LLM | OpenAI API, Vercel AI SDK |
-| Observability | Langfuse (LLM tracing), New Relic |
-| Auth | NextAuth 5 (Google OAuth) |
-| Integrations | Slack, Google Workspace (Calendar, Gmail, Drive) |
+| Database | PostgreSQL, Prisma 6.18, `prisma-field-encryption` for tokens |
+| AI | Vercel AI SDK; OpenAI, Anthropic, or Gemini selected by `LLM_PROVIDER` |
+| Auth | NextAuth 5, Google only |
+| Desktop | Electron, `embedded-postgres`, electron-builder |
+| Hosting | Vercel with cron route handlers, or any Node host plus an external cron caller |
+| Observability | Langfuse tracing and metrics aggregates, both optional |
 
-## Project Structure
+## Layout
 
 ```
-olly/
-├── apps/
-│   ├── web/           # Next.js web app (frontend + API)
-│   ├── scheduler/     # Lambda: schedules jobs (runs every minute via EventBridge)
-│   └── worker/        # Lambda: processes jobs from SQS
-├── packages/
-│   └── core/          # Shared business logic, agents, tools
-└── infra/             # AWS CDK infrastructure definitions
+apps/web/src/app/         pages and /api routes
+apps/web/src/lib/         thin wrappers over core
+apps/web/prisma/          schema.prisma and migrations
+packages/core/src/agents/ base classes, tools, personas
+packages/core/src/core/   domain logic, one *-core.ts per feature
+packages/core/src/prompts/
+packages/core/src/jobs.ts and cron-runtime.ts   job kinds, scheduler, worker
+electron/                 desktop shell, plain CommonJS, no build step
+docs/                     user and developer guides
 ```
 
-### Key Directories
+## Commands
 
-| Directory | Purpose |
-|-----------|---------|
-| `apps/web/src/app/` | Next.js App Router pages and API routes |
-| `apps/web/src/components/` | React components |
-| `apps/web/src/lib/` | Service wrappers (thin layer over core) |
-| `apps/web/prisma/` | Database schema and migrations |
-| `packages/core/src/agents/` | AI agent framework (base classes, tools, personas) |
-| `packages/core/src/core/` | Domain logic (*-core.ts files) |
-| `packages/core/src/prompts/` | LLM prompt templates |
-| `packages/core/src/telemetry/` | Langfuse integration |
-| `infra/lib/` | CDK stack definitions |
+From `apps/web`: `npm run dev`, `npm run build`, `npm run lint`,
+`npm run typecheck`, `npx prisma migrate dev --name <change>`.
 
-## Essential Commands
+From the repo root: `npm run dist:mac`, `npm run dist:win` for installers.
+`npm run electron` runs the desktop shell against `apps/web/.env.local`; it
+needs `npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources`
+first because the shell serves the production build.
 
-### Development (from `apps/web/`)
-```bash
-npm run dev              # Start dev server with TypeScript watching
-npm run build            # Production build
-npm run lint             # ESLint check
-npm run lint:fix         # ESLint auto-fix
-npm run typecheck        # Full TypeScript check
-npm run format           # Prettier format
-```
+## Rules that matter
 
-### Database (from `apps/web/`)
-```bash
-npm run prisma:generate  # Generate Prisma client
-npm run prisma:migrate   # Run migrations
-```
+- Business logic goes in `packages/core`. Routes stay thin. No `if desktop`
+  branches in core; the only runtime signal is `OLLY_DESKTOP=1`, read in
+  `apps/web/src/middleware.ts`.
+- Background work is a `JobKind` in `packages/core/src/jobs.ts`, enqueued
+  by `cron-runtime.ts` or a feature, never a timer of its own.
+- New env vars go in `.env.example`. Secrets that must not ship in the
+  desktop installer go in `STRIP_KEYS` in `electron/scripts/build-packaged-env.js`
+  and the forbidden list in `check-packaged-env.js`.
+- Migrations are applied by Prisma on servers and by
+  `electron/lib/migrations.js` on desktop, which runs each `migration.sql`
+  as one transaction. No `CONCURRENTLY`. Keep schema and migrations in sync.
+- No company names, hosted URLs, or personal identifiers in the tree. This
+  repo is public and published as-is.
 
-### Infrastructure (from `infra/`)
-```bash
-npm run synth            # Synthesize CloudFormation
-npm run deploy           # Deploy to AWS
-```
-
-### Root
-```bash
-npm run sync-env         # Sync environment variables from SSM
-npm run sync-env:prod    # Sync production env vars
-```
-
-## Architecture Overview
-
-### Job Processing Pipeline
-1. **Scheduler Lambda** (EventBridge, every minute) → enqueues due jobs to SQS
-2. **SQS Queue** → buffers jobs with dead-letter queue (5 retries)
-3. **Worker Lambda** (SQS trigger, batch 10) → executes job logic
-
-### Job Types
-- `MORNING_BRIEF` - Daily morning summary
-- `EVENING_BRIEF` - End-of-day recap
-- `MEETING_BRIEF` - Pre-meeting preparation (5 min before)
-- `CALENDAR_SYNC` - Hourly calendar refresh
-
-### Agent Framework
-Base `Agent` class with composable `Tool` system. See `packages/core/src/agents/README.md:1` for details.
-
-**Personas**: `MeetingPrepAgent`, `MorningBriefAgent`, `EndOfDayBriefAgent`
-**Tools**: `CalendarTool`, `EmailTool`, `DriveTool`, `SlackTool`
-
-## Key Files Reference
+## Key files
 
 | File | Purpose |
-|------|---------|
-| `apps/web/src/lib/auth.ts:1` | NextAuth configuration |
-| `apps/web/src/lib/prisma.ts:1` | Prisma client singleton |
-| `apps/web/src/lib/init-env.ts:1` | SSM parameter loading |
-| `packages/core/src/jobs.ts:1` | Job execution logic |
-| `packages/core/src/llm.ts:1` | OpenAI/LLM utilities |
-| `packages/core/src/agents/base/Agent.ts:1` | Base agent class |
-| `packages/core/src/agents/base/Tool.ts:1` | Tool interface |
-| `infra/lib/olly-jobs-stack.ts:1` | CDK infrastructure stack |
-| `apps/web/prisma/schema.prisma:1` | Database schema |
+|---|---|
+| `apps/web/src/lib/auth.ts` | NextAuth configuration |
+| `apps/web/src/lib/prisma.ts` | Prisma client with field encryption |
+| `apps/web/src/middleware.ts` | Desktop first-run gate |
+| `apps/web/src/app/api/cron/` | Scheduler and worker routes |
+| `packages/core/src/jobs.ts` | Job execution and retries |
+| `packages/core/src/cron-runtime.ts` | What gets scheduled and when |
+| `packages/core/src/llm.ts` | Provider and model selection |
+| `packages/core/src/agents/base/Agent.ts` | Base agent |
+| `packages/core/src/agents/base/Tool.ts` | Tool interface |
+| `electron/main.js` | Desktop startup, bootstrap order in the header comment |
+| `electron/lib/state.js` | Per-install secrets |
+| `apps/web/prisma/schema.prisma` | Database schema |
 
-## Environment Variables
-
-Required keys are loaded from AWS SSM at `/olly/{stage}/{KEY}`. See `apps/web/src/lib/init-env.ts:37` for the full list including:
-- Database: `DATABASE_URL`, `PRISMA_FIELD_ENCRYPTION_KEY`
-- Auth: `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- AI: `OPENAI_API_KEY`, `LANGFUSE_*`
-- Integrations: `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`
-
-## Additional Documentation
-
-Check these files for specialized topics:
+## Documentation
 
 | Topic | File |
-|-------|------|
-| Architectural Patterns | `.claude/docs/architectural_patterns.md` |
-| Agent Framework | `packages/core/src/agents/README.md` |
-| Integration Setup | `apps/web/README.md` |
+|---|---|
+| Desktop overview, security model, limitations | `docs/desktop.md` |
+| Building installers | `docs/desktop-build.md` |
+| Running a server | `docs/self-hosting.md` |
+| Architecture, adding features, connectors, verticals | `docs/architecture.md` |
+| Agent framework | `packages/core/src/agents/README.md` |
