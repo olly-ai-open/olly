@@ -64,6 +64,18 @@ const STRIP_KEYS = [
   "DIRECT_URL",
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",
+  // (4) Per-install secrets — the desktop app generates its own session secret
+  //     and field encryption key on first launch (electron/lib/state.js), so
+  //     the builder's values must not ship and be shared by every install.
+  "AUTH_SECRET",
+  "NEXTAUTH_SECRET",
+  "PRISMA_FIELD_ENCRYPTION_KEY",
+  // (5) Web push — Electron has no push service, so the keys are useless on
+  //     desktop and the private key must not ship.
+  "VAPID_PRIVATE_KEY",
+  "VAPID_PUBLIC_KEY",
+  "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+  "VAPID_SUBJECT",
 ];
 
 function keyOfLine(line) {

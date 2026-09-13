@@ -1,10 +1,11 @@
 /**
  * Embedded PostgreSQL lifecycle for the desktop app.
  *
- * Uses the `embedded-postgres` package, which downloads real
- * Postgres binaries (per platform) on first use and manages a
- * data directory. We keep the data dir under userData so user
- * data persists across upgrades and reinstalls.
+ * Uses the `embedded-postgres` package. The platform binaries are
+ * bundled with the app (see optionalDependencies in package.json),
+ * so no download happens at runtime; `initdb` runs once on first
+ * launch. We keep the data dir under userData so user data persists
+ * across upgrades and reinstalls.
  *
  * `embedded-postgres` is ESM-only, so we load it via dynamic
  * import from this CommonJS module.

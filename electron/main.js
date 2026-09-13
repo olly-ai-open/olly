@@ -5,7 +5,7 @@
  *   1. Show loading window
  *   2. Load env (.env.local)
  *   3. Load user secrets overlay (secrets.env)
- *   4. Ensure local Postgres is running (embedded; downloads on first launch)
+ *   4. Ensure local Postgres is running (embedded, bundled with the app)
  *   5. Apply database migrations
  *   6. Spawn Next.js standalone server
  *   7. Open the app window (or setup flow if LLM keys are missing)
@@ -26,10 +26,10 @@ const server = require("./lib/server");
 const postgres = require("./lib/postgres");
 const migrations = require("./lib/migrations");
 const cron = require("./lib/cron");
+const state = require("./lib/state");
 const { randomBytes } = require("node:crypto");
 
 const APP_PORT = 3000;
-const FALLBACK_AUTH_SECRET = "olly-desktop-local-secret-change-this";
 
 let mainWindow = null;
 let webServer = null;
@@ -102,7 +102,7 @@ async function bootstrap() {
 
   ui.showLoading(
     mainWindow,
-    "Setting up local database (one-time download on first launch)...",
+    "Setting up local database (initialised on first launch)...",
   );
   const { databaseUrl, ownsDatabase } = await ensureDatabase();
 
@@ -121,10 +121,23 @@ async function bootstrap() {
     );
   }
 
-  const authSecret =
-    process.env.AUTH_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    FALLBACK_AUTH_SECRET;
+  // Per-install secrets. When the app owns its embedded database, the session
+  // secret and the field encryption key are generated on first launch and
+  // stored in state.json, so no two installs share them and nothing secret
+  // has to ship inside the installer. A developer pointing at an external
+  // DATABASE_URL keeps using the values from .env.local, because that
+  // database was encrypted with their key.
+  let authSecret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+  let fieldEncryptionKey = process.env.PRISMA_FIELD_ENCRYPTION_KEY;
+  if (ownsDatabase) {
+    const installSecrets = state.ensureInstallSecrets();
+    authSecret = installSecrets.authSecret;
+    fieldEncryptionKey = installSecrets.fieldEncryptionKey;
+  } else if (!authSecret) {
+    throw new Error(
+      "AUTH_SECRET or NEXTAUTH_SECRET must be set in apps/web/.env.local when using an external DATABASE_URL.",
+    );
+  }
 
   // The cron routes require a secret in production builds; generate one per
   // session so only this Electron process can drive the local job loop.
@@ -134,10 +147,12 @@ async function bootstrap() {
   webServer = server.startNextServer({
     port: APP_PORT,
     env: {
+      OLLY_DESKTOP: "1",
       DATABASE_URL: databaseUrl,
       DIRECT_URL: databaseUrl,
       AUTH_SECRET: authSecret,
       NEXTAUTH_SECRET: authSecret,
+      PRISMA_FIELD_ENCRYPTION_KEY: fieldEncryptionKey || "",
       NEXTAUTH_URL: `http://localhost:${APP_PORT}`,
       AUTH_URL: `http://localhost:${APP_PORT}`,
       LLM_PROVIDER: process.env.LLM_PROVIDER || "",
