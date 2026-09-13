@@ -353,7 +353,6 @@ export default async function HomeDashboard({ day }: { day?: string }) {
   // Next meeting label
   const upcomingSorted = meetings
     .map((m) => ({ m, d: m.start ? new Date(m.start) : null }))
-    // eslint-disable-next-line react-hooks/purity -- Server component: snapshot request-time "now" for filtering upcoming events
     .filter((x) => x.d && x.d.getTime() >= Date.now())
     .sort((a, b) => a.d!.getTime() - b.d!.getTime());
   const nextISO = upcomingSorted.length

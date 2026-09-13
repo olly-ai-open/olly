@@ -1,8 +1,9 @@
 {
   "name": "olly",
   "version": "1.0.3",
-  "description": "Olly AI Local Desktop App",
-  "author": "Mihir Bapat",
+  "description": "Olly, an AI chief of staff. Runs as a desktop app or a self-hosted server.",
+  "author": "Olly contributors",
+  "license": "MIT",
   "private": true,
   "main": "electron/main.js",
   "workspaces": [
@@ -11,7 +12,7 @@
   ],
   "scripts": {
     "postinstall": "npm run postinstall --workspace=apps/web",
-    "build:web": "set NODE_OPTIONS=--max-old-space-size=8192 && npm run build --workspace=apps/web",
+    "build:web": "cross-env NODE_OPTIONS=--max-old-space-size=8192 npm run build --workspace=apps/web",
     "electron": "electron .",
     "electron:build": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && npm run build:packaged-env && npm run check:packaged-env && electron-builder",
     "copy:standalone-assets": "node electron/scripts/copy-standalone-assets.js",
@@ -32,6 +33,7 @@
     "@embedded-postgres/windows-x64": "^17.9.0-beta.17"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "electron": "^41.7.0",
     "electron-builder": "^26.8.1"
   },
@@ -43,7 +45,6 @@
       "apps/web/.next/static/**/*",
       "apps/web/public/**/*",
       "apps/web/package.json",
-      "packages/core/dist/**/*",
       "package.json"
     ],
     "extraResources": [

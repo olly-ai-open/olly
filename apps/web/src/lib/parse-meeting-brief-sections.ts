@@ -80,15 +80,9 @@ export type ParsedOverview = {
   attendees: string | null;
 };
 
-const BULLET_RE = /^[\s]*[-*•⁠]\s*/;
-
 /** A top-level bullet has no leading whitespace before the marker */
 function isTopLevelBullet(line: string): boolean {
   return /^[-*•⁠]\s*/.test(line);
-}
-
-function isBulletLine(line: string): boolean {
-  return BULLET_RE.test(line);
 }
 
 export function parseOverviewContent(overviewMarkdown: string): ParsedOverview {

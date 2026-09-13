@@ -6,30 +6,32 @@ export type BriefNotificationKind =
   | "EVENING_BRIEF"
   | "MEETING_BRIEF";
 
-const defaultVapidSubject = "mailto:support@example.com";
-const subjectByKind: Record<BriefNotificationKind, string> = {
-  MORNING_BRIEF: "mailto:morning-briefs@example.com",
-  EVENING_BRIEF: "mailto:endofday-briefs@example.com",
-  MEETING_BRIEF: "mailto:meeting-briefs@example.com",
-};
+let warnedMissingSubject = false;
 
-function resolveVapidSubject(kind: BriefNotificationKind): string {
-  const subject = subjectByKind[kind];
-  return subject && subject.trim().length ? subject : defaultVapidSubject;
-}
-
-function ensureVapidConfigured(kind: BriefNotificationKind): boolean {
+/**
+ * Web push is only configured when the operator supplies a VAPID keypair and a
+ * contact subject (a mailto: address or https: URL identifying who runs this
+ * deployment). Push services use the subject to reach the operator, so there
+ * is deliberately no default.
+ */
+function ensureVapidConfigured(): boolean {
   const vapidPublicKey =
     process.env.VAPID_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+  const vapidSubject = process.env.VAPID_SUBJECT?.trim();
   if (!vapidPublicKey || !vapidPrivateKey) {
     return false;
   }
-  webpush.setVapidDetails(
-    resolveVapidSubject(kind),
-    vapidPublicKey,
-    vapidPrivateKey,
-  );
+  if (!vapidSubject) {
+    if (!warnedMissingSubject) {
+      warnedMissingSubject = true;
+      console.warn(
+        "[webPush] VAPID keys are set but VAPID_SUBJECT is missing; push notifications are disabled.",
+      );
+    }
+    return false;
+  }
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
   return true;
 }
 
@@ -63,7 +65,7 @@ export async function sendBriefReadyWebPush(
     kind: BriefNotificationKind;
   },
 ): Promise<{ ok: boolean; sent?: number; skipped?: string }> {
-  if (!ensureVapidConfigured(opts.kind)) {
+  if (!ensureVapidConfigured()) {
     return { ok: false, skipped: "vapid_not_configured" };
   }
 

@@ -22,7 +22,6 @@
     "@auth/prisma-adapter": "^2.11.1",
     "@olly/core": "file:../../packages/core",
     "@prisma/client": "6.18.0",
-    "@supabase/supabase-js": "^2.77.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "googleapis": "^164.1.0",

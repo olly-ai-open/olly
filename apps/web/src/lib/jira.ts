@@ -1,4 +1,4 @@
-import { getCredential, hasCredential } from "@/lib/credentials";
+import { getCredential } from "@/lib/credentials";
 
 export async function checkJiraHealth(userId: string): Promise<{ connected: boolean; baseUrl?: string }> {
   try {
