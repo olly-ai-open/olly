@@ -1,9 +1,19 @@
 name: Build macOS installers
 
-# Manual only. Run it from the Actions tab of your own fork after adding the
-# OLLY_WEB_ENV_LOCAL secret. See docs/desktop-build.md.
+# Manual by default. Run it from the Actions tab of your own fork after adding
+# the OLLY_WEB_ENV_LOCAL secret. See docs/desktop-build.md.
+#
+# workflow_call lets another workflow in your repo trigger this one, for
+# example a private wrapper that builds on every push to a release branch:
+#
+#   on: { push: { branches: [production] } }
+#   jobs:
+#     build:
+#       uses: ./.github/workflows/build-mac.yml
+#       secrets: inherit
 on:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   build-mac:
