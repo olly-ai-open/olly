@@ -22,10 +22,10 @@ would write for yourself if you had the time: what is coming up, what
 matters, what you promised, and what happened today.
 
 > [!WARNING]
-> **Published as-is.** This repository is provided without support, without
+> ***Published as-is.** This repository is provided without support, without
 > prebuilt installers, and without a hosted service. It works, it is
 > documented, and you are on your own. Issues and pull requests may not get
-> a response. **If you need a change, fork.**
+> a response.* ***If you need a change, fork.***
 
 ## Two ways to run it
 
