@@ -49,6 +49,10 @@ CI runs both on every pull request.
 
 ## Pull requests
 
+Forking is the reliable path; a pull request here may never be reviewed.
+If you still choose to open one, follow these guidelines so it is useful to
+the next person who reads it:
+
 - Keep them focused. One change per PR.
 - Say what changed in behaviour, not just what changed in code.
 - Schema changes come with a migration, made with
