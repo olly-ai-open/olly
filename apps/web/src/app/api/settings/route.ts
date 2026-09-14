@@ -51,6 +51,10 @@ export async function GET() {
     return NextResponse.json({
       ...settings,
       timeZone: settings.timeZone ?? defaultTimeZone(),
+      // True when the user never chose a zone and the value above is the
+      // server's fallback. The dashboard uses this to save the browser's
+      // zone once, so hosted users get local times without visiting Settings.
+      timeZoneIsDefault: settings.timeZone == null,
     });
   } catch (error) {
     console.error("Failed to get user settings:", error);

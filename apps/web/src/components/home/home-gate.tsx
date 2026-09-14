@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import Sidebar from "@/components/layout/sidebar";
 import HomeDashboard from "@/components/home/home-dashboard";
 import LoginHero from "@/components/home/login-hero";
+import TimezoneAutodetect from "@/components/settings/timezone-autodetect";
 import Image from "next/image";
 
 import { unstable_noStore as noStore } from "next/cache";
@@ -16,6 +17,7 @@ export default async function HomeGate({ day }: { day?: string }) {
   }
   return (
     <div className="flex gap-6">
+      <TimezoneAutodetect />
       <Sidebar />
       <div className="flex-1">
         <div className="mb-3 flex items-center gap-3 rounded-2xl p-4 -mt-4">
