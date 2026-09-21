@@ -60,6 +60,10 @@ the next person who reads it:
 - Schema changes come with a migration, made with
   `npx prisma migrate dev --name <change>` from `apps/web`. Both the schema
   and the migrations folder are committed.
+- Anything that asks a model for JSON declares a zod schema and uses the
+  structured-output path. Schemas: every field required, `.nullable()` for
+  values that may be absent (never `.optional()`), no `z.record`. See
+  "Adding a feature" in [docs/architecture.md](docs/architecture.md).
 - New environment variables go in `.env.example`, and secrets that must not
   ship in the desktop installer go in the strip list in
   `electron/scripts/build-packaged-env.js`. See the secrets section of

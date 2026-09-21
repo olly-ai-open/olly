@@ -134,13 +134,28 @@ list in `check-packaged-env.js`.
    It should take a Prisma client and plain inputs and return plain data.
 2. If it needs an LLM, add a persona under `agents/personas/` that composes
    existing tools, and a prompt under `prompts/`.
-3. Add a schema change with `npx prisma migrate dev --name <change>` from
+3. If the model must return JSON, describe the shape with a zod schema and
+   pass it as `outputSchema` on the persona (or to
+   `createStructuredCompletion` for a single-shot call). Never parse JSON out
+   of free text. Write the schema so it works on every provider:
+   - Every field is required. For a value that may be absent, use
+     `.nullable()` so the model returns `null`, never `.optional()`, which
+     lets the field be omitted. OpenAI's strict mode rejects optional
+     fields, and the same schema must serve all three providers.
+   - No free-form maps (`z.record`); use arrays of objects instead.
+   - Enums for fixed choices (`z.enum([...])`) rather than plain strings.
+   The morning brief, scheduling parser, and user-story schemas are worked
+   examples.
+4. Add a database change with `npx prisma migrate dev --name <change>` from
    `apps/web`. See the migration note below.
-4. Add a route under `apps/web/src/app/api/` and a page or component.
-5. Add a nav entry in `apps/web/src/components/layout/sidebar.tsx` and
+5. Add a route under `apps/web/src/app/api/` and a page or component. If
+   the route calls an LLM, export it through `withUserLLM` from
+   `apps/web/src/lib/llm-selection.ts` so the user's provider, model, and
+   effort choices apply.
+6. Add a nav entry in `apps/web/src/components/layout/sidebar.tsx` and
    `mobile-nav.tsx`.
-6. If it needs to run on a schedule, follow the job pipeline section.
-7. Run `npm run lint` and `npm run typecheck` in `apps/web`.
+7. If it needs to run on a schedule, follow the job pipeline section.
+8. Run `npm run lint` and `npm run typecheck` in `apps/web`.
 
 That is the whole checklist. The feature now works in both runtimes.
 
