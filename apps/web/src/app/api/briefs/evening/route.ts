@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { generateEndOfDayBriefForUser } from "@/lib/endOfDayBriefs";
 import { prisma } from "@/lib/prisma";
 import { getUserSettings } from "@/lib/settings";
-import { sendBriefReadyWebPush } from "@olly/core";
+import { sendBriefEmail, sendBriefReadyWebPush } from "@olly/core";
 import { flushLangfuse } from "@olly/core/src/telemetry/langfuse";
 
 // en-CA formats as YYYY-MM-DD, so day strings compare lexicographically
@@ -76,6 +76,13 @@ export async function POST(req: Request) {
         kind: "EVENING_BRIEF",
       }).catch((err) => {
         console.error("Failed to send evening brief web push", err);
+      });
+    }
+    if (result.briefId) {
+      void sendBriefEmail(prisma, {
+        userId: session.user.id,
+        briefId: result.briefId,
+        kind: "EVENING_BRIEF",
       });
     }
     if (result.briefId) {

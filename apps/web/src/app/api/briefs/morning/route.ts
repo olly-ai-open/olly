@@ -6,7 +6,11 @@ import {
   listEventsByDayWithToken,
 } from "@/lib/google";
 import { getUserSettings } from "@/lib/settings";
-import { didUserDeclineEvent, sendBriefReadyWebPush } from "@olly/core";
+import {
+  didUserDeclineEvent,
+  sendBriefEmail,
+  sendBriefReadyWebPush,
+} from "@olly/core";
 import { flushLangfuse } from "@olly/core/src/telemetry/langfuse";
 import { MorningBriefAgent } from "@olly/core/src/agents/personas/MorningBriefAgent";
 import { generateMeetingBriefForEvent } from "@/lib/meetingBriefs";
@@ -354,6 +358,13 @@ export async function POST(req: Request) {
         console.error("Failed to send morning brief web push", err);
       });
     }
+    // Push is only for scheduled briefs (the user is not looking), but a
+    // brief they asked for is still worth having in their inbox.
+    void sendBriefEmail(prisma, {
+      userId,
+      briefId: saved.id,
+      kind: "MORNING_BRIEF",
+    });
 
     await flushLangfuse();
 

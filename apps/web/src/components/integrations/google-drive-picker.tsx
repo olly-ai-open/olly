@@ -25,56 +25,66 @@ export default function GoogleDrivePicker({
   const [isApiReady, setIsApiReady] = useState(false);
   const router = useRouter();
 
+  const [loadError, setLoadError] = useState("");
+
   useEffect(() => {
-    // Function to initialize Google Picker API
-    const initializeGoogleApi = () => {
-      if (window.gapi) {
-        window.gapi.load("picker", () => {
-          console.log("Google Picker API loaded");
-          setIsApiReady(true);
-        });
-        return true;
-      }
-      return false;
-    };
+    // Load Google's API loader ourselves and wait for the picker module.
+    // Relying on a <Script> tag elsewhere on the page is fragile: after a
+    // client-side navigation (for example returning from the OAuth redirect)
+    // the tag may not be re-run, and the picker then polls forever.
+    let cancelled = false;
 
-    // Function to check if Google APIs are available
-    const checkGoogleApi = () => {
-      // If picker is already loaded
-      if (window.google && window.google.picker) {
+    const loadPicker = () => {
+      if (window.google?.picker) {
         setIsApiReady(true);
-        return true;
+        return;
       }
-
-      // If gapi is available but picker not loaded, initialize it
-      if (window.gapi) {
-        return initializeGoogleApi();
-      }
-
-      return false;
+      window.gapi.load("picker", () => {
+        if (!cancelled) setIsApiReady(true);
+      });
     };
 
-    // Check immediately
-    if (checkGoogleApi()) {
-      return;
+    if (window.gapi) {
+      loadPicker();
+      return () => {
+        cancelled = true;
+      };
     }
 
-    // If not ready, check periodically
-    const interval = setInterval(() => {
-      if (checkGoogleApi()) {
-        clearInterval(interval);
-      }
-    }, 100);
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://apis.google.com/js/api.js"]',
+    );
+    const script = existing ?? document.createElement("script");
+    const onLoad = () => {
+      if (cancelled) return;
+      if (window.gapi) loadPicker();
+      else setLoadError("Google's picker library loaded but is unavailable.");
+    };
+    const onError = () => {
+      if (!cancelled)
+        setLoadError(
+          "Could not load Google's picker library. Check your connection or ad blocker and reload the page.",
+        );
+    };
+    script.addEventListener("load", onLoad);
+    script.addEventListener("error", onError);
+    if (!existing) {
+      script.src = "https://apis.google.com/js/api.js";
+      script.async = true;
+      document.head.appendChild(script);
+    } else if (window.gapi) {
+      onLoad();
+    }
 
-    // Cleanup interval after 10 seconds
     const timeout = setTimeout(() => {
-      clearInterval(interval);
-      console.error("Google API failed to load within 10 seconds");
-    }, 10000);
+      if (!cancelled && !window.gapi) onError();
+    }, 15000);
 
     return () => {
-      clearInterval(interval);
+      cancelled = true;
       clearTimeout(timeout);
+      script.removeEventListener("load", onLoad);
+      script.removeEventListener("error", onError);
     };
   }, []);
 
@@ -152,6 +162,9 @@ export default function GoogleDrivePicker({
             ? "Loading..."
             : "Select Drive Folders"}
       </button>
+      {loadError ? (
+        <p className="mt-2 text-xs text-destructive">{loadError}</p>
+      ) : null}
     </div>
   );
 }

@@ -9,7 +9,6 @@ import Link from "next/link";
 import Sidebar from "@/components/layout/sidebar";
 import LoginHero from "@/components/home/login-hero";
 import DriveFolderManager from "@/components/integrations/drive-folder-manager";
-import Script from "next/script";
 import { checkJiraHealth } from "@/lib/jira";
 
 export const metadata: Metadata = {
@@ -58,11 +57,6 @@ export default async function IntegrationsPage({
 
   return (
     <>
-      <Script
-        src="https://apis.google.com/js/api.js"
-        strategy="afterInteractive"
-      />
-
       <main className="container mx-auto px-4 py-8">
         <div className="flex gap-6">
           <Sidebar />
