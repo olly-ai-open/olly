@@ -78,6 +78,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: olly-mac-installers
+          # Installers are large. Keep them long enough to download, not so
+          # long that repeated builds fill the repository's artifact storage.
+          retention-days: 14
           path: |
             dist/*.dmg
             dist/*.zip
