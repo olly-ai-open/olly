@@ -1,51 +1,18 @@
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { ToolLoopAgent, stepCountIs } from 'ai';
+import { ToolLoopAgent, Output, stepCountIs, type LanguageModel } from 'ai';
+import type { z } from 'zod';
 import { AgentMemory, InMemoryAgentMemory } from './Memory';
 import { OllyTool, ToolContext, toAITool } from './Tool';
 import { wrapLanguageModel } from 'ai';
 import { devToolsMiddleware } from '@ai-sdk/devtools';
 import { startLangfuseObservation, withLangfuseTrace } from '../../telemetry/langfuse';
 import { recordAgentAggregate } from '../../telemetry/metrics-aggregates';
-import { getLLMProvider, getLLMModel, getLLMTemperature, type LLMProvider } from '../../llm';
-
-// Type for language model that works with all providers
-type AnyLanguageModel = ReturnType<ReturnType<typeof createOpenAI>>;
-
-/**
- * Create a language model based on the configured provider
- */
-function createLanguageModel(model?: string): { model: AnyLanguageModel; provider: LLMProvider; modelName: string } {
-  const provider = getLLMProvider();
-
-  switch (provider) {
-    case 'anthropic': {
-      const anthropic = createAnthropic({
-        apiKey: process.env.ANTHROPIC_API_KEY,
-      });
-      const modelName = model || getLLMModel();
-      // Cast to AnyLanguageModel since all providers implement the same interface at runtime
-      return { model: anthropic(modelName) as unknown as AnyLanguageModel, provider, modelName };
-    }
-
-    case 'gemini': {
-      const google = createGoogleGenerativeAI({
-        apiKey: process.env.GEMINI_API_KEY,
-      });
-      const modelName = model || getLLMModel();
-      return { model: google(modelName) as unknown as AnyLanguageModel, provider, modelName };
-    }
-
-    default: {
-      const openai = createOpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-      const modelName = model || getLLMModel();
-      return { model: openai(modelName), provider, modelName };
-    }
-  }
-}
+import {
+  buildProviderOptions,
+  createLanguageModel,
+  getLLMEffort,
+  getLLMTemperature,
+  type LLMProvider,
+} from '../../llm';
 
 /**
  * Message type for conversation history
@@ -69,6 +36,12 @@ export interface AgentConfig {
   memory?: AgentMemory;
   maxToolRoundtrips?: number;
   telemetryEnabled?: boolean;
+  /**
+   * When set, every execute() call returns `output` parsed and validated
+   * against this schema via the provider's structured-output mode. Keep it
+   * strict-compatible: all keys required, nullable instead of optional.
+   */
+  outputSchema?: z.ZodTypeAny;
 }
 
 /**
@@ -76,6 +49,8 @@ export interface AgentConfig {
  */
 export interface AgentResult {
   text: string;
+  /** Structured result when the agent (or this call) has an output schema. */
+  output?: unknown;
   toolCalls?: Array<{
     toolName: string;
     args: any;
@@ -92,7 +67,8 @@ export abstract class BaseAgent {
   protected description: string;
   protected model: string;
   protected provider: LLMProvider;
-  protected languageModel: AnyLanguageModel;
+  protected languageModel: LanguageModel;
+  protected outputSchema?: z.ZodTypeAny;
   protected temperature: number;
   protected maxTokens: number;
   protected maxToolRoundtrips: number;
@@ -110,6 +86,7 @@ export abstract class BaseAgent {
     this.systemPrompt = config.systemPrompt || this.getDefaultSystemPrompt();
     this.memory = config.memory || new InMemoryAgentMemory();
     this.telemetryEnabled = config.telemetryEnabled ?? true;
+    this.outputSchema = config.outputSchema;
 
     // Initialize language model using provider factory
     const { model, provider, modelName } = createLanguageModel(config.model);
@@ -162,7 +139,14 @@ export abstract class BaseAgent {
   /**
    * Execute the agent with a given prompt
    */
-  async execute(prompt: string, context?: ToolContext): Promise<AgentResult> {
+  async execute(
+    prompt: string,
+    context?: ToolContext,
+    options?: {
+      /** Override the agent's output schema for this call; null disables it. */
+      outputSchema?: z.ZodTypeAny | null;
+    },
+  ): Promise<AgentResult> {
     const baseContext = context || {
       userId: 'system',
       sessionId: `session-${Date.now()}`,
@@ -193,6 +177,8 @@ export abstract class BaseAgent {
     
     // Create ToolLoopAgent with proper context for this execution
     const tools = this.getAITools(toolContext);
+    const outputSchema =
+      options?.outputSchema === null ? undefined : (options?.outputSchema ?? this.outputSchema);
     const agent = new ToolLoopAgent({
       model: this.languageModel,
       instructions: this.systemPrompt,
@@ -201,7 +187,9 @@ export abstract class BaseAgent {
         isEnabled: true,
       },
       stopWhen: stepCountIs(this.maxToolRoundtrips),
-    });
+      providerOptions: buildProviderOptions(this.provider, this.model, getLLMEffort()),
+      ...(outputSchema && { output: Output.object({ schema: outputSchema }) }),
+    } as any);
     
     // Execute using ToolLoopAgent
     const startedAt = Date.now();
@@ -271,6 +259,7 @@ export abstract class BaseAgent {
       
       return {
         text: result.text,
+        output: outputSchema ? (result as any).output : undefined,
         toolCalls,
         metadata: {
           steps: result.steps,

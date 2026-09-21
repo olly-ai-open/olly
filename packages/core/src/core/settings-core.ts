@@ -20,6 +20,7 @@ export type UserSettings = {
   calendarSyncIntervalMinutes: number;
   llmProvider: string | null;
   llmModel: string | null;
+  llmEffort: string | null;
 };
 
 export const DEFAULT_MEETING_BRIEF_LEAD_MINUTES = 5;
@@ -99,6 +100,7 @@ export async function getUserSettingsCore(userId: string): Promise<UserSettings>
       DEFAULT_CALENDAR_SYNC_INTERVAL_MINUTES,
     llmProvider: settings.llmProvider ?? null,
     llmModel: settings.llmModel ?? null,
+    llmEffort: settings.llmEffort ?? null,
   };
 }
 

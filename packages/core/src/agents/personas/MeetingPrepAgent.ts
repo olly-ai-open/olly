@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { NotionTool } from '../tools/NotionTool';
 import { BaseAgent, AgentConfig } from '../base/Agent';
 import { CalendarTool } from '../tools/CalendarTool';
@@ -5,6 +6,20 @@ import { EmailTool } from '../tools/EmailTool';
 import { DriveTool } from '../tools/DriveTool';
 import { SlackTool } from '../tools/SlackTool';
 import { MEETING_BRIEF_PROMPT } from '../../prompts/meetingBriefPrompt';
+
+const SourceSchema = z.object({
+  type: z.string(),
+  title: z.string(),
+  url: z.string().nullable(),
+});
+
+/** Shape the meeting brief prompt asks for; enforced via structured output. */
+export const MeetingBriefOutputSchema = z.object({
+  brief_markdown: z.string(),
+  goals: z.array(z.string()),
+  key_context: z.array(z.string()),
+  sources: z.array(SourceSchema),
+});
 
 /**
  * MeetingPrepAgent - Proactively prepares briefs for upcoming meetings
@@ -20,6 +35,7 @@ export class MeetingPrepAgent extends BaseAgent {
     super({
       name: 'MeetingPrepAgent',
       description: 'Prepares comprehensive briefs for upcoming meetings by gathering context from multiple sources',
+      outputSchema: MeetingBriefOutputSchema,
       ...config,
       tools: [
     	new CalendarTool(),
@@ -119,12 +135,10 @@ Focus on:
 - Are there any action items or decisions needed?`;
     
     const result = await this.execute(prompt, { userId, sessionId: `meeting-${meetingId}` });
-    
-    
+    const brief = result.output ? JSON.stringify(result.output) : result.text;
     // Store the brief in memory for future reference
-    this.memory.setLongTerm(`brief-${meetingId}`, result.text);
-    
-    return result.text;
+    this.memory.setLongTerm(`brief-${meetingId}`, brief);
+    return brief;
   }
   
   /**

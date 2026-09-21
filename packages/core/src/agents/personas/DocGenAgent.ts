@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { BaseAgent, AgentConfig } from '../base/Agent';
 import { EmailTool } from '../tools/EmailTool';
 import { DriveTool } from '../tools/DriveTool';
@@ -71,6 +72,49 @@ export interface GeneratedDocResult {
  */
 export type ProgressCallback = (stage: string, message: string, percent: number) => void;
 
+/** Structured-output schemas for the three document-generation calls. */
+const DocGenIntentSchema = z.object({
+  docType: z.enum(['status_update', 'monthly_report', 'wiki', 'general']),
+  timeScope: z
+    .object({
+      start: z.string().nullable(),
+      end: z.string().nullable(),
+      days: z.number().nullable(),
+    })
+    .nullable(),
+  entity: z.string().nullable(),
+  context: z.array(z.string()).nullable(),
+  sources: z.array(z.enum(['email', 'drive', 'slack'])),
+});
+
+const DocGenEvidenceSchema = z.object({
+  evidence: z.array(
+    z.object({
+      evidenceId: z.string(),
+      sourceType: z.enum(['email', 'drive', 'slack']),
+      title: z.string(),
+      url: z.string().nullable(),
+      date: z.string().nullable(),
+      author: z.string().nullable(),
+      snippet: z.string(),
+      relevanceScore: z.number().nullable(),
+    }),
+  ),
+});
+
+const DocGenDocumentSchema = z.object({
+  title: z.string(),
+  summary: z.string(),
+  sections: z.array(
+    z.object({
+      heading: z.string(),
+      content: z.string(),
+      citations: z.array(z.string()),
+    }),
+  ),
+  openQuestions: z.array(z.string()),
+});
+
 /**
  * DocGenAgent - Generates documents from workspace data sources
  *
@@ -109,13 +153,31 @@ User request: "${userPrompt}"
 
 Return ONLY the JSON object, no additional text.`;
 
-    const result = await this.execute(prompt, {
-      userId: 'system',
-      sessionId: `intent-parse-${Date.now()}`,
-    });
+    const result = await this.execute(
+      prompt,
+      { userId: 'system', sessionId: `intent-parse-${Date.now()}` },
+      { outputSchema: DocGenIntentSchema },
+    );
+
+    if (result.output) {
+      const o = result.output as z.infer<typeof DocGenIntentSchema>;
+      return {
+        docType: o.docType,
+        timeScope: o.timeScope
+          ? {
+              ...(o.timeScope.start && { start: o.timeScope.start }),
+              ...(o.timeScope.end && { end: o.timeScope.end }),
+              ...(o.timeScope.days != null && { days: o.timeScope.days }),
+            }
+          : null,
+        entity: o.entity,
+        context: o.context,
+        sources: o.sources,
+      };
+    }
 
     try {
-      // Try to parse JSON from the result
+      // Fallback: parse JSON from the text
       const text = result.text.trim();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -165,12 +227,27 @@ Search all specified sources and gather relevant evidence. Return the JSON objec
 
     onProgress?.('gathering', 'Searching connected sources...', 25);
 
-    const result = await this.execute(gatherPrompt, {
-      userId,
-      sessionId: `gather-${Date.now()}`,
-    });
+    const result = await this.execute(
+      gatherPrompt,
+      { userId, sessionId: `gather-${Date.now()}` },
+      { outputSchema: DocGenEvidenceSchema },
+    );
 
     onProgress?.('gathering', 'Processing search results...', 40);
+
+    if (result.output) {
+      const o = result.output as z.infer<typeof DocGenEvidenceSchema>;
+      return o.evidence.map((e) => ({
+        evidenceId: e.evidenceId,
+        sourceType: e.sourceType,
+        title: e.title,
+        ...(e.url && { url: e.url }),
+        ...(e.date && { date: e.date }),
+        ...(e.author && { author: e.author }),
+        snippet: e.snippet,
+        ...(e.relevanceScore != null && { relevanceScore: e.relevanceScore }),
+      }));
+    }
 
     try {
       const text = result.text.trim();
@@ -222,12 +299,17 @@ Return the JSON object as specified.`;
 
     onProgress?.('synthesizing', 'Generating document structure...', 70);
 
-    const result = await this.execute(synthesizePrompt, {
-      userId,
-      sessionId: `synthesize-${Date.now()}`,
-    });
+    const result = await this.execute(
+      synthesizePrompt,
+      { userId, sessionId: `synthesize-${Date.now()}` },
+      { outputSchema: DocGenDocumentSchema },
+    );
 
     onProgress?.('creating', 'Finalizing document...', 85);
+
+    if (result.output) {
+      return this.normalizeDocResult(result.output, evidence);
+    }
 
     try {
       const text = result.text.trim();

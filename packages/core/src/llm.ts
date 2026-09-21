@@ -1,6 +1,9 @@
 import OpenAI from "openai";
-import Anthropic from "@anthropic-ai/sdk";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateText, Output, type LanguageModel } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import type { z } from "zod";
 import { MEETING_BRIEF_PROMPT } from "./prompts/meetingBriefPrompt";
 import type { BriefJSON, MorningBriefJSON } from "./types/briefs";
 import type { EndOfDayActionItem } from "./types/endOfDay";
@@ -87,6 +90,81 @@ export function getLLMModel(): string {
   return getDefaultLLMModel(provider);
 }
 
+export type LLMEffort = "low" | "medium" | "high";
+export const LLM_EFFORTS: LLMEffort[] = ["low", "medium", "high"];
+
+export function isLLMEffort(value: unknown): value is LLMEffort {
+  return typeof value === "string" && (LLM_EFFORTS as string[]).includes(value);
+}
+
+/** The user's reasoning-effort choice for this request, if any. */
+export function getLLMEffort(): LLMEffort | null {
+  const effort = getLLMSelection()?.effort;
+  return isLLMEffort(effort) ? effort : null;
+}
+
+/**
+ * Which models take a reasoning-effort hint. Unknown or older models get
+ * none, since an unsupported parameter fails the request.
+ */
+export function supportsEffort(provider: LLMProvider, model: string): boolean {
+  const m = model.toLowerCase();
+  if (provider === "anthropic") {
+    return /^claude-(opus-4-[5-8]|sonnet-4-6|opus-5|sonnet-5|fable|mythos)/.test(m);
+  }
+  if (provider === "openai") return /^(gpt-5|o\d)/.test(m);
+  if (provider === "gemini") return /^gemini-3/.test(m);
+  return false;
+}
+
+/**
+ * Provider-specific options for the AI SDK: today only the effort hint.
+ * Returns undefined when there is nothing to send.
+ */
+export function buildProviderOptions(
+  provider: LLMProvider,
+  model: string,
+  effort: LLMEffort | null,
+): Record<string, Record<string, unknown>> | undefined {
+  if (!effort || !supportsEffort(provider, model)) return undefined;
+  switch (provider) {
+    case "anthropic":
+      return { anthropic: { effort } };
+    case "openai":
+      return { openai: { reasoningEffort: effort } };
+    case "gemini":
+      return { google: { thinkingConfig: { thinkingLevel: effort } } };
+  }
+}
+
+/**
+ * Build an AI SDK language model for the current provider and model. The
+ * agent framework and the single-shot helpers below both use this, so
+ * provider support lives in exactly one place.
+ */
+export function createLanguageModel(modelOverride?: string): {
+  model: LanguageModel;
+  provider: LLMProvider;
+  modelName: string;
+} {
+  const provider = getLLMProvider();
+  const modelName = modelOverride || getLLMModel();
+  switch (provider) {
+    case "anthropic": {
+      const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      return { model: anthropic(modelName), provider, modelName };
+    }
+    case "gemini": {
+      const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
+      return { model: google(modelName), provider, modelName };
+    }
+    default: {
+      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      return { model: openai(modelName), provider, modelName };
+    }
+  }
+}
+
 /**
  * Newer models reject the temperature parameter outright: OpenAI's reasoning
  * models (gpt-5 and o-series) and Anthropic's Claude 4.7 and later, Sonnet 5,
@@ -133,88 +211,75 @@ export function getOpenAI() {
   return new OpenAI({ apiKey: key });
 }
 
+type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+function splitSystem(messages: ChatMessage[]) {
+  const system = messages
+    .filter((m) => m.role === "system")
+    .map((m) => m.content)
+    .join("\n\n");
+  const rest = messages
+    .filter((m): m is ChatMessage & { role: "user" | "assistant" } => m.role !== "system")
+    .map((m) => ({ role: m.role, content: m.content }));
+  return { system: system || undefined, messages: rest };
+}
+
+function ensureKey(provider: LLMProvider) {
+  const availability = getLLMProviderAvailability();
+  if (!availability[provider]) {
+    const name = { openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", gemini: "GEMINI_API_KEY" }[provider];
+    throw new Error(`${name} not configured`);
+  }
+}
+
 /**
- * Unified chat completion that works with all providers
+ * Single-shot text completion for the current provider and model.
  */
 export async function createChatCompletion(
-  messages: { role: "system" | "user" | "assistant"; content: string }[],
+  messages: ChatMessage[],
   opts?: { temperature?: number; model?: string }
 ): Promise<{ content: string; model: string; provider: LLMProvider }> {
-  const provider = getLLMProvider();
-  const model = opts?.model || getLLMModel();
+  const { model, provider, modelName } = createLanguageModel(opts?.model);
+  ensureKey(provider);
   const temperature = opts?.temperature ?? getLLMTemperature();
+  const { system, messages: rest } = splitSystem(messages);
+  const result = await generateText({
+    model,
+    system,
+    messages: rest,
+    ...(supportsTemperature(provider, modelName) && { temperature }),
+    providerOptions: buildProviderOptions(provider, modelName, getLLMEffort()),
+  });
+  return { content: result.text, model: modelName, provider };
+}
 
-  switch (provider) {
-    case "anthropic": {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
-
-      const client = new Anthropic({ apiKey });
-      const systemMessage = messages.find(m => m.role === "system")?.content || "";
-      const nonSystemMessages = messages
-        .filter(m => m.role !== "system")
-        .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
-
-      const response = await client.messages.create({
-        model,
-        max_tokens: 4096,
-        system: systemMessage,
-        messages: nonSystemMessages,
-        ...(supportsTemperature("anthropic", model) && { temperature }),
-      });
-
-      const textBlock = response.content.find(block => block.type === "text");
-      return {
-        content: textBlock?.type === "text" ? textBlock.text : "",
-        model,
-        provider: "anthropic",
-      };
-    }
-
-    case "gemini": {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const geminiModel = genAI.getGenerativeModel({ model });
-
-      // Combine system and user messages for Gemini
-      const systemMessage = messages.find(m => m.role === "system")?.content || "";
-      const userMessages = messages.filter(m => m.role !== "system");
-      const prompt = systemMessage
-        ? `${systemMessage}\n\n${userMessages.map(m => m.content).join("\n")}`
-        : userMessages.map(m => m.content).join("\n");
-
-      const result = await geminiModel.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature },
-      });
-
-      return {
-        content: result.response.text(),
-        model,
-        provider: "gemini",
-      };
-    }
-
-    default: {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-
-      const client = new OpenAI({ apiKey });
-      const response = await client.chat.completions.create({
-        model,
-        messages,
-        ...(supportsTemperature("openai", model) && { temperature }),
-      });
-
-      return {
-        content: response.choices[0]?.message?.content ?? "",
-        model,
-        provider: "openai",
-      };
-    }
-  }
+/**
+ * Single-shot completion whose result is guaranteed to match `schema`.
+ *
+ * Uses each provider's native structured-output mode (JSON schema response
+ * formats, or a forced JSON tool where the model has no native mode), so
+ * callers get a parsed object and never scrape JSON out of prose. Keep
+ * schemas strict-compatible: every key required, `.nullable()` rather than
+ * `.optional()`, no free-form records.
+ */
+export async function createStructuredCompletion<T>(
+  messages: ChatMessage[],
+  schema: z.ZodType<T>,
+  opts?: { temperature?: number; model?: string; name?: string }
+): Promise<{ object: T; model: string; provider: LLMProvider }> {
+  const { model, provider, modelName } = createLanguageModel(opts?.model);
+  ensureKey(provider);
+  const temperature = opts?.temperature ?? getLLMTemperature();
+  const { system, messages: rest } = splitSystem(messages);
+  const result = await generateText({
+    model,
+    system,
+    messages: rest,
+    output: Output.object({ schema, name: opts?.name }),
+    ...(supportsTemperature(provider, modelName) && { temperature }),
+    providerOptions: buildProviderOptions(provider, modelName, getLLMEffort()),
+  });
+  return { object: result.output as T, model: modelName, provider };
 }
 
 export function safeParseBriefJSON(s: string): BriefJSON | null {

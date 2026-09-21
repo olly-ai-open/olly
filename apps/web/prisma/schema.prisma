@@ -336,6 +336,8 @@ model UserSettings {
   // LLM provider and model for this user. Null means the deployment default.
   llmProvider String?
   llmModel    String?
+  // Reasoning effort hint (low | medium | high) for models that accept one.
+  llmEffort   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

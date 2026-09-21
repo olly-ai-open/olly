@@ -1,8 +1,9 @@
+import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { withUserLLM } from "@/lib/llm-selection";
 import { auth } from "@/lib/auth";
 import {
-  createChatCompletion,
+  createStructuredCompletion,
   getLLMProvider,
   getLLMModel,
   isLLMConfigured,
@@ -87,19 +88,30 @@ Example format:
       `[UserStories] Using provider: ${provider}, model: ${modelName}`
     );
 
-    const completion = await createChatCompletion(
+    const StoriesSchema = z.object({
+      stories: z.array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          description: z.string(),
+          priority: z.enum(["Critical", "High", "Medium", "Low"]),
+          selected: z.boolean(),
+          acceptanceCriteria: z.array(z.string()).nullable(),
+        }),
+      ),
+    });
+    const { object: parsed } = await createStructuredCompletion(
       [{ role: "user", content: prompt }],
-      { model: modelName }
+      StoriesSchema,
+      { model: modelName, name: "user_stories" },
     );
 
-    const jsonMatch = completion.content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Failed to parse generated stories");
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-
-    return NextResponse.json({ stories: parsed.stories ?? [] });
+    return NextResponse.json({
+      stories: (parsed.stories ?? []).map((s) => ({
+        ...s,
+        acceptanceCriteria: s.acceptanceCriteria ?? undefined,
+      })),
+    });
   } catch (error: any) {
     console.error("[UserStories] Failed to generate:", error);
     return NextResponse.json(

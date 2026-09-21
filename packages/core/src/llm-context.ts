@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { PrismaClient } from "@prisma/client";
-import type { LLMProvider } from "./llm";
+import type { LLMEffort, LLMProvider } from "./llm";
 
 /**
  * Per-request LLM selection.
@@ -18,6 +18,7 @@ import type { LLMProvider } from "./llm";
 export type LLMSelection = {
   provider?: LLMProvider | null;
   model?: string | null;
+  effort?: LLMEffort | null;
 };
 
 const storage = new AsyncLocalStorage<LLMSelection>();
@@ -43,11 +44,12 @@ export async function runWithUserLLMSelection<T>(
   try {
     const settings = await prisma.userSettings.findUnique({
       where: { userId },
-      select: { llmProvider: true, llmModel: true },
+      select: { llmProvider: true, llmModel: true, llmEffort: true },
     });
     selection = {
       provider: (settings?.llmProvider as LLMProvider | null) ?? null,
       model: settings?.llmModel ?? null,
+      effort: (settings?.llmEffort as LLMEffort | null) ?? null,
     };
   } catch {
     // Fall back to the deployment default rather than fail the request.

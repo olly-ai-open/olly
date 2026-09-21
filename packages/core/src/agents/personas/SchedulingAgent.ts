@@ -7,7 +7,8 @@
  * decides what to do with the results.
  */
 
-import { createChatCompletion, isLLMConfigured } from "../../llm";
+import { z } from "zod";
+import { createStructuredCompletion, isLLMConfigured } from "../../llm";
 import {
   SCHEDULING_DIRECTION_PROMPT,
   SCHEDULING_OUTREACH_PROMPT,
@@ -18,19 +19,36 @@ import type {
   TimeOfDayPreference,
 } from "../../core/availability-core";
 
-function safeParseJSON<T>(s: string): T | null {
-  try {
-    return JSON.parse(s) as T;
-  } catch {}
-  const first = s.indexOf("{");
-  const last = s.lastIndexOf("}");
-  if (first >= 0 && last > first) {
-    try {
-      return JSON.parse(s.slice(first, last + 1)) as T;
-    } catch {}
-  }
-  return null;
-}
+const DirectionSchema = z.object({
+  title: z.string(),
+  durationMinutes: z.number(),
+  windowStartISO: z.string(),
+  windowEndISO: z.string(),
+  timeOfDay: z.enum(["morning", "afternoon", "evening", "any"]),
+  fixedStartISO: z.string().nullable(),
+  attendees: z.array(
+    z.object({ name: z.string(), email: z.string(), required: z.boolean() }),
+  ),
+  notes: z.string(),
+});
+
+const OutreachSchema = z.object({ body: z.string() });
+
+const ReplySchema = z.object({
+  intent: z.enum([
+    "accept",
+    "decline_meeting",
+    "counter",
+    "constraint",
+    "question",
+    "other",
+  ]),
+  acceptedSlotStartISOs: z.array(z.string()),
+  availabilityNotes: z.string(),
+  suggestedSlots: z.array(z.object({ startISO: z.string(), endISO: z.string() })),
+  needsHuman: z.boolean(),
+  summary: z.string(),
+});
 
 /** "Tue, Aug 18, 9:00 – 9:30 AM PDT" — used in outreach emails and the UI. */
 export function formatSlotForEmail(slot: TimeSlot, timeZone: string): string {
@@ -87,12 +105,14 @@ export async function parseSchedulingDirection(input: {
     "Return only the JSON object as described.",
   ].join("\n\n");
 
-  const completion = await createChatCompletion([
-    { role: "system", content: SCHEDULING_DIRECTION_PROMPT },
-    { role: "user", content: user },
-  ]);
-
-  const parsed = safeParseJSON<ParsedSchedulingDirection>(completion.content);
+  const { object: parsed } = await createStructuredCompletion(
+    [
+      { role: "system", content: SCHEDULING_DIRECTION_PROMPT },
+      { role: "user", content: user },
+    ],
+    DirectionSchema,
+    { name: "scheduling_direction" },
+  );
   if (!parsed || !Array.isArray(parsed.attendees)) return null;
 
   return {
@@ -186,11 +206,14 @@ export async function draftSchedulingEmailBody(input: {
   ].join("\n\n");
 
   try {
-    const completion = await createChatCompletion([
-      { role: "system", content: SCHEDULING_OUTREACH_PROMPT },
-      { role: "user", content: user },
-    ]);
-    const parsed = safeParseJSON<{ body: string }>(completion.content);
+    const { object: parsed } = await createStructuredCompletion(
+      [
+        { role: "system", content: SCHEDULING_OUTREACH_PROMPT },
+        { role: "user", content: user },
+      ],
+      OutreachSchema,
+      { name: "scheduling_email" },
+    );
     if (parsed?.body && parsed.body.trim().length > 20) {
       return parsed.body.trim();
     }
@@ -250,11 +273,14 @@ export async function parseSchedulingReply(input: {
   ].join("\n\n");
 
   try {
-    const completion = await createChatCompletion([
-      { role: "system", content: SCHEDULING_REPLY_PROMPT },
-      { role: "user", content: user },
-    ]);
-    const parsed = safeParseJSON<ParsedSchedulingReply>(completion.content);
+    const { object: parsed } = await createStructuredCompletion(
+      [
+        { role: "system", content: SCHEDULING_REPLY_PROMPT },
+        { role: "user", content: user },
+      ],
+      ReplySchema,
+      { name: "scheduling_reply" },
+    );
     if (!parsed || typeof parsed.intent !== "string") return needsHumanFallback;
 
     const validStartISOs = new Set(

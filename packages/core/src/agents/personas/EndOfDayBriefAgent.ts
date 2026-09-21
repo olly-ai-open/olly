@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { NotionTool } from '../tools/NotionTool';
 import { BaseAgent, AgentConfig } from '../base/Agent';
 import { EmailTool } from '../tools/EmailTool';
@@ -6,6 +7,28 @@ import { SlackTool } from '../tools/SlackTool';
 import { END_OF_DAY_BRIEF_PROMPT } from '../../prompts/endOfDayBriefPrompt';
 import type { EndOfDayActionItem, EndOfDayDocInput } from '../../types/endOfDay';
 import { isLLMConfigured, getLLMProvider } from '../../llm';
+
+/** Shape the end-of-day prompt asks for; enforced via structured output. */
+export const EndOfDaySummaryOutputSchema = z.object({
+  highlights: z.array(z.string()),
+  risks: z.array(z.string()),
+  action_items: z.array(
+    z.object({
+      title: z.string(),
+      due_date: z.string().nullable(),
+      link: z.string().nullable(),
+      source: z.string().nullable(),
+      assignee: z.string().nullable(),
+    }),
+  ),
+  docs: z.array(
+    z.object({
+      title: z.string(),
+      link: z.string().nullable(),
+      source: z.string().nullable(),
+    }),
+  ),
+});
 
 type EndOfDaySummaryJSON = {
   highlights?: string[];
@@ -191,6 +214,7 @@ export class EndOfDayBriefAgent extends BaseAgent {
       // 4 tools + a final synthesis step is exactly at the BaseAgent default
       // of 5 steps; leave headroom so the last tool isn't traded for output.
       maxToolRoundtrips: 8,
+      outputSchema: EndOfDaySummaryOutputSchema,
       ...config,
       tools: [
         new EmailTool(),
@@ -315,7 +339,7 @@ export class EndOfDayBriefAgent extends BaseAgent {
       sessionId: `end-of-day-${opts.briefTime}`,
     });
 
-    const raw = result.text ?? '';
+    const raw = result.output ? JSON.stringify(result.output) : (result.text ?? '');
     const fallbackDocs = opts.documents.slice(0, 10).map((d) => ({
       title: d.title,
       link: d.link ?? null,
@@ -420,7 +444,7 @@ export class EndOfDayBriefAgent extends BaseAgent {
       sessionId: `end-of-day-${opts.briefTime}`,
     });
 
-    const raw = result.text ?? '';
+    const raw = result.output ? JSON.stringify(result.output) : (result.text ?? '');
     const fallbackDocs = normalizeDocsFromToolCalls(result.toolCalls);
     const { highlights, risks, actionItems, docs } = parseEndOfDaySummary(
       raw,

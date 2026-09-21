@@ -24,6 +24,7 @@ interface UserSettings {
   minSchedulingNoticeHours?: number;
   llmProvider?: "openai" | "anthropic" | "gemini" | null;
   llmModel?: string | null;
+  llmEffort?: "low" | "medium" | "high" | null;
   llm?: {
     defaultProvider: "openai" | "anthropic" | "gemini";
     available: Record<"openai" | "anthropic" | "gemini", boolean>;
@@ -390,6 +391,7 @@ export default function SettingsForm() {
           calendarSyncIntervalMinutes: settings.calendarSyncIntervalMinutes ?? 60,
           llmProvider: settings.llmProvider ?? null,
           llmModel: settings.llmModel ?? null,
+          llmEffort: settings.llmEffort ?? null,
         }),
       });
 
@@ -612,6 +614,34 @@ export default function SettingsForm() {
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
+        </div>
+        <div className="mt-4 max-w-xs">
+          <label
+            htmlFor="llmEffort"
+            className="mb-1 block text-xs font-medium text-foreground"
+          >
+            Reasoning effort
+          </label>
+          <select
+            id="llmEffort"
+            value={settings.llmEffort ?? ""}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                llmEffort: (e.target.value || null) as UserSettings["llmEffort"],
+              })
+            }
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="">Provider default</option>
+            <option value="low">Low (fastest, cheapest)</option>
+            <option value="medium">Medium</option>
+            <option value="high">High (most thorough)</option>
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            How hard newer models think before answering. Only sent to models
+            that accept it; others ignore this setting.
+          </p>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Leave the model blank to use the default shown. Enter any model ID

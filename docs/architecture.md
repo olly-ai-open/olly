@@ -221,8 +221,18 @@ it needs. Nothing about it is runtime-specific.
   async-local context (`packages/core/src/llm-context.ts`) that the job
   worker and every LLM-using route establish, so core code keeps calling
   `getLLMProvider()` and `getLLMModel()` unchanged. Adding a provider means
-  `llm.ts`, `agents/base/Agent.ts`, the settings labels, and the desktop
-  setup screen.
+  `llm.ts` (the model factory), the settings labels, and the desktop setup
+  screen.
+- **LLM output is structured, not scraped.** Every call that expects JSON
+  declares a zod schema: personas pass `outputSchema` to the base agent,
+  single-shot calls use `createStructuredCompletion`. The AI SDK uses each
+  provider's native JSON mode, or a forced JSON tool where the model has
+  none, so results arrive parsed and validated. Keep schemas strict-safe:
+  every key required, `.nullable()` rather than `.optional()`, no free-form
+  records. The old text parsers remain only as fallbacks.
+- **Temperature and effort.** Newer models reject `temperature`, so it is
+  only sent where supported. Users can pick a reasoning effort in Settings;
+  it is passed as a provider option only to models that accept one.
 - **Telemetry is optional everywhere.** Langfuse and the metrics aggregates
   no-op without keys. Wrap new agent calls with the same helpers so tracing
   works when it is on.

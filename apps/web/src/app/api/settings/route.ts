@@ -6,6 +6,7 @@ import {
   getDefaultLLMModel,
   getDefaultLLMProvider,
   getLLMProviderAvailability,
+  isLLMEffort,
   isLLMProvider,
 } from "@olly/core";
 import { auth } from "@/auth";
@@ -120,6 +121,7 @@ export async function PUT(req: Request) {
       calendarSyncIntervalMinutes,
       llmProvider,
       llmModel,
+      llmEffort,
     } = body;
 
     const isValidTimeOfDay = (value: unknown) =>
@@ -179,6 +181,12 @@ export async function PUT(req: Request) {
     ) {
       return NextResponse.json(
         { error: `No API key is configured for ${llmProvider} on this deployment` },
+        { status: 400 },
+      );
+    }
+    if (llmEffort !== undefined && llmEffort !== null && !isLLMEffort(llmEffort)) {
+      return NextResponse.json(
+        { error: "llmEffort must be low, medium, high, or null" },
         { status: 400 },
       );
     }
@@ -409,6 +417,7 @@ export async function PUT(req: Request) {
         ...(llmModel !== undefined && {
           llmModel: llmModel ? llmModel.trim() || null : null,
         }),
+        ...(llmEffort !== undefined && { llmEffort: llmEffort ?? null }),
       },
       create: {
         userId,
@@ -430,6 +439,7 @@ export async function PUT(req: Request) {
         calendarSyncIntervalMinutes: calendarSyncIntervalMinutes ?? 60,
         llmProvider: llmProvider ?? null,
         llmModel: llmModel ? llmModel.trim() || null : null,
+        llmEffort: llmEffort ?? null,
         minSchedulingNoticeHours: minSchedulingNoticeHours ?? 24,
       },
     });

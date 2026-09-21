@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { NotionTool } from '../tools/NotionTool';
 import { BaseAgent, AgentConfig } from '../base/Agent';
 import { CalendarTool } from '../tools/CalendarTool';
@@ -5,6 +6,28 @@ import { EmailTool } from '../tools/EmailTool';
 import { DriveTool } from '../tools/DriveTool';
 import { SlackTool } from '../tools/SlackTool';
 import { MORNING_BRIEF_PROMPT } from '../../prompts/morningBriefPrompt';
+
+const SourceSchema = z.object({
+  type: z.string(),
+  title: z.string(),
+  url: z.string().nullable(),
+});
+
+/** Shape the morning brief prompt asks for; enforced via structured output. */
+export const MorningBriefOutputSchema = z.object({
+  brief_markdown: z.string(),
+  highlighted_action_item_ids: z.array(z.string()),
+  sources: z.array(SourceSchema),
+  key_meetings: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      time: z.string(),
+      attendees: z.array(z.string()),
+      preparation_needed: z.string(),
+    }),
+  ),
+});
 
 /**
  * MorningBriefAgent - Generates comprehensive morning briefs with today's priorities
@@ -23,6 +46,7 @@ export class MorningBriefAgent extends BaseAgent {
       // 5 tools + a final synthesis step won't fit in the BaseAgent default
       // of 5 steps; Notion (listed last) gets cut off without this.
       maxToolRoundtrips: 8,
+      outputSchema: MorningBriefOutputSchema,
       ...config,
       tools: [
         new CalendarTool(),
@@ -129,10 +153,11 @@ Focus on answering:
     });
     
     
-    // Store the brief in memory for future reference
-    this.memory.setLongTerm(`morning-brief-${date}`, result.text);
-    
-    return result.text;
+    // Structured output when the provider honoured the schema; callers parse
+    // the JSON string either way.
+    const brief = result.output ? JSON.stringify(result.output) : result.text;
+    this.memory.setLongTerm(`morning-brief-${date}`, brief);
+    return brief;
   }
   
   /**
@@ -161,11 +186,12 @@ Steps:
 
 Keep it extremely brief - just the highlights in 3-4 bullet points.`;
     
-    const result = await this.execute(prompt, { 
-      userId, 
-      sessionId: `quick-summary-${date}` 
-    });
-    
+    // Free-form summary: no schema for this call.
+    const result = await this.execute(
+      prompt,
+      { userId, sessionId: `quick-summary-${date}` },
+      { outputSchema: null },
+    );
     return result.text;
   }
   
