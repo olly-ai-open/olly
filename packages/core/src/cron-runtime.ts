@@ -1,8 +1,7 @@
 import { getPrisma } from "./prisma-server";
 import { computeNextRunAt } from "./scheduling";
 import { claimDueJobs, runClaimedJob, type RunJobResult } from "./jobs";
-
-const DEFAULT_MEETING_BRIEF_LEAD_MS = 5 * 60 * 1000;
+import { DEFAULT_MEETING_BRIEF_LEAD_MINUTES } from "./core/settings-core";
 const DEFAULT_MEETING_LOOKAHEAD_MS = 2 * 60 * 60 * 1000;
 const DEFAULT_CALENDAR_SYNC_INTERVAL_MIN = 60;
 const DEFAULT_CALENDAR_SYNC_LOOKAHEAD_HOURS = 24;
@@ -135,9 +134,26 @@ export async function runSchedulerTick(
     take: meetingBatchSize,
   });
 
+  // Each user chooses how many minutes before a meeting its brief is
+  // generated (and emailed). Look the value up once per user per tick.
+  const leadMinutesByUser = new Map<string, number>();
+  const leadMinutesFor = async (userId: string): Promise<number> => {
+    const cached = leadMinutesByUser.get(userId);
+    if (cached !== undefined) return cached;
+    const settings = await prisma.userSettings.findUnique({
+      where: { userId },
+      select: { meetingBriefLeadMinutes: true },
+    });
+    const minutes =
+      settings?.meetingBriefLeadMinutes ?? DEFAULT_MEETING_BRIEF_LEAD_MINUTES;
+    leadMinutesByUser.set(userId, minutes);
+    return minutes;
+  };
+
   for (const meeting of upcomingMeetings) {
+    const leadMinutes = await leadMinutesFor(meeting.userId);
     const targetRunAt = new Date(
-      meeting.startsAt.getTime() - DEFAULT_MEETING_BRIEF_LEAD_MS,
+      meeting.startsAt.getTime() - leadMinutes * 60 * 1000,
     );
 
     const existingJob = await prisma.job.findFirst({

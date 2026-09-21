@@ -16,6 +16,7 @@ export * from "./core/availability-core";
 export * from "./core/meetingScheduling-core";
 export * from "./core/eventFilters-core";
 export * from "./core/webPush-core";
+export * from "./core/briefEmail-core";
 export * from "./core/workspaceSearch-core";
 export * from "./core/endOfDayBriefs-core";
 export * from "./core/morningBriefs-core";

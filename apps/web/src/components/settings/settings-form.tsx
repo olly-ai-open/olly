@@ -19,6 +19,7 @@ interface UserSettings {
   workingHoursEnd?: string | null;
   workingDays?: number[] | null;
   meetingBufferMinutes?: number;
+  meetingBriefLeadMinutes?: number;
   minSchedulingNoticeHours?: number;
   createdAt: string;
   updatedAt: string;
@@ -371,6 +372,7 @@ export default function SettingsForm() {
           workingDays: settings.workingDays ?? [1, 2, 3, 4, 5],
           meetingBufferMinutes: settings.meetingBufferMinutes ?? 0,
           minSchedulingNoticeHours: settings.minSchedulingNoticeHours ?? 24,
+          meetingBriefLeadMinutes: settings.meetingBriefLeadMinutes ?? 5,
         }),
       });
 
@@ -897,12 +899,44 @@ export default function SettingsForm() {
               htmlFor="emailNotifications"
               className="text-sm font-medium text-foreground"
             >
-              Email notifications
+              Email me each brief
             </label>
           </div>
           <p className="text-xs text-muted-foreground ml-7">
-            Receive email notifications when briefs are ready
+            Morning briefs, end of day summaries, and meeting briefs are sent
+            to your inbox from your own Gmail account as soon as they are
+            generated. Needs the send-email permission; reconnect Google on
+            the Integrations page if emails do not arrive.
           </p>
+          <div className="ml-7 max-w-xs">
+            <label
+              htmlFor="meetingBriefLeadMinutes"
+              className="mb-1 block text-xs font-medium text-foreground"
+            >
+              Prepare meeting briefs
+            </label>
+            <select
+              id="meetingBriefLeadMinutes"
+              value={settings.meetingBriefLeadMinutes ?? 5}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  meetingBriefLeadMinutes: parseInt(e.target.value, 10),
+                })
+              }
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value={5}>5 minutes before the meeting</option>
+              <option value={10}>10 minutes before the meeting</option>
+              <option value={15}>15 minutes before the meeting</option>
+              <option value={30}>30 minutes before the meeting</option>
+              <option value={60}>1 hour before the meeting</option>
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The brief is generated and emailed at this point. Briefs are
+              only prepared while Olly is running.
+            </p>
+          </div>
           <div className="flex items-center space-x-3">
             <input
               id="webNotificationsEnabled"

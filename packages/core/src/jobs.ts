@@ -21,6 +21,7 @@ import {
   didUserDeclineEvent,
 } from "./core/eventFilters-core";
 import { sendBriefReadyWebPush } from "./core/webPush-core";
+import { sendBriefEmail } from "./core/briefEmail-core";
 import { flushLangfuse } from "./telemetry/langfuse";
 
 export type JobKind =
@@ -267,6 +268,11 @@ async function dispatchJob(
         }).catch((err) => {
           console.error("Failed to send morning brief web push", err);
         });
+        void sendBriefEmail(prisma, {
+          userId: job.userId,
+          briefId: briefId,
+          kind: "MORNING_BRIEF",
+        });
       }
       return;
     }
@@ -374,6 +380,11 @@ async function dispatchJob(
         }).catch((err) => {
           console.error("Failed to send meeting brief web push", err);
         });
+        void sendBriefEmail(prisma, {
+          userId: job.userId,
+          briefId: result.briefId,
+          kind: "MEETING_BRIEF",
+        });
       }
       return;
     }
@@ -402,6 +413,11 @@ async function dispatchJob(
           kind: "EVENING_BRIEF",
         }).catch((err) => {
           console.error("Failed to send evening brief web push", err);
+        });
+        void sendBriefEmail(prisma, {
+          userId: job.userId,
+          briefId: result.briefId,
+          kind: "EVENING_BRIEF",
         });
       }
       return;

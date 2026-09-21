@@ -327,6 +327,9 @@ model UserSettings {
   meetingBufferMinutes     Int     @default(0)
   minSchedulingNoticeHours Int     @default(24)
 
+  // Minutes before a meeting starts that its brief is generated and emailed.
+  meetingBriefLeadMinutes  Int     @default(5)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

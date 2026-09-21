@@ -98,6 +98,7 @@ export async function PUT(req: Request) {
       workingDays,
       meetingBufferMinutes,
       minSchedulingNoticeHours,
+      meetingBriefLeadMinutes,
     } = body;
 
     const isValidTimeOfDay = (value: unknown) =>
@@ -136,6 +137,19 @@ export async function PUT(req: Request) {
     ) {
       return NextResponse.json(
         { error: "meetingBufferMinutes must be between 0 and 120" },
+        { status: 400 },
+      );
+    }
+
+    if (
+      meetingBriefLeadMinutes !== undefined &&
+      (typeof meetingBriefLeadMinutes !== "number" ||
+        !Number.isInteger(meetingBriefLeadMinutes) ||
+        meetingBriefLeadMinutes < 1 ||
+        meetingBriefLeadMinutes > 120)
+    ) {
+      return NextResponse.json(
+        { error: "meetingBriefLeadMinutes must be a whole number between 1 and 120" },
         { status: 400 },
       );
     }
@@ -320,6 +334,9 @@ export async function PUT(req: Request) {
         ...(minSchedulingNoticeHours !== undefined && {
           minSchedulingNoticeHours,
         }),
+        ...(meetingBriefLeadMinutes !== undefined && {
+          meetingBriefLeadMinutes,
+        }),
       },
       create: {
         userId,
@@ -337,6 +354,7 @@ export async function PUT(req: Request) {
         workingHoursEnd: workingHoursEnd ?? null,
         workingDays: workingDays ?? [1, 2, 3, 4, 5],
         meetingBufferMinutes: meetingBufferMinutes ?? 0,
+        meetingBriefLeadMinutes: meetingBriefLeadMinutes ?? 5,
         minSchedulingNoticeHours: minSchedulingNoticeHours ?? 24,
       },
     });
