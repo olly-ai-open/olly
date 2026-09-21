@@ -333,6 +333,10 @@ model UserSettings {
   // meetings sooner at the cost of more background work.
   calendarSyncIntervalMinutes Int  @default(60)
 
+  // LLM provider and model for this user. Null means the deployment default.
+  llmProvider String?
+  llmModel    String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

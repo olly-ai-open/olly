@@ -158,6 +158,7 @@ async function bootstrap() {
       LLM_PROVIDER: process.env.LLM_PROVIDER || "",
       OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
       CRON_SECRET: cronSecret,
     },
     log,

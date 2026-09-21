@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withUserLLM } from "@/lib/llm-selection";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -10,7 +11,7 @@ import {
 /**
  * POST /api/docgen/requests - Create a new document generation request
  */
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json(
@@ -82,3 +83,6 @@ export async function GET(req: Request) {
     );
   }
 }
+
+// Run under the user's chosen LLM provider and model (Settings).
+export const POST = withUserLLM(postHandler);

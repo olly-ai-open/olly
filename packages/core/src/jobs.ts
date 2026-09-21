@@ -22,6 +22,7 @@ import {
 } from "./core/eventFilters-core";
 import { sendBriefReadyWebPush } from "./core/webPush-core";
 import { sendBriefEmail } from "./core/briefEmail-core";
+import { runWithUserLLMSelection } from "./llm-context";
 import { flushLangfuse } from "./telemetry/langfuse";
 
 export type JobKind =
@@ -153,7 +154,12 @@ export async function runClaimedJob(
 
   let result: RunJobResult;
   try {
-    await dispatchJob(prisma, job);
+    // Run under the job owner's LLM provider and model choice.
+    if (job.userId) {
+      await runWithUserLLMSelection(prisma, job.userId, () => dispatchJob(prisma, job));
+    } else {
+      await dispatchJob(prisma, job);
+    }
     await finalizeJob(prisma, job.id, (job as any).lockToken, {
       status: "DONE",
     });

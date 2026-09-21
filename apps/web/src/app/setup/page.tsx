@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
-type Provider = "anthropic" | "openai";
+type Provider = "anthropic" | "openai" | "gemini";
 
 type OllyDesktop = { isDesktop?: boolean; restart?: () => void };
 
@@ -18,6 +18,7 @@ function getDesktop(): OllyDesktop | undefined {
 const PROVIDERS: { value: Provider; label: string }[] = [
   { value: "anthropic", label: "Claude (Anthropic)" },
   { value: "openai", label: "OpenAI" },
+  { value: "gemini", label: "Gemini (Google)" },
 ];
 
 const PROVIDER_COPY: Record<
@@ -35,6 +36,12 @@ const PROVIDER_COPY: Record<
     placeholder: "sk-...",
     keyUrl: "https://platform.openai.com/api-keys",
     keyHost: "platform.openai.com",
+  },
+  gemini: {
+    label: "Gemini API key",
+    placeholder: "AIza...",
+    keyUrl: "https://aistudio.google.com/apikey",
+    keyHost: "aistudio.google.com",
   },
 };
 

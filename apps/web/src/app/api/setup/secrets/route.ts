@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (provider !== "anthropic" && provider !== "openai") {
+    if (provider !== "anthropic" && provider !== "openai" && provider !== "gemini") {
       return NextResponse.json(
         { error: "Unsupported provider" },
         { status: 400 },
@@ -98,15 +98,13 @@ export async function POST(req: NextRequest) {
       LLM_PROVIDER: provider,
     };
 
-    if (provider === "anthropic") {
-      nextValues.ANTHROPIC_API_KEY = apiKey;
-      delete nextValues.OPENAI_API_KEY;
-    }
-
-    if (provider === "openai") {
-      nextValues.OPENAI_API_KEY = apiKey;
-      delete nextValues.ANTHROPIC_API_KEY;
-    }
+    // One provider at a time on the desktop: keep only the chosen key.
+    delete nextValues.ANTHROPIC_API_KEY;
+    delete nextValues.OPENAI_API_KEY;
+    delete nextValues.GEMINI_API_KEY;
+    if (provider === "anthropic") nextValues.ANTHROPIC_API_KEY = apiKey;
+    if (provider === "openai") nextValues.OPENAI_API_KEY = apiKey;
+    if (provider === "gemini") nextValues.GEMINI_API_KEY = apiKey;
 
     fs.writeFileSync(file, serializeEnv(nextValues), "utf8");
 

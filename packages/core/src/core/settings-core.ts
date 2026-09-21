@@ -18,6 +18,8 @@ export type UserSettings = {
   minSchedulingNoticeHours: number;
   meetingBriefLeadMinutes: number;
   calendarSyncIntervalMinutes: number;
+  llmProvider: string | null;
+  llmModel: string | null;
 };
 
 export const DEFAULT_MEETING_BRIEF_LEAD_MINUTES = 5;
@@ -95,6 +97,8 @@ export async function getUserSettingsCore(userId: string): Promise<UserSettings>
     calendarSyncIntervalMinutes:
       settings.calendarSyncIntervalMinutes ??
       DEFAULT_CALENDAR_SYNC_INTERVAL_MINUTES,
+    llmProvider: settings.llmProvider ?? null,
+    llmModel: settings.llmModel ?? null,
   };
 }
 

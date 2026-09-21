@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withUserLLM } from "@/lib/llm-selection";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -22,7 +23,7 @@ export async function GET() {
 }
 
 /** Create a scheduling request and immediately send the first outreach. */
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -141,3 +142,6 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// Run under the user's chosen LLM provider and model (Settings).
+export const POST = withUserLLM(postHandler);

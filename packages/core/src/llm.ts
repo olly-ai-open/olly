@@ -6,32 +6,42 @@ import type { BriefJSON, MorningBriefJSON } from "./types/briefs";
 import type { EndOfDayActionItem } from "./types/endOfDay";
 import { QUERY_PLANNER_PROMPT } from "./prompts/queryPlannerPrompt";
 
+import { getLLMSelection } from "./llm-context";
+
 // LLM Provider types
 export type LLMProvider = "openai" | "anthropic" | "gemini";
+export const LLM_PROVIDERS: LLMProvider[] = ["openai", "anthropic", "gemini"];
 
-// Default models per provider
-const DEFAULT_MODELS: Record<LLMProvider, string> = {
-  openai: "gpt-4.1-mini",
-  anthropic: "claude-haiku-4-5-20251202",
-  gemini: "gemini-1.5-pro",
+export const LLM_PROVIDER_LABELS: Record<LLMProvider, string> = {
+  openai: "OpenAI",
+  anthropic: "Claude (Anthropic)",
+  gemini: "Gemini (Google)",
 };
 
 /**
- * Get the current LLM provider from environment
+ * Default model per provider, used when neither the user's settings nor the
+ * environment name one. The single source of truth: the agent framework
+ * imports these too. Prefer undated IDs and "latest" aliases so the
+ * defaults do not go stale.
  */
-export function getLLMProvider(): LLMProvider {
-  const provider = process.env.LLM_PROVIDER?.trim().toLowerCase();
-  if (provider === "anthropic" || provider === "gemini") {
-    return provider;
-  }
-  return "openai"; // default
+export const DEFAULT_MODELS: Record<LLMProvider, string> = {
+  openai: "gpt-4.1-mini",
+  anthropic: "claude-sonnet-5",
+  gemini: "gemini-flash-latest",
+};
+
+export function isLLMProvider(value: unknown): value is LLMProvider {
+  return typeof value === "string" && (LLM_PROVIDERS as string[]).includes(value);
 }
 
-/**
- * Get the model for the current provider
- */
-export function getLLMModel(): string {
-  const provider = getLLMProvider();
+/** Provider configured by the environment, before any per-user override. */
+export function getDefaultLLMProvider(): LLMProvider {
+  const provider = process.env.LLM_PROVIDER?.trim().toLowerCase();
+  return isLLMProvider(provider) ? provider : "openai";
+}
+
+/** Model the environment names for a provider, else the built-in default. */
+export function getDefaultLLMModel(provider: LLMProvider): string {
   switch (provider) {
     case "anthropic":
       return process.env.ANTHROPIC_MODEL || DEFAULT_MODELS.anthropic;
@@ -40,6 +50,58 @@ export function getLLMModel(): string {
     default:
       return process.env.OPENAI_MODEL || DEFAULT_MODELS.openai;
   }
+}
+
+/** Which providers have an API key available in this deployment. */
+export function getLLMProviderAvailability(): Record<LLMProvider, boolean> {
+  return {
+    openai: Boolean(process.env.OPENAI_API_KEY),
+    anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+    gemini: Boolean(process.env.GEMINI_API_KEY),
+  };
+}
+
+/**
+ * Get the current LLM provider: the user's selection when the request runs
+ * under one (see llm-context.ts) and that provider has a key, else the
+ * environment's provider.
+ */
+export function getLLMProvider(): LLMProvider {
+  const selected = getLLMSelection()?.provider;
+  if (selected && isLLMProvider(selected) && getLLMProviderAvailability()[selected]) {
+    return selected;
+  }
+  return getDefaultLLMProvider();
+}
+
+/**
+ * Get the model for the current provider: the user's model when they chose
+ * one for the provider in use, else the environment's, else the default.
+ */
+export function getLLMModel(): string {
+  const provider = getLLMProvider();
+  const selection = getLLMSelection();
+  const selectedProvider = selection?.provider ?? getDefaultLLMProvider();
+  const model = selection?.model?.trim();
+  if (model && selectedProvider === provider) return model;
+  return getDefaultLLMModel(provider);
+}
+
+/**
+ * Newer models reject the temperature parameter outright: OpenAI's reasoning
+ * models (gpt-5 and o-series) and Anthropic's Claude 4.7 and later, Sonnet 5,
+ * Opus 5, and Fable. Callers omit the parameter for those rather than fail
+ * the request. Unknown Anthropic models are treated as not supporting it,
+ * since a missing temperature only changes sampling while a rejected one
+ * fails the call.
+ */
+export function supportsTemperature(provider: LLMProvider, model: string): boolean {
+  const m = model.toLowerCase();
+  if (provider === "openai") return !/^(gpt-5|o\d)/.test(m);
+  if (provider === "anthropic") {
+    return /^claude-(3|haiku-4-5|sonnet-4-5|opus-4-5|sonnet-4-6|opus-4-6)/.test(m);
+  }
+  return true;
 }
 
 /**
@@ -98,7 +160,7 @@ export async function createChatCompletion(
         max_tokens: 4096,
         system: systemMessage,
         messages: nonSystemMessages,
-        temperature,
+        ...(supportsTemperature("anthropic", model) && { temperature }),
       });
 
       const textBlock = response.content.find(block => block.type === "text");
@@ -143,7 +205,7 @@ export async function createChatCompletion(
       const response = await client.chat.completions.create({
         model,
         messages,
-        temperature,
+        ...(supportsTemperature("openai", model) && { temperature }),
       });
 
       return {

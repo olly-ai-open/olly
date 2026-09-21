@@ -214,9 +214,15 @@ it needs. Nothing about it is runtime-specific.
   routes and `packages/core/src/prisma-server.ts` for core. Both apply
   field encryption when the key is set. Columns marked `/// @encrypted` in
   the schema are the only encrypted ones.
-- **LLM provider selection** is entirely in `packages/core/src/llm.ts` and
-  `agents/base/Agent.ts`. Adding a provider means both files plus the
-  desktop setup screen if it should be selectable there.
+- **LLM provider and model selection.** Keys come from the environment.
+  The provider and model default to `LLM_PROVIDER` and the `*_MODEL`
+  variables, falling back to `DEFAULT_MODELS` in `packages/core/src/llm.ts`.
+  Each user can override both in Settings; the choice is applied with an
+  async-local context (`packages/core/src/llm-context.ts`) that the job
+  worker and every LLM-using route establish, so core code keeps calling
+  `getLLMProvider()` and `getLLMModel()` unchanged. Adding a provider means
+  `llm.ts`, `agents/base/Agent.ts`, the settings labels, and the desktop
+  setup screen.
 - **Telemetry is optional everywhere.** Langfuse and the metrics aggregates
   no-op without keys. Wrap new agent calls with the same helpers so tracing
   works when it is on.

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withUserLLM } from "@/lib/llm-selection";
 import { auth } from "@/lib/auth";
 import {
   createChatCompletion,
@@ -8,7 +9,7 @@ import {
 } from "@olly/core";
 import { USER_STORIES_PROMPT } from "@olly/core/src/prompts/userStoriesPrompt";
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -107,3 +108,6 @@ Example format:
     );
   }
 }
+
+// Run under the user's chosen LLM provider and model (Settings).
+export const POST = withUserLLM(postHandler);

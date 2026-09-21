@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { defaultTimeZone } from "@olly/core";
+import {
+  DEFAULT_MODELS,
+  defaultTimeZone,
+  getDefaultLLMModel,
+  getDefaultLLMProvider,
+  getLLMProviderAvailability,
+  isLLMProvider,
+} from "@olly/core";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -55,6 +62,17 @@ export async function GET() {
       // server's fallback. The dashboard uses this to save the browser's
       // zone once, so hosted users get local times without visiting Settings.
       timeZoneIsDefault: settings.timeZone == null,
+      // What this deployment can offer, so the form can show real choices.
+      llm: {
+        defaultProvider: getDefaultLLMProvider(),
+        available: getLLMProviderAvailability(),
+        defaultModels: {
+          openai: getDefaultLLMModel("openai"),
+          anthropic: getDefaultLLMModel("anthropic"),
+          gemini: getDefaultLLMModel("gemini"),
+        },
+        builtInModels: DEFAULT_MODELS,
+      },
     });
   } catch (error) {
     console.error("Failed to get user settings:", error);
@@ -100,6 +118,8 @@ export async function PUT(req: Request) {
       minSchedulingNoticeHours,
       meetingBriefLeadMinutes,
       calendarSyncIntervalMinutes,
+      llmProvider,
+      llmModel,
     } = body;
 
     const isValidTimeOfDay = (value: unknown) =>
@@ -138,6 +158,37 @@ export async function PUT(req: Request) {
     ) {
       return NextResponse.json(
         { error: "meetingBufferMinutes must be between 0 and 120" },
+        { status: 400 },
+      );
+    }
+
+    if (
+      llmProvider !== undefined &&
+      llmProvider !== null &&
+      !isLLMProvider(llmProvider)
+    ) {
+      return NextResponse.json(
+        { error: "llmProvider must be openai, anthropic, gemini, or null" },
+        { status: 400 },
+      );
+    }
+    if (
+      llmProvider !== undefined &&
+      llmProvider !== null &&
+      !getLLMProviderAvailability()[llmProvider as "openai"]
+    ) {
+      return NextResponse.json(
+        { error: `No API key is configured for ${llmProvider} on this deployment` },
+        { status: 400 },
+      );
+    }
+    if (
+      llmModel !== undefined &&
+      llmModel !== null &&
+      (typeof llmModel !== "string" || llmModel.trim().length > 120)
+    ) {
+      return NextResponse.json(
+        { error: "llmModel must be a short string or null" },
         { status: 400 },
       );
     }
@@ -354,6 +405,10 @@ export async function PUT(req: Request) {
         ...(calendarSyncIntervalMinutes !== undefined && {
           calendarSyncIntervalMinutes,
         }),
+        ...(llmProvider !== undefined && { llmProvider: llmProvider ?? null }),
+        ...(llmModel !== undefined && {
+          llmModel: llmModel ? llmModel.trim() || null : null,
+        }),
       },
       create: {
         userId,
@@ -373,6 +428,8 @@ export async function PUT(req: Request) {
         meetingBufferMinutes: meetingBufferMinutes ?? 0,
         meetingBriefLeadMinutes: meetingBriefLeadMinutes ?? 5,
         calendarSyncIntervalMinutes: calendarSyncIntervalMinutes ?? 60,
+        llmProvider: llmProvider ?? null,
+        llmModel: llmModel ? llmModel.trim() || null : null,
         minSchedulingNoticeHours: minSchedulingNoticeHours ?? 24,
       },
     });

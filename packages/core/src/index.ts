@@ -7,6 +7,7 @@ export * from "./slack-http";
 export * from "./slack";
 export * from "./searchHeuristics";
 export * from "./llm";
+export * from "./llm-context";
 export * from "./core/google-core";
 export * from "./core/meetingBriefs-core";
 export * from "./core/meetings-core";

@@ -16,7 +16,8 @@ export function middleware(req: NextRequest) {
   const isDesktop = process.env.OLLY_DESKTOP === "1";
   const hasLlm =
     Boolean(process.env.OPENAI_API_KEY) ||
-    Boolean(process.env.ANTHROPIC_API_KEY);
+    Boolean(process.env.ANTHROPIC_API_KEY) ||
+    Boolean(process.env.GEMINI_API_KEY);
 
   const isSetupPath = path.startsWith("/setup") || path.startsWith("/api/setup");
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withUserLLM } from "@/lib/llm-selection";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -82,7 +83,7 @@ function getFriendlyLLMError(error: any): {
   return null;
 }
 
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   const USE_EPHEMERAL_MEETING_BRIEFS_FOR_MORNING = true;
 
   const session = await auth();
@@ -398,3 +399,6 @@ export async function POST(req: Request) {
     );
   }
 }
+
+// Run under the user's chosen LLM provider and model (Settings).
+export const POST = withUserLLM(postHandler);

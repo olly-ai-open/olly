@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withUserLLM } from "@/lib/llm-selection";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -28,7 +29,7 @@ const ACTIONS: Action[] = [
 ];
 
 /** Request-level actions: cancel, nudge pending attendees, book, check now. */
-export async function POST(
+async function postHandler(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
@@ -90,3 +91,6 @@ export async function POST(
     );
   }
 }
+
+// Run under the user's chosen LLM provider and model (Settings).
+export const POST = withUserLLM(postHandler);

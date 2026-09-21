@@ -22,9 +22,22 @@ interface UserSettings {
   meetingBriefLeadMinutes?: number;
   calendarSyncIntervalMinutes?: number;
   minSchedulingNoticeHours?: number;
+  llmProvider?: "openai" | "anthropic" | "gemini" | null;
+  llmModel?: string | null;
+  llm?: {
+    defaultProvider: "openai" | "anthropic" | "gemini";
+    available: Record<"openai" | "anthropic" | "gemini", boolean>;
+    defaultModels: Record<"openai" | "anthropic" | "gemini", string>;
+  };
   createdAt: string;
   updatedAt: string;
 }
+
+const LLM_PROVIDER_LABELS = {
+  openai: "OpenAI",
+  anthropic: "Claude (Anthropic)",
+  gemini: "Gemini (Google)",
+} as const;
 
 interface Schedule {
   id?: string;
@@ -375,6 +388,8 @@ export default function SettingsForm() {
           minSchedulingNoticeHours: settings.minSchedulingNoticeHours ?? 24,
           meetingBriefLeadMinutes: settings.meetingBriefLeadMinutes ?? 5,
           calendarSyncIntervalMinutes: settings.calendarSyncIntervalMinutes ?? 60,
+          llmProvider: settings.llmProvider ?? null,
+          llmModel: settings.llmModel ?? null,
         }),
       });
 
@@ -541,6 +556,70 @@ export default function SettingsForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div>
+        <h2 className="mb-4 text-lg font-medium">AI Model</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label
+              htmlFor="llmProvider"
+              className="mb-1 block text-xs font-medium text-foreground"
+            >
+              Provider
+            </label>
+            <select
+              id="llmProvider"
+              value={settings.llmProvider ?? ""}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  llmProvider: (e.target.value || null) as UserSettings["llmProvider"],
+                  llmModel: null,
+                })
+              }
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">
+                Default (
+                {LLM_PROVIDER_LABELS[settings.llm?.defaultProvider ?? "openai"]})
+              </option>
+              {(["openai", "anthropic", "gemini"] as const).map((p) => (
+                <option key={p} value={p} disabled={!settings.llm?.available[p]}>
+                  {LLM_PROVIDER_LABELS[p]}
+                  {settings.llm?.available[p] ? "" : " (no key configured)"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label
+              htmlFor="llmModel"
+              className="mb-1 block text-xs font-medium text-foreground"
+            >
+              Model
+            </label>
+            <input
+              id="llmModel"
+              type="text"
+              value={settings.llmModel ?? ""}
+              onChange={(e) =>
+                setSettings({ ...settings, llmModel: e.target.value || null })
+              }
+              placeholder={
+                settings.llm?.defaultModels[
+                  settings.llmProvider ?? settings.llm?.defaultProvider ?? "openai"
+                ] ?? ""
+              }
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Leave the model blank to use the default shown. Enter any model ID
+          your provider offers to use a newer one. API keys are set by whoever
+          runs this deployment; providers without a key cannot be selected.
+        </p>
+      </div>
+
       <div>
         <h2 className="mb-4 text-lg font-medium">Search Preferences</h2>
 

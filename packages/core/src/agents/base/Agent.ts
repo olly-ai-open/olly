@@ -10,13 +10,6 @@ import { startLangfuseObservation, withLangfuseTrace } from '../../telemetry/lan
 import { recordAgentAggregate } from '../../telemetry/metrics-aggregates';
 import { getLLMProvider, getLLMModel, getLLMTemperature, type LLMProvider } from '../../llm';
 
-// Default models per provider for agents
-const AGENT_DEFAULT_MODELS: Record<LLMProvider, string> = {
-  openai: 'gpt-4.1-mini',
-  anthropic: 'claude-haiku-4-5-20251202',
-  gemini: 'gemini-1.5-pro',
-};
-
 // Type for language model that works with all providers
 type AnyLanguageModel = ReturnType<ReturnType<typeof createOpenAI>>;
 
@@ -31,7 +24,7 @@ function createLanguageModel(model?: string): { model: AnyLanguageModel; provide
       const anthropic = createAnthropic({
         apiKey: process.env.ANTHROPIC_API_KEY,
       });
-      const modelName = model || process.env.ANTHROPIC_MODEL || AGENT_DEFAULT_MODELS.anthropic;
+      const modelName = model || getLLMModel();
       // Cast to AnyLanguageModel since all providers implement the same interface at runtime
       return { model: anthropic(modelName) as unknown as AnyLanguageModel, provider, modelName };
     }
@@ -40,7 +33,7 @@ function createLanguageModel(model?: string): { model: AnyLanguageModel; provide
       const google = createGoogleGenerativeAI({
         apiKey: process.env.GEMINI_API_KEY,
       });
-      const modelName = model || process.env.GOOGLE_MODEL || AGENT_DEFAULT_MODELS.gemini;
+      const modelName = model || getLLMModel();
       return { model: google(modelName) as unknown as AnyLanguageModel, provider, modelName };
     }
 
@@ -48,7 +41,7 @@ function createLanguageModel(model?: string): { model: AnyLanguageModel; provide
       const openai = createOpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
-      const modelName = model || process.env.OPENAI_MODEL || AGENT_DEFAULT_MODELS.openai;
+      const modelName = model || getLLMModel();
       return { model: openai(modelName), provider, modelName };
     }
   }

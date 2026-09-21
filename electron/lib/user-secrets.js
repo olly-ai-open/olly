@@ -90,7 +90,8 @@ function applyUserSecretsToProcessEnv() {
 function hasRequiredLlmEnv() {
   return Boolean(
     process.env.OPENAI_API_KEY ||
-    process.env.ANTHROPIC_API_KEY
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.GEMINI_API_KEY
   );
 }
 

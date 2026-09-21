@@ -103,8 +103,9 @@ Compared with a [self-hosted server](self-hosting.md):
   computer.
 - **Port 3000 must be free.** The app refuses to start if something else is
   listening on it.
-- **Only OpenAI and Anthropic keys** can be entered on the setup screen.
-  Gemini works on a server through environment variables but not on desktop.
+- **One LLM key at a time.** The setup screen takes an OpenAI, Anthropic, or
+  Gemini key; switching provider means entering the other key. The model
+  can be changed any time in Settings.
 - **Saving a new LLM key restarts the app.** Keys are read at startup.
 - **Closing the window quits the app** on every platform, including macOS.
 - **No telemetry, no tracing.** Langfuse and New Relic keys are stripped.
