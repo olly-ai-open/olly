@@ -182,8 +182,15 @@ so you can build either without owning the hardware.
    gh run download --repo <you>/<fork> --name olly-windows-installer
    ```
 
-4. Download the artifact from the finished run. Artifacts expire after 90
-   days by default.
+4. Download the artifact from the finished run. Artifacts are kept for 14
+   days.
+
+Installers are large, and GitHub caps the artifact storage a repository can
+use. If you build often, fill in the optional **release_tag** field when you
+run the workflow, for example `desktop-latest`. The installers are then
+attached to a GitHub release of that name instead of an artifact. Releases
+have no such cap, and the release page is the easiest place to download
+from another machine.
 
 The workflows run the exact same npm scripts as a local build, with the
 strict env check turned on so a build that would ship a forbidden key fails

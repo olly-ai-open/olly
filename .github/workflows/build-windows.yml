@@ -7,13 +7,33 @@ name: Build Windows installer
 # example a private wrapper that builds on every push to a release branch:
 #
 #   on: { push: { branches: [production] } }
+#   permissions: { contents: write }
 #   jobs:
 #     build:
 #       uses: ./.github/workflows/build-windows.yml
 #       secrets: inherit
+#       with: { release_tag: desktop-latest }
+#
+# By default the installers are stored as a workflow artifact. Pass
+# release_tag to attach them to a GitHub release instead: releases do not
+# count against the Actions artifact storage quota and are easier to share.
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Attach installers to this GitHub release instead of an artifact (optional)"
+        required: false
+        type: string
+        default: ""
   workflow_call:
+    inputs:
+      release_tag:
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
 
 jobs:
   build-windows:
@@ -70,7 +90,31 @@ jobs:
         shell: pwsh
         run: Get-ChildItem dist -ErrorAction SilentlyContinue
 
-      - name: Upload installer artifact
+      - name: Publish installers to a GitHub release
+        if: inputs.release_tag != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Another platform's job may create it first; that is fine.
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Desktop installers ($TAG)" --prerelease \
+              --notes "Rolling release: assets are replaced on every build. The build number in each file name identifies the run." \
+              || true
+          fi
+          # Keep one set of files per platform: drop this platform's previous assets.
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name | test("\\.exe(\\.blockmap)?$")) | .name' \
+            | while read -r name; do
+                gh release delete-asset "$TAG" "$name" --repo "$GITHUB_REPOSITORY" --yes
+              done
+          gh release upload "$TAG" dist/*.exe dist/*.exe.blockmap --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Upload installer as a workflow artifact
+        if: inputs.release_tag == ''
         uses: actions/upload-artifact@v4
         with:
           name: olly-windows-installer
