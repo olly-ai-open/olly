@@ -17,9 +17,11 @@ export type UserSettings = {
   meetingBufferMinutes: number;
   minSchedulingNoticeHours: number;
   meetingBriefLeadMinutes: number;
+  calendarSyncIntervalMinutes: number;
 };
 
 export const DEFAULT_MEETING_BRIEF_LEAD_MINUTES = 5;
+export const DEFAULT_CALENDAR_SYNC_INTERVAL_MINUTES = 60;
 
 export const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5]; // Mon-Fri (ISO weekday)
 
@@ -90,6 +92,9 @@ export async function getUserSettingsCore(userId: string): Promise<UserSettings>
     minSchedulingNoticeHours: settings.minSchedulingNoticeHours ?? 24,
     meetingBriefLeadMinutes:
       settings.meetingBriefLeadMinutes ?? DEFAULT_MEETING_BRIEF_LEAD_MINUTES,
+    calendarSyncIntervalMinutes:
+      settings.calendarSyncIntervalMinutes ??
+      DEFAULT_CALENDAR_SYNC_INTERVAL_MINUTES,
   };
 }
 

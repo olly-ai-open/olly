@@ -329,6 +329,9 @@ model UserSettings {
 
   // Minutes before a meeting starts that its brief is generated and emailed.
   meetingBriefLeadMinutes  Int     @default(5)
+  // Minutes between automatic calendar syncs. Lower catches late-added
+  // meetings sooner at the cost of more background work.
+  calendarSyncIntervalMinutes Int  @default(60)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

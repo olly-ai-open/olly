@@ -83,7 +83,8 @@ way:
 
 - `GET /api/cron/scheduler` decides what is due and inserts jobs:
   morning and evening briefs from each user's `Schedule` rows, a
-  `CALENDAR_SYNC` per connected user about once an hour, a `MEETING_BRIEF`
+  `CALENDAR_SYNC` per connected user at the user's chosen interval (default
+  hourly, down to 15 minutes), a `MEETING_BRIEF`
   before each meeting in the next two hours by the user's lead-time
   setting (default five minutes), and a
   `SCHEDULING_POLL` for meeting negotiations awaiting replies.

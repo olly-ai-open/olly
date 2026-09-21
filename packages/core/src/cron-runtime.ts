@@ -1,9 +1,11 @@
 import { getPrisma } from "./prisma-server";
 import { computeNextRunAt } from "./scheduling";
 import { claimDueJobs, runClaimedJob, type RunJobResult } from "./jobs";
-import { DEFAULT_MEETING_BRIEF_LEAD_MINUTES } from "./core/settings-core";
+import {
+  DEFAULT_CALENDAR_SYNC_INTERVAL_MINUTES,
+  DEFAULT_MEETING_BRIEF_LEAD_MINUTES,
+} from "./core/settings-core";
 const DEFAULT_MEETING_LOOKAHEAD_MS = 2 * 60 * 60 * 1000;
-const DEFAULT_CALENDAR_SYNC_INTERVAL_MIN = 60;
 const DEFAULT_CALENDAR_SYNC_LOOKAHEAD_HOURS = 24;
 const DEFAULT_SCHEDULING_POLL_INTERVAL_MIN = 5;
 
@@ -78,9 +80,6 @@ export async function runSchedulerTick(
   }
 
   let calendarSyncJobsCreated = 0;
-  const calendarSyncWindowStart = new Date(
-    now.getTime() - DEFAULT_CALENDAR_SYNC_INTERVAL_MIN * 60 * 1000,
-  );
 
   const accountsNeedingSync = await prisma.account.findMany({
     where: {
@@ -92,6 +91,20 @@ export async function runSchedulerTick(
   });
 
   for (const account of accountsNeedingSync) {
+    // Each user chooses how often their calendar is re-read. The default is
+    // hourly; desktop users who want late-added meetings caught sooner can
+    // shorten it, since the cost lands only on their own machine.
+    const syncSettings = await prisma.userSettings.findUnique({
+      where: { userId: account.userId },
+      select: { calendarSyncIntervalMinutes: true },
+    });
+    const intervalMinutes =
+      syncSettings?.calendarSyncIntervalMinutes ??
+      DEFAULT_CALENDAR_SYNC_INTERVAL_MINUTES;
+    const calendarSyncWindowStart = new Date(
+      now.getTime() - intervalMinutes * 60 * 1000,
+    );
+
     const recentSync = await prisma.job.findFirst({
       where: {
         userId: account.userId,

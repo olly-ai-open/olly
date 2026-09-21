@@ -20,6 +20,7 @@ interface UserSettings {
   workingDays?: number[] | null;
   meetingBufferMinutes?: number;
   meetingBriefLeadMinutes?: number;
+  calendarSyncIntervalMinutes?: number;
   minSchedulingNoticeHours?: number;
   createdAt: string;
   updatedAt: string;
@@ -373,6 +374,7 @@ export default function SettingsForm() {
           meetingBufferMinutes: settings.meetingBufferMinutes ?? 0,
           minSchedulingNoticeHours: settings.minSchedulingNoticeHours ?? 24,
           meetingBriefLeadMinutes: settings.meetingBriefLeadMinutes ?? 5,
+          calendarSyncIntervalMinutes: settings.calendarSyncIntervalMinutes ?? 60,
         }),
       });
 
@@ -935,6 +937,35 @@ export default function SettingsForm() {
             <p className="mt-1 text-xs text-muted-foreground">
               The brief is generated and emailed at this point. Briefs are
               only prepared while Olly is running.
+            </p>
+          </div>
+          <div className="ml-7 max-w-xs">
+            <label
+              htmlFor="calendarSyncIntervalMinutes"
+              className="mb-1 block text-xs font-medium text-foreground"
+            >
+              Check calendar for new meetings
+            </label>
+            <select
+              id="calendarSyncIntervalMinutes"
+              value={settings.calendarSyncIntervalMinutes ?? 60}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  calendarSyncIntervalMinutes: parseInt(e.target.value, 10),
+                })
+              }
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value={15}>Every 15 minutes</option>
+              <option value={30}>Every 30 minutes</option>
+              <option value={60}>Every hour</option>
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Meetings added to your calendar less than this long before they
+              start may not get a brief. Checking more often does more
+              background work; on the desktop app that only affects your own
+              machine.
             </p>
           </div>
           <div className="flex items-center space-x-3">
