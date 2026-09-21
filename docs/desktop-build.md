@@ -123,15 +123,18 @@ From the repository root:
 npm install
 
 # Once per machine. npm only installs the embedded Postgres binaries for
-# the CPU you are on; the DMGs must ship both.
-npm install --no-save --force @embedded-postgres/darwin-x64@17.9.0-beta.17 @embedded-postgres/darwin-arm64@17.9.0-beta.17
+# the CPU you are on and silently skips the other one; the DMGs must ship
+# both, so force each architecture in explicitly.
+npm install --no-save --force --os darwin --cpu x64 @embedded-postgres/darwin-x64@17.9.0-beta.17
+npm install --no-save --force --os darwin --cpu arm64 @embedded-postgres/darwin-arm64@17.9.0-beta.17
 
 npm run dist:mac
 ```
 
 The build runs the web app's production build, copies static assets and
 Prisma engines into the standalone tree, writes the sanitized env, checks
-it, and packages both architectures. Output lands in `dist/`:
+it, confirms both Postgres architectures are present, and packages both
+architectures. Output lands in `dist/`:
 
 | File | For |
 |---|---|

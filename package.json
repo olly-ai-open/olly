@@ -27,7 +27,7 @@
     "copy:prisma-resources": "node electron/scripts/copy-prisma-resources.js",
     "build:packaged-env": "node electron/scripts/build-packaged-env.js",
     "check:packaged-env": "node electron/scripts/check-packaged-env.js",
-    "dist:mac": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && npm run build:packaged-env && npm run check:packaged-env && electron-builder --mac --publish never",
+    "dist:mac": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && npm run build:packaged-env && npm run check:packaged-env && node electron/scripts/check-mac-postgres.js && electron-builder --mac --publish never",
     "dist:win": "npm run build:web && npm run copy:standalone-assets && npm run copy:prisma-resources && npm run build:packaged-env && npm run check:packaged-env && electron-builder --win nsis --publish never"
   },
   "dependencies": {

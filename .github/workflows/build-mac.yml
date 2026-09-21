@@ -70,9 +70,15 @@ jobs:
         run: npm ci
 
       # npm only installs the embedded Postgres binaries for the runner's own
-      # CPU. The DMGs must ship both Mac architectures.
+      # CPU, and treats the other architecture's optional package as already
+      # satisfied, so a plain install reports "up to date" and does nothing.
+      # The --os and --cpu overrides force each one in. The DMGs must ship
+      # both, and the check fails the build if either is missing.
       - name: Install embedded Postgres for both Mac architectures
-        run: npm install --no-save --force @embedded-postgres/darwin-x64@17.9.0-beta.17 @embedded-postgres/darwin-arm64@17.9.0-beta.17
+        run: |
+          npm install --no-save --force --os darwin --cpu x64 @embedded-postgres/darwin-x64@17.9.0-beta.17
+          npm install --no-save --force --os darwin --cpu arm64 @embedded-postgres/darwin-arm64@17.9.0-beta.17
+          node electron/scripts/check-mac-postgres.js
 
       # Stamp the run number into the app version (e.g. 1.0.3-build.14) so
       # every CI build is uniquely identifiable. Local builds are unaffected.
