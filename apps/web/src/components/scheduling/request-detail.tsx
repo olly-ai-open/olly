@@ -144,7 +144,8 @@ export default function RequestDetail({ requestId }: { requestId: string }) {
           {request.durationMinutes} minutes · round {request.round}
           {request.autoBook ? " · books automatically" : " · asks before booking"}
         </p>
-        {request.status === "NEEDS_ATTENTION" && request.attentionReason ? (
+        {["NEEDS_ATTENTION", "READY_TO_BOOK"].includes(request.status) &&
+        request.attentionReason ? (
           <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {request.attentionReason}
           </p>

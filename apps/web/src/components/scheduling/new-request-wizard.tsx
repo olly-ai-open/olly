@@ -12,6 +12,10 @@ type Draft = {
   windowEndDate: string; // YYYY-MM-DD (local, inclusive)
   timeOfDay: "morning" | "afternoon" | "evening" | "any";
   notes: string;
+  /** True when the time is already agreed and should be booked directly. */
+  fixedTime: boolean;
+  /** datetime-local value (local time) used when fixedTime is on. */
+  fixedStart: string;
   attendees: DraftAttendee[];
   autoBook: boolean;
   autoAltTimes: boolean;
@@ -23,6 +27,20 @@ function toLocalDateInput(iso: string): string {
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function toLocalDateTimeInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${toLocalDateInput(iso)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function defaultFixedStart(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(10, 0, 0, 0);
+  return toLocalDateTimeInput(d.toISOString());
 }
 
 function defaultDraft(): Draft {
@@ -37,6 +55,8 @@ function defaultDraft(): Draft {
     windowEndDate: toLocalDateInput(end.toISOString()),
     timeOfDay: "any",
     notes: "",
+    fixedTime: false,
+    fixedStart: defaultFixedStart(),
     attendees: [{ email: "", name: "", required: true }],
     autoBook: true,
     autoAltTimes: true,
@@ -76,8 +96,8 @@ export default function NewRequestWizard({
       className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm"
     >
       <p>
-        Scheduling needs permission to send email and create calendar events
-        on your behalf. Reconnect Google to grant it, then come back here.
+        Scheduling needs permission to send email and create calendar events on
+        your behalf. Reconnect Google to grant it, then come back here.
       </p>
       <div className="mt-2 flex items-center gap-3">
         <Link
@@ -125,6 +145,10 @@ export default function NewRequestWizard({
           toLocalDateInput(parsed.windowEndISO) || defaultDraft().windowEndDate,
         timeOfDay: parsed.timeOfDay || "any",
         notes: parsed.notes || "",
+        fixedTime: Boolean(parsed.fixedStartISO),
+        fixedStart: parsed.fixedStartISO
+          ? toLocalDateTimeInput(parsed.fixedStartISO)
+          : defaultFixedStart(),
         attendees: parsed.attendees?.length
           ? parsed.attendees.map((a: any) => ({
               email: a.email || "",
@@ -162,6 +186,13 @@ export default function NewRequestWizard({
       // End date is inclusive in the UI; the API window end is exclusive.
       const windowEnd = new Date(`${draft.windowEndDate}T00:00:00`);
       windowEnd.setDate(windowEnd.getDate() + 1);
+      const fixedStart = draft.fixedTime ? new Date(draft.fixedStart) : null;
+      if (
+        draft.fixedTime &&
+        (!fixedStart || Number.isNaN(fixedStart.getTime()))
+      ) {
+        throw new Error("Enter the agreed date and time.");
+      }
 
       const resp = await fetch("/api/scheduling/requests", {
         method: "POST",
@@ -173,6 +204,7 @@ export default function NewRequestWizard({
           autoAltTimes: draft.autoAltTimes,
           autoAltDates: draft.autoAltDates,
           constraints: {
+            ...(fixedStart && { fixedStartISO: fixedStart.toISOString() }),
             windowStartISO: windowStart.toISOString(),
             windowEndISO: windowEnd.toISOString(),
             timeOfDay: draft.timeOfDay,
@@ -267,51 +299,85 @@ export default function NewRequestWizard({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.fixedTime}
+              onChange={(e) =>
+                setDraft({ ...draft, fixedTime: e.target.checked })
+              }
+              className="mt-0.5 h-4 w-4 rounded border border-border text-primary focus:ring-primary"
+            />
+            <span>
+              Time already agreed
+              <span className="block text-xs text-muted-foreground">
+                Book it directly. Attendees get the calendar invitation and no
+                scheduling emails.
+              </span>
+            </span>
+          </label>
+
+          {draft.fixedTime ? (
+            <div className="max-w-xs">
               <label className="mb-1 block text-xs font-medium">
-                Earliest day
+                Agreed date and time
               </label>
               <input
-                type="date"
-                value={draft.windowStartDate}
+                type="datetime-local"
+                value={draft.fixedStart}
                 onChange={(e) =>
-                  setDraft({ ...draft, windowStartDate: e.target.value })
+                  setDraft({ ...draft, fixedStart: e.target.value })
                 }
                 className={inputCls}
               />
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium">
-                Latest day
-              </label>
-              <input
-                type="date"
-                value={draft.windowEndDate}
-                onChange={(e) =>
-                  setDraft({ ...draft, windowEndDate: e.target.value })
-                }
-                className={inputCls}
-              />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium">
+                  Earliest day
+                </label>
+                <input
+                  type="date"
+                  value={draft.windowStartDate}
+                  onChange={(e) =>
+                    setDraft({ ...draft, windowStartDate: e.target.value })
+                  }
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium">
+                  Latest day
+                </label>
+                <input
+                  type="date"
+                  value={draft.windowEndDate}
+                  onChange={(e) =>
+                    setDraft({ ...draft, windowEndDate: e.target.value })
+                  }
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium">
+                  Time of day
+                </label>
+                <select
+                  value={draft.timeOfDay}
+                  onChange={(e) =>
+                    setDraft({ ...draft, timeOfDay: e.target.value as any })
+                  }
+                  className={inputCls}
+                >
+                  <option value="any">Any time</option>
+                  <option value="morning">Mornings</option>
+                  <option value="afternoon">Afternoons</option>
+                  <option value="evening">Evenings</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium">
-                Time of day
-              </label>
-              <select
-                value={draft.timeOfDay}
-                onChange={(e) =>
-                  setDraft({ ...draft, timeOfDay: e.target.value as any })
-                }
-                className={inputCls}
-              >
-                <option value="any">Any time</option>
-                <option value="morning">Mornings</option>
-                <option value="afternoon">Afternoons</option>
-                <option value="evening">Evenings</option>
-              </select>
-            </div>
-          </div>
+          )}
 
           <div>
             <label className="mb-1 block text-xs font-medium">Attendees</label>
@@ -320,13 +386,17 @@ export default function NewRequestWizard({
                 <div key={i} className="flex items-center gap-2">
                   <input
                     value={a.email}
-                    onChange={(e) => updateAttendee(i, { email: e.target.value })}
+                    onChange={(e) =>
+                      updateAttendee(i, { email: e.target.value })
+                    }
                     className={inputCls}
                     placeholder="email@example.com"
                   />
                   <input
                     value={a.name}
-                    onChange={(e) => updateAttendee(i, { name: e.target.value })}
+                    onChange={(e) =>
+                      updateAttendee(i, { name: e.target.value })
+                    }
                     className={`${inputCls} max-w-40`}
                     placeholder="Name"
                   />
@@ -375,53 +445,55 @@ export default function NewRequestWizard({
             </button>
           </div>
 
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={draft.autoBook}
-                onChange={(e) =>
-                  setDraft({ ...draft, autoBook: e.target.checked })
-                }
-                className="h-4 w-4 rounded border border-border text-primary focus:ring-primary"
-              />
-              Book automatically once everyone required agrees
-            </label>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={draft.autoAltTimes}
-                onChange={(e) =>
-                  setDraft({ ...draft, autoAltTimes: e.target.checked })
-                }
-                className="mt-0.5 h-4 w-4 rounded border border-border text-primary focus:ring-primary"
-              />
-              <span>
-                Let Olly act on alternative times attendees suggest{" "}
-                <span className="text-muted-foreground">
-                  within your date window
-                </span>{" "}
-                without checking with you first
-              </span>
-            </label>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={draft.autoAltDates}
-                onChange={(e) =>
-                  setDraft({ ...draft, autoAltDates: e.target.checked })
-                }
-                className="mt-0.5 h-4 w-4 rounded border border-border text-primary focus:ring-primary"
-              />
-              <span>
-                Let Olly act on suggested times{" "}
-                <span className="text-muted-foreground">
-                  outside your date window
-                </span>{" "}
-                without checking with you first
-              </span>
-            </label>
-          </div>
+          {draft.fixedTime ? null : (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.autoBook}
+                  onChange={(e) =>
+                    setDraft({ ...draft, autoBook: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded border border-border text-primary focus:ring-primary"
+                />
+                Book automatically once everyone required agrees
+              </label>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.autoAltTimes}
+                  onChange={(e) =>
+                    setDraft({ ...draft, autoAltTimes: e.target.checked })
+                  }
+                  className="mt-0.5 h-4 w-4 rounded border border-border text-primary focus:ring-primary"
+                />
+                <span>
+                  Let Olly act on alternative times attendees suggest{" "}
+                  <span className="text-muted-foreground">
+                    within your date window
+                  </span>{" "}
+                  without checking with you first
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.autoAltDates}
+                  onChange={(e) =>
+                    setDraft({ ...draft, autoAltDates: e.target.checked })
+                  }
+                  className="mt-0.5 h-4 w-4 rounded border border-border text-primary focus:ring-primary"
+                />
+                <span>
+                  Let Olly act on suggested times{" "}
+                  <span className="text-muted-foreground">
+                    outside your date window
+                  </span>{" "}
+                  without checking with you first
+                </span>
+              </label>
+            </div>
+          )}
 
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
 

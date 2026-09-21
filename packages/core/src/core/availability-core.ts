@@ -21,6 +21,11 @@ export type SchedulingConstraints = {
   /** ISO weekday numbers (Mon=1..Sun=7). Overrides standing workingDays. */
   allowedDays?: number[];
   notes?: string;
+  /**
+   * When set, the time is already agreed: book this exact start (ISO 8601
+   * UTC) directly, with no proposals or email negotiation.
+   */
+  fixedStartISO?: string;
 };
 
 export type SchedulingPreferences = {

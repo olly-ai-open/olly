@@ -15,6 +15,13 @@ Rules:
 - timeOfDay is one of "morning", "afternoon", "evening", "any".
 - Attendees are required by default; only mark optional when the user says so.
 - Derive a short, professional meeting title if none is given.
+- fixedStartISO: when the user gives ONE exact date and time and the wording
+  shows it is already decided ("book", "put it on the calendar", "we agreed
+  on", "already confirmed", "at 2pm on Thursday" with no range or choice),
+  set fixedStartISO to that instant in ISO 8601 UTC, interpreted in the
+  user's time zone, and set windowStartISO/windowEndISO to the same day.
+  When the user wants Olly to find a time, or gives a range, several
+  options, or a vague time of day, set fixedStartISO to null.
 
 Return ONLY a single MINIFIED JSON object:
 {
@@ -23,6 +30,7 @@ Return ONLY a single MINIFIED JSON object:
   "windowStartISO": string,  // ISO 8601 UTC instant
   "windowEndISO": string,    // ISO 8601 UTC instant
   "timeOfDay": "morning" | "afternoon" | "evening" | "any",
+  "fixedStartISO": string | null,
   "attendees": [ { "name": string, "email": string, "required": boolean } ],
   "notes": string            // any other constraint worth honoring, or ""
 }

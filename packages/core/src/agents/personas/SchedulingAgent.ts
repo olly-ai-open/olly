@@ -60,6 +60,8 @@ export type ParsedSchedulingDirection = {
   windowStartISO: string;
   windowEndISO: string;
   timeOfDay: TimeOfDayPreference;
+  /** Set when the user stated an already-agreed exact time to book directly. */
+  fixedStartISO: string | null;
   attendees: Array<{ name: string; email: string; required: boolean }>;
   notes: string;
 };
@@ -104,6 +106,11 @@ export async function parseSchedulingDirection(input: {
     timeOfDay: ["morning", "afternoon", "evening", "any"].includes(parsed.timeOfDay)
       ? parsed.timeOfDay
       : "any",
+    fixedStartISO:
+      typeof parsed.fixedStartISO === "string" &&
+      Number.isFinite(Date.parse(parsed.fixedStartISO))
+        ? new Date(parsed.fixedStartISO).toISOString()
+        : null,
     attendees: parsed.attendees
       .filter((a) => a && (a.email || a.name))
       .map((a) => ({

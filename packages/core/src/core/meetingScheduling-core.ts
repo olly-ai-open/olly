@@ -253,6 +253,51 @@ export async function startSchedulingRequestCore(
   const settings = await getUserSettingsCore(request.userId);
   const timeZone = settings.timeZone || "UTC";
   const constraints = request.constraints as unknown as SchedulingConstraints;
+  const ctx = { token, userEmail, userName, timeZone };
+
+  // Time already agreed elsewhere: book it directly, no proposals and no
+  // negotiation. Attendees get the calendar invitation itself and nothing
+  // else. If the owner's own calendar has a conflict, hold for one click
+  // instead of booking over it.
+  if (constraints.fixedStartISO) {
+    const start = new Date(constraints.fixedStartISO);
+    const end = new Date(start.getTime() + request.durationMinutes * 60 * 1000);
+    const slot: TimeSlot = { startISO: start.toISOString(), endISO: end.toISOString() };
+
+    let conflictTitle: string | null = null;
+    try {
+      const ownerBusy = await loadOwnerBusy(token, userEmail, start, end);
+      const overlapping = ownerBusy.events.find(
+        (e) => e.start < end.getTime() && e.end > start.getTime(),
+      );
+      if (overlapping) conflictTitle = overlapping.title || "another event";
+      else if (
+        ownerBusy.busy.some(
+          (b) => Date.parse(b.start) < end.getTime() && Date.parse(b.end) > start.getTime(),
+        )
+      ) {
+        conflictTitle = "a busy block";
+      }
+    } catch {
+      // Calendar lookup failing must not block a time the user already agreed.
+    }
+
+    if (conflictTitle) {
+      await prisma.schedulingRequest.update({
+        where: { id: request.id },
+        data: {
+          status: "READY_TO_BOOK",
+          bookedSlot: slot as any,
+          attentionReason: `This time overlaps ${conflictTitle} on your calendar. Book anyway, or cancel and pick another time.`,
+          lastPolledAt: new Date(),
+        },
+      });
+      return { status: "READY_TO_BOOK" as const, proposals: [slot] };
+    }
+
+    await bookRequest(prisma, request.id, slot, ctx, { notifyThread: false });
+    return { status: "BOOKED" as const, proposals: [slot] };
+  }
 
   const attendeeEmails = request.attendees.map((a) => a.email);
   const windowStart = new Date(constraints.windowStartISO);
@@ -870,6 +915,14 @@ async function bookRequest(
   requestId: string,
   slot: TimeSlot,
   ctx: { token: string; userEmail: string; userName: string; timeZone: string },
+  options: {
+    /**
+     * Send the courtesy confirmation email on the scheduling thread. Off for
+     * fixed-time bookings, where there was never a thread and the calendar
+     * invitation is the only message attendees should get.
+     */
+    notifyThread?: boolean;
+  } = {},
 ) {
   const request = await prisma.schedulingRequest.findUnique({
     where: { id: requestId },
@@ -895,6 +948,8 @@ async function bookRequest(
       lastPolledAt: new Date(),
     },
   });
+
+  if (options.notifyThread === false) return event;
 
   // Confirm on the thread so attendees see closure even before the invite.
   const confirmation = [
@@ -948,6 +1003,7 @@ export async function confirmSchedulingRequestCore(
     request.userId,
   );
   const settings = await getUserSettingsCore(request.userId);
+  const constraints = request.constraints as unknown as SchedulingConstraints | null;
   return bookRequest(
     prisma,
     requestId,
@@ -958,6 +1014,8 @@ export async function confirmSchedulingRequestCore(
       userName,
       timeZone: settings.timeZone || "UTC",
     },
+    // A fixed-time request never had an email thread to confirm on.
+    { notifyThread: !constraints?.fixedStartISO },
   );
 }
 

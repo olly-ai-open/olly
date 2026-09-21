@@ -51,8 +51,22 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const windowStart = Date.parse(constraints?.windowStartISO || "");
-  const windowEnd = Date.parse(constraints?.windowEndISO || "");
+  // Fixed time: the user already agreed a start with attendees elsewhere.
+  // The window collapses to the meeting itself.
+  const fixedStart = Date.parse(constraints?.fixedStartISO || "");
+  const hasFixedStart = Number.isFinite(fixedStart);
+  if (hasFixedStart && fixedStart < Date.now() - 5 * 60 * 1000) {
+    return NextResponse.json(
+      { error: "fixedStartISO must be in the future" },
+      { status: 400 },
+    );
+  }
+  const windowStart = hasFixedStart
+    ? fixedStart
+    : Date.parse(constraints?.windowStartISO || "");
+  const windowEnd = hasFixedStart
+    ? fixedStart + Math.round(durationMinutes) * 60 * 1000
+    : Date.parse(constraints?.windowEndISO || "");
   if (
     !Number.isFinite(windowStart) ||
     !Number.isFinite(windowEnd) ||
@@ -89,6 +103,9 @@ export async function POST(req: NextRequest) {
           ? constraints.timeOfDay
           : "any",
         notes: typeof constraints?.notes === "string" ? constraints.notes : "",
+        ...(hasFixedStart && {
+          fixedStartISO: new Date(fixedStart).toISOString(),
+        }),
       },
       attendees: validAttendees.map((a: any) => ({
         email: a.email.trim(),

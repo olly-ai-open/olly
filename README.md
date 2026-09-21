@@ -53,6 +53,7 @@ before changing either.
 - **People.** A page per person you meet with, built from your interactions.
 - **Meeting scheduling.** Describe a meeting, and Olly negotiates a time
   with attendees over email, checks your calendar, and asks you to approve.
+  Already agreed on a time? Say so, and it books it directly.
 - **Generate documents.** One-off documents drafted from the sources you
   pick, and user stories that export to Jira.
 - **Integrations.** Google Calendar, Gmail, and Drive; Slack; Notion; Jira;
