@@ -88,6 +88,9 @@ Compared with a [self-hosted server](self-hosting.md):
   no background service or launch agent.
 - **Meeting scheduling polls only while open.** The Gmail negotiation flow
   checks for replies every five minutes, but only while Olly is running.
+- **Brief emails are sent when the brief is generated**, from your own
+  Gmail account, so they follow the same rule: a meeting brief set to
+  arrive five minutes before a meeting is only sent if Olly is open then.
 - **Single user.** One Google account per install. There is no team, no
   sharing, and no admin dashboard worth looking at.
 - **No push notifications.** Electron has no push service, so the VAPID keys

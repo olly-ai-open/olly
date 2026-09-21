@@ -84,11 +84,16 @@ way:
 - `GET /api/cron/scheduler` decides what is due and inserts jobs:
   morning and evening briefs from each user's `Schedule` rows, a
   `CALENDAR_SYNC` per connected user about once an hour, a `MEETING_BRIEF`
-  five minutes before each meeting in the next two hours, and a
+  before each meeting in the next two hours by the user's lead-time
+  setting (default five minutes), and a
   `SCHEDULING_POLL` for meeting negotiations awaiting replies.
 - `GET /api/cron/worker` claims up to 25 due jobs with a lock, runs each one
   through `packages/core/src/jobs.ts`, and retries failures with backoff up
-  to five attempts.
+  to five attempts. When a brief job finishes, the worker fires the
+  delivery hooks: a web push if VAPID keys are configured, and an email
+  from the user's own Gmail if the email setting is on
+  (`packages/core/src/core/briefEmail-core.ts`). Both are best effort and
+  never fail the job.
 
 Both routes require `Authorization: Bearer <CRON_SECRET>` in production.
 
