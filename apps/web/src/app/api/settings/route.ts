@@ -73,6 +73,8 @@ export async function GET() {
           gemini: getDefaultLLMModel("gemini"),
         },
         builtInModels: DEFAULT_MODELS,
+        // Keys can be entered in Settings only on the desktop app.
+        keysEditable: process.env.OLLY_DESKTOP === "1",
       },
     });
   } catch (error) {

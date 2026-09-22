@@ -70,7 +70,27 @@ function serializeEnv(obj: Record<string, string>) {
   );
 }
 
+const KEY_BY_PROVIDER: Record<string, string> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  openai: "OPENAI_API_KEY",
+  gemini: "GEMINI_API_KEY",
+};
+
+/**
+ * Save an LLM API key on the desktop app.
+ *
+ * Writes secrets.env for the next launch and applies the same values to
+ * this server's own environment, so the new key is used from the next
+ * request with no restart. Keys for other providers are kept, which lets
+ * the Settings page offer every provider that has one.
+ *
+ * Desktop only: on a server this would write to the host's filesystem and
+ * bypass the operator's environment.
+ */
 export async function POST(req: NextRequest) {
+  if (process.env.OLLY_DESKTOP !== "1" && process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "not_available" }, { status: 404 });
+  }
   try {
     const body = await req.json();
     const provider = body?.provider;
@@ -98,17 +118,16 @@ export async function POST(req: NextRequest) {
       LLM_PROVIDER: provider,
     };
 
-    // One provider at a time on the desktop: keep only the chosen key.
-    delete nextValues.ANTHROPIC_API_KEY;
-    delete nextValues.OPENAI_API_KEY;
-    delete nextValues.GEMINI_API_KEY;
-    if (provider === "anthropic") nextValues.ANTHROPIC_API_KEY = apiKey;
-    if (provider === "openai") nextValues.OPENAI_API_KEY = apiKey;
-    if (provider === "gemini") nextValues.GEMINI_API_KEY = apiKey;
+    nextValues[KEY_BY_PROVIDER[provider]] = apiKey;
 
     fs.writeFileSync(file, serializeEnv(nextValues), "utf8");
 
-    return NextResponse.json({ ok: true, provider });
+    // Take effect now: the model factory and the first-run gate both read
+    // process.env at request time.
+    process.env.LLM_PROVIDER = provider;
+    process.env[KEY_BY_PROVIDER[provider]] = apiKey;
+
+    return NextResponse.json({ ok: true, provider, applied: true });
   } catch {
     return NextResponse.json(
       { error: "Failed to save secrets" },

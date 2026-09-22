@@ -29,6 +29,7 @@ interface UserSettings {
     defaultProvider: "openai" | "anthropic" | "gemini";
     available: Record<"openai" | "anthropic" | "gemini", boolean>;
     defaultModels: Record<"openai" | "anthropic" | "gemini", string>;
+    keysEditable?: boolean;
   };
   createdAt: string;
   updatedAt: string;
@@ -120,6 +121,50 @@ function WeekdaySelector({
 
 export default function SettingsForm() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [keyProvider, setKeyProvider] = useState<"openai" | "anthropic" | "gemini">("anthropic");
+  const [keyValue, setKeyValue] = useState("");
+  const [keySaving, setKeySaving] = useState(false);
+  const [keyMessage, setKeyMessage] = useState("");
+
+  // Desktop only: save or replace an API key without leaving Settings. The
+  // server applies it immediately, so no restart is needed.
+  const saveApiKey = async () => {
+    if (!keyValue.trim()) return;
+    setKeySaving(true);
+    setKeyMessage("");
+    try {
+      const res = await fetch("/api/setup/secrets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: keyProvider, apiKey: keyValue.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setKeyMessage(data?.error || "Failed to save the key");
+        return;
+      }
+      // Refresh which providers have keys and switch this user to the new one.
+      const fresh = await fetch("/api/settings").then((r) => (r.ok ? r.json() : null));
+      setSettings((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...(fresh?.llm && { llm: fresh.llm }),
+              llmProvider: keyProvider,
+              llmModel: null,
+            }
+          : prev,
+      );
+      setKeyValue("");
+      setKeyMessage(
+        "Key saved and in use. Click Save Settings below to keep this provider selected.",
+      );
+    } catch {
+      setKeyMessage("Failed to save the key");
+    } finally {
+      setKeySaving(false);
+    }
+  };
   const [schedules, setSchedules] = useState<Schedule[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -645,9 +690,64 @@ export default function SettingsForm() {
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Leave the model blank to use the default shown. Enter any model ID
-          your provider offers to use a newer one. API keys are set by whoever
-          runs this deployment; providers without a key cannot be selected.
+          your provider offers to use a newer one.
+          {settings.llm?.keysEditable
+            ? " Providers without a key cannot be selected; add one below."
+            : " API keys are set by whoever runs this deployment; providers without a key cannot be selected."}
         </p>
+
+        {settings.llm?.keysEditable ? (
+          <div className="mt-4 rounded-md border border-border/70 p-3">
+            <p className="text-xs font-medium text-foreground">API keys</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Add a key for another provider, or replace one that was revoked.
+              Takes effect immediately; no restart needed.
+            </p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-[10rem_1fr_auto]">
+              <select
+                aria-label="Provider for the key"
+                value={keyProvider}
+                onChange={(e) =>
+                  setKeyProvider(e.target.value as "openai" | "anthropic" | "gemini")
+                }
+                className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {(["anthropic", "openai", "gemini"] as const).map((p) => (
+                  <option key={p} value={p}>
+                    {LLM_PROVIDER_LABELS[p]}
+                    {settings.llm?.available[p] ? " (key saved)" : ""}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="password"
+                aria-label="API key"
+                value={keyValue}
+                onChange={(e) => setKeyValue(e.target.value)}
+                placeholder={
+                  keyProvider === "anthropic"
+                    ? "sk-ant-..."
+                    : keyProvider === "openai"
+                      ? "sk-..."
+                      : "AIza..."
+                }
+                autoComplete="off"
+                className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button
+                type="button"
+                onClick={saveApiKey}
+                disabled={keySaving || !keyValue.trim()}
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {keySaving ? "Saving..." : "Save key"}
+              </button>
+            </div>
+            {keyMessage ? (
+              <p className="mt-2 text-xs text-muted-foreground">{keyMessage}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div>

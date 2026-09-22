@@ -1,19 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 type Provider = "anthropic" | "openai" | "gemini";
 
-type OllyDesktop = { isDesktop?: boolean; restart?: () => void };
-
-const RESTART_SECONDS = 5;
-
-function getDesktop(): OllyDesktop | undefined {
-  if (typeof window === "undefined") return undefined;
-  return (window as unknown as { ollyDesktop?: OllyDesktop }).ollyDesktop;
-}
 
 const PROVIDERS: { value: Provider; label: string }[] = [
   { value: "anthropic", label: "Claude (Anthropic)" },
@@ -52,31 +44,9 @@ export default function SetupPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(RESTART_SECONDS);
 
   const copy = PROVIDER_COPY[provider];
 
-  useEffect(() => {
-    setIsDesktop(Boolean(getDesktop()?.isDesktop));
-  }, []);
-
-  const restart = useCallback(() => {
-    getDesktop()?.restart?.();
-  }, []);
-
-  // After a successful save in the desktop app, count down and relaunch.
-  useEffect(() => {
-    if (!saved || !isDesktop) return;
-
-    if (secondsLeft <= 0) {
-      restart();
-      return;
-    }
-
-    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [saved, isDesktop, secondsLeft, restart]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -98,8 +68,10 @@ export default function SetupPage() {
         return;
       }
 
-      setSecondsLeft(RESTART_SECONDS);
       setSaved(true);
+      // The server applied the key in place; the first-run gate now lets
+      // requests through. Head to the dashboard.
+      setTimeout(() => window.location.assign("/"), 800);
     } catch {
       setError("Failed to save settings");
     } finally {
@@ -133,25 +105,9 @@ export default function SetupPage() {
               <p className="text-sm font-medium text-foreground">
                 API key saved
               </p>
-              {isDesktop ? (
-                <>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Olly needs to restart to finish setting up. Restarting
-                    automatically in {secondsLeft}s…
-                  </p>
-                  <button
-                    type="button"
-                    onClick={restart}
-                    className="mt-4 inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-                  >
-                    Restart now
-                  </button>
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Please quit and reopen Olly to finish setting up.
-                </p>
-              )}
+              <p className="mt-1 text-sm text-muted-foreground">
+                Opening Olly…
+              </p>
             </div>
           ) : (
             <form onSubmit={handleSave} className="mt-6 space-y-5">

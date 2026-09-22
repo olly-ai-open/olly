@@ -208,8 +208,8 @@ for example `1.0.3-build.14`, so no two are alike.
    **Windows:** run the installer. It creates a desktop shortcut.
 2. Olly shows a loading window, initialises its private Postgres, applies
    migrations, and starts the local server. First launch takes longer.
-3. The **setup screen** asks for an LLM provider and key. Save. The app
-   restarts itself after a short countdown.
+3. The **setup screen** asks for an LLM provider and key. Save, and the
+   dashboard opens. You can add other providers' keys later in Settings.
 4. Sign in with Google. If your consent screen is in Testing mode, use an
    address you listed as a test user.
 5. Open **Integrations** and connect Google (calendar, Gmail, Drive) and

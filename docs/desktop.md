@@ -19,7 +19,8 @@ not work compared with running Olly as a server. To build it, see
   under your user profile. No system Postgres is installed or touched.
 - A job loop that runs the scheduler and worker once a minute while the app
   is open, so morning, evening, and meeting briefs generate on schedule.
-- A first-run setup screen where you paste your own OpenAI or Anthropic key.
+- A first-run setup screen where you paste your own OpenAI, Anthropic, or
+  Gemini key. Keys can be added or replaced later in Settings.
 
 ## Benefits
 
@@ -103,10 +104,9 @@ Compared with a [self-hosted server](self-hosting.md):
   computer.
 - **Port 3000 must be free.** The app refuses to start if something else is
   listening on it.
-- **One LLM key at a time.** The setup screen takes an OpenAI, Anthropic, or
-  Gemini key; switching provider means entering the other key. The model
-  can be changed any time in Settings.
-- **Saving a new LLM key restarts the app.** Keys are read at startup.
+- **Your keys, your account.** Settings lets you add a key for a second
+  provider, replace a revoked key, and pick the provider, model, and
+  reasoning effort. Changes apply to the next brief; no restart.
 - **Closing the window quits the app** on every platform, including macOS.
 - **No telemetry, no tracing.** Langfuse and New Relic keys are stripped.
   That is a feature for privacy and a limitation for debugging.
