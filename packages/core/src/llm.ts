@@ -27,7 +27,9 @@ export const LLM_PROVIDER_LABELS: Record<LLMProvider, string> = {
  * defaults do not go stale.
  */
 export const DEFAULT_MODELS: Record<LLMProvider, string> = {
-  openai: "gpt-4.1-mini",
+  // OpenAI's current model optimised for cost-sensitive workloads
+  // (developers.openai.com/api/docs/models, September 2026).
+  openai: "gpt-5.6-luna",
   anthropic: "claude-sonnet-5",
   gemini: "gemini-flash-latest",
 };
