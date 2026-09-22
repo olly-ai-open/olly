@@ -89,10 +89,15 @@ Compared with a [self-hosted server](self-hosting.md):
   no background service or launch agent.
 - **Meeting scheduling polls only while open.** The Gmail negotiation flow
   checks for replies every five minutes, but only while Olly is running.
-- **Meetings added at short notice may be missed.** Olly re-reads your
-  calendar on the interval set in Settings, hourly by default. On the
-  desktop you can safely set it to every 15 minutes; the extra work runs
-  only on your own machine.
+- **Calendar changes made less than an hour ahead may be missed.** Olly
+  re-reads your calendar on the interval set in Settings, hourly by
+  default, and queues meeting briefs from that copy. A meeting created or
+  moved after the last check, to a time less than one check away, gets no
+  automatic brief and no email. The dashboard is not affected, because it
+  reads your calendar live. For such a meeting, open the dashboard and
+  click **Generate brief** on the meeting card; the brief and its email
+  follow within a minute. On the desktop you can safely set the check to
+  every 15 minutes; the extra work runs only on your own machine.
 - **Brief emails are sent when the brief is generated**, from your own
   Gmail account, so they follow the same rule: a meeting brief set to
   arrive five minutes before a meeting is only sent if Olly is open then.

@@ -184,6 +184,13 @@ curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://olly.example.com/api/c
 A system crontab entry, a Kubernetes CronJob, or any scheduler that can
 send an HTTP request is fine. Each call finishes within about 50 seconds.
 The scheduler creates jobs that are due; the worker runs up to 25 of them.
+
+Meeting briefs are queued from a copy of each user's calendar that is
+refreshed on the user's chosen interval (hourly by default). A meeting
+created or moved less than one interval ahead of its start gets no
+automatic brief; the user can click **Generate brief** on the dashboard's
+meeting card instead. Shortening the interval multiplies the sync jobs per
+user; see the capacity note in [docs/architecture.md](architecture.md).
 Running them more often than once a minute gains nothing.
 
 A `Dockerfile` is not provided. The three blocks above are what one would

@@ -98,6 +98,19 @@ way:
 
 Both routes require `Authorization: Bearer <CRON_SECRET>` in production.
 
+**Known gap: calendar changes inside one sync interval.** Meeting briefs
+are queued from the synced `Meeting` table, not from the live calendar, so
+a meeting created or moved after the last sync, to a time less than one
+interval away, gets no automatic brief. The dashboard and the manual
+**Generate brief** button read the calendar live and are the workaround.
+Polling more often is the wrong fix on a server: the worker runs at most
+25 jobs per minute, so an hourly sync scales to roughly a thousand users
+while a five-minute sync saturates it near a hundred. The right fix for
+servers is Google Calendar push notifications (a `watch` channel per user,
+renewed weekly, hitting a public webhook that syncs only that user); the
+desktop, which has no public URL, can safely poll every few minutes since
+its worker serves one user on that user's own machine. Neither is built.
+
 To add background work: add a kind to `JobKind` in `jobs.ts`, add a case to
 the dispatcher there, and add whatever enqueues it, either a new rule in
 `cron-runtime.ts` or a `prisma.job.create` from a feature. Never add a
