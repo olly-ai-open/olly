@@ -76,6 +76,13 @@ const STRIP_KEYS = [
   "VAPID_PUBLIC_KEY",
   "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
   "VAPID_SUBJECT",
+  // (6) The builder's own model and temperature preferences. The app has
+  //     current defaults in code, and each user picks a model in Settings.
+  "OPENAI_MODEL",
+  "ANTHROPIC_MODEL",
+  "GOOGLE_MODEL",
+  "LLM_TEMPERATURE",
+  "OPENAI_TEMPERATURE",
 ];
 
 function keyOfLine(line) {

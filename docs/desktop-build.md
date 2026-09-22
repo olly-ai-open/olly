@@ -103,12 +103,11 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 # Optional
 SLACK_CLIENT_ID=
 SLACK_CLIENT_SECRET=
-
-# Optional model overrides. The key itself is entered in the app.
-OPENAI_MODEL=gpt-4.1-mini
-ANTHROPIC_MODEL=claude-haiku-4-5-20251202
-LLM_TEMPERATURE=0.2
 ```
+
+Model names and temperature settings in this file are stripped from the
+installer; the app ships with current defaults and each user picks a model
+in Settings.
 
 Do not add an LLM key, a database URL, an auth secret, or an encryption key.
 The build strips them, and if a stripped key somehow survives the build

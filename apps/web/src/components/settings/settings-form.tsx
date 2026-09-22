@@ -121,13 +121,55 @@ function WeekdaySelector({
 
 export default function SettingsForm() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [keyProvider, setKeyProvider] = useState<"openai" | "anthropic" | "gemini">("anthropic");
+  type Provider = "openai" | "anthropic" | "gemini";
+  type ModelOption = { id: string; label: string };
   const [keyValue, setKeyValue] = useState("");
   const [keySaving, setKeySaving] = useState(false);
   const [keyMessage, setKeyMessage] = useState("");
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [modelOptions, setModelOptions] = useState<Partial<Record<Provider, ModelOption[]>>>({});
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [customModel, setCustomModel] = useState(false);
 
-  // Desktop only: save or replace an API key without leaving Settings. The
-  // server applies it immediately, so no restart is needed.
+  // The provider in effect for this user: their choice, else the deployment default.
+  const effectiveProvider: Provider =
+    settings?.llmProvider ?? settings?.llm?.defaultProvider ?? "openai";
+  const providerHasKey = Boolean(settings?.llm?.available?.[effectiveProvider]);
+
+  // Load the provider's current model list once the provider has a key.
+  useEffect(() => {
+    if (!settings || !providerHasKey || modelOptions[effectiveProvider]) return;
+    let cancelled = false;
+    setModelsLoading(true);
+    fetch(`/api/llm/models?provider=${effectiveProvider}`)
+      .then((r) => (r.ok ? r.json() : { models: [] }))
+      .then((data) => {
+        if (cancelled) return;
+        setModelOptions((prev) => ({ ...prev, [effectiveProvider]: data.models || [] }));
+      })
+      .catch(() => {
+        if (!cancelled) setModelOptions((prev) => ({ ...prev, [effectiveProvider]: [] }));
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveProvider, providerHasKey, settings?.llm]);
+
+  // If the saved model is not in the provider's list, show the custom field.
+  useEffect(() => {
+    const list = modelOptions[effectiveProvider];
+    if (!settings?.llmModel || !list?.length) return;
+    if (!list.some((m) => m.id === settings.llmModel)) setCustomModel(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelOptions, effectiveProvider]);
+
+  // Desktop only: save or replace the selected provider's API key. The
+  // server applies it immediately, so no restart is needed, and the
+  // provider choice is persisted at the same time.
   const saveApiKey = async () => {
     if (!keyValue.trim()) return;
     setKeySaving(true);
@@ -136,29 +178,34 @@ export default function SettingsForm() {
       const res = await fetch("/api/setup/secrets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: keyProvider, apiKey: keyValue.trim() }),
+        body: JSON.stringify({ provider: effectiveProvider, apiKey: keyValue.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setKeyMessage(data?.error || "Failed to save the key");
         return;
       }
-      // Refresh which providers have keys and switch this user to the new one.
+      await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ llmProvider: effectiveProvider, llmModel: null }),
+      });
       const fresh = await fetch("/api/settings").then((r) => (r.ok ? r.json() : null));
       setSettings((prev) =>
         prev
           ? {
               ...prev,
               ...(fresh?.llm && { llm: fresh.llm }),
-              llmProvider: keyProvider,
+              llmProvider: effectiveProvider,
               llmModel: null,
             }
           : prev,
       );
+      setModelOptions((prev) => ({ ...prev, [effectiveProvider]: undefined }));
       setKeyValue("");
-      setKeyMessage(
-        "Key saved and in use. Click Save Settings below to keep this provider selected.",
-      );
+      setShowKeyInput(false);
+      setCustomModel(false);
+      setKeyMessage("Key saved and in use.");
     } catch {
       setKeyMessage("Failed to save the key");
     } finally {
@@ -616,26 +663,42 @@ export default function SettingsForm() {
             <select
               id="llmProvider"
               value={settings.llmProvider ?? ""}
-              onChange={(e) =>
+              onChange={(e) => {
                 setSettings({
                   ...settings,
                   llmProvider: (e.target.value || null) as UserSettings["llmProvider"],
                   llmModel: null,
-                })
-              }
+                });
+                setCustomModel(false);
+                setShowKeyInput(false);
+                setKeyMessage("");
+              }}
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">
                 Default (
                 {LLM_PROVIDER_LABELS[settings.llm?.defaultProvider ?? "openai"]})
               </option>
-              {(["openai", "anthropic", "gemini"] as const).map((p) => (
-                <option key={p} value={p} disabled={!settings.llm?.available[p]}>
+              {(["anthropic", "openai", "gemini"] as const).map((p) => (
+                <option
+                  key={p}
+                  value={p}
+                  disabled={!settings.llm?.available[p] && !settings.llm?.keysEditable}
+                >
                   {LLM_PROVIDER_LABELS[p]}
-                  {settings.llm?.available[p] ? "" : " (no key configured)"}
+                  {settings.llm?.available[p] ? "" : " (no key yet)"}
                 </option>
               ))}
             </select>
+            {settings.llm?.keysEditable && providerHasKey && !showKeyInput ? (
+              <button
+                type="button"
+                onClick={() => setShowKeyInput(true)}
+                className="mt-1 text-xs text-muted-foreground hover:underline"
+              >
+                Replace the {LLM_PROVIDER_LABELS[effectiveProvider]} key
+              </button>
+            ) : null}
           </div>
           <div>
             <label
@@ -644,22 +707,107 @@ export default function SettingsForm() {
             >
               Model
             </label>
-            <input
-              id="llmModel"
-              type="text"
-              value={settings.llmModel ?? ""}
-              onChange={(e) =>
-                setSettings({ ...settings, llmModel: e.target.value || null })
-              }
-              placeholder={
-                settings.llm?.defaultModels[
-                  settings.llmProvider ?? settings.llm?.defaultProvider ?? "openai"
-                ] ?? ""
-              }
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            />
+            {(modelOptions[effectiveProvider]?.length ?? 0) > 0 && !customModel ? (
+              <select
+                id="llmModel"
+                value={settings.llmModel ?? ""}
+                onChange={(e) => {
+                  if (e.target.value === "__custom__") {
+                    setCustomModel(true);
+                    return;
+                  }
+                  setSettings({ ...settings, llmModel: e.target.value || null });
+                }}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">
+                  Default ({settings.llm?.defaultModels[effectiveProvider]})
+                </option>
+                {modelOptions[effectiveProvider]!.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+                <option value="__custom__">Other model ID…</option>
+              </select>
+            ) : (
+              <input
+                id="llmModel"
+                type="text"
+                value={settings.llmModel ?? ""}
+                onChange={(e) =>
+                  setSettings({ ...settings, llmModel: e.target.value || null })
+                }
+                placeholder={
+                  modelsLoading
+                    ? "Loading models…"
+                    : (settings.llm?.defaultModels[effectiveProvider] ?? "")
+                }
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            )}
+            {customModel && (modelOptions[effectiveProvider]?.length ?? 0) > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomModel(false);
+                  setSettings({ ...settings, llmModel: null });
+                }}
+                className="mt-1 text-xs text-muted-foreground hover:underline"
+              >
+                Choose from the list instead
+              </button>
+            ) : null}
           </div>
         </div>
+
+        {settings.llm?.keysEditable && (!providerHasKey || showKeyInput) ? (
+          <div className="mt-3 rounded-md border border-border/70 p-3">
+            <p className="text-xs font-medium text-foreground">
+              {providerHasKey
+                ? `Replace your ${LLM_PROVIDER_LABELS[effectiveProvider]} key`
+                : `Add your ${LLM_PROVIDER_LABELS[effectiveProvider]} key to use it`}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Takes effect immediately; no restart needed.
+            </p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <input
+                type="password"
+                aria-label="API key"
+                value={keyValue}
+                onChange={(e) => setKeyValue(e.target.value)}
+                placeholder={
+                  effectiveProvider === "anthropic"
+                    ? "sk-ant-..."
+                    : effectiveProvider === "openai"
+                      ? "sk-..."
+                      : "AIza..."
+                }
+                autoComplete="new-password"
+                className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button
+                type="button"
+                onClick={saveApiKey}
+                disabled={keySaving || !keyValue.trim()}
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {keySaving ? "Saving..." : "Save key"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {keyMessage ? (
+          <p className="mt-2 text-xs text-muted-foreground">{keyMessage}</p>
+        ) : null}
+        {!settings.llm?.keysEditable && !providerHasKey ? (
+          <p className="mt-2 text-xs text-destructive">
+            No key is configured for this provider on this deployment. Ask
+            whoever runs it to add one.
+          </p>
+        ) : null}
+
         <div className="mt-4 max-w-xs">
           <label
             htmlFor="llmEffort"
@@ -689,65 +837,10 @@ export default function SettingsForm() {
           </p>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Leave the model blank to use the default shown. Enter any model ID
-          your provider offers to use a newer one.
-          {settings.llm?.keysEditable
-            ? " Providers without a key cannot be selected; add one below."
-            : " API keys are set by whoever runs this deployment; providers without a key cannot be selected."}
+          The model list comes from your provider, so newer models appear as
+          they are released. Leave it on Default to follow Olly&apos;s
+          recommended model.
         </p>
-
-        {settings.llm?.keysEditable ? (
-          <div className="mt-4 rounded-md border border-border/70 p-3">
-            <p className="text-xs font-medium text-foreground">API keys</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Add a key for another provider, or replace one that was revoked.
-              Takes effect immediately; no restart needed.
-            </p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-[10rem_1fr_auto]">
-              <select
-                aria-label="Provider for the key"
-                value={keyProvider}
-                onChange={(e) =>
-                  setKeyProvider(e.target.value as "openai" | "anthropic" | "gemini")
-                }
-                className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {(["anthropic", "openai", "gemini"] as const).map((p) => (
-                  <option key={p} value={p}>
-                    {LLM_PROVIDER_LABELS[p]}
-                    {settings.llm?.available[p] ? " (key saved)" : ""}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="password"
-                aria-label="API key"
-                value={keyValue}
-                onChange={(e) => setKeyValue(e.target.value)}
-                placeholder={
-                  keyProvider === "anthropic"
-                    ? "sk-ant-..."
-                    : keyProvider === "openai"
-                      ? "sk-..."
-                      : "AIza..."
-                }
-                autoComplete="off"
-                className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              <button
-                type="button"
-                onClick={saveApiKey}
-                disabled={keySaving || !keyValue.trim()}
-                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {keySaving ? "Saving..." : "Save key"}
-              </button>
-            </div>
-            {keyMessage ? (
-              <p className="mt-2 text-xs text-muted-foreground">{keyMessage}</p>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
       <div>

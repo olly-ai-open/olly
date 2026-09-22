@@ -70,7 +70,6 @@ app. After stripping, it contains only:
 
 - Your Google OAuth client ID and secret
 - Your Slack app client ID and secret, if you set one up
-- Optional model names and temperature
 - `NEXTAUTH_URL=http://localhost:3000`
 
 The Google client secret is inside the app bundle in plaintext. That is how
