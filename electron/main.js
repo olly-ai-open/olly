@@ -16,7 +16,7 @@ const {
   applyUserSecretsToProcessEnv,
   hasRequiredLlmEnv,
 } = require("./lib/user-secrets");
-const { app, ipcMain, powerMonitor } = require("electron");
+const { app, ipcMain, powerMonitor, session } = require("electron");
 const fs = require("node:fs");
 const dotenv = require("dotenv");
 
@@ -176,6 +176,17 @@ async function bootstrap() {
     log("[cron] system resumed — running catch-up tick");
     if (cronLoop) cronLoop.runNow();
   });
+
+  // The setup screen sets a cookie so the first-run gate opens without a
+  // restart. On launch the environment is the truth again, so drop it.
+  try {
+    await session.defaultSession.cookies.remove(
+      `http://localhost:${APP_PORT}`,
+      "olly_llm_ready",
+    );
+  } catch (err) {
+    log("Could not clear the setup cookie:", err && err.message);
+  }
 
   const targetUrl = needsLlmSetup
     ? `http://localhost:${APP_PORT}/setup`

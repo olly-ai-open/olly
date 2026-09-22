@@ -14,7 +14,13 @@ export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
   const isDesktop = process.env.OLLY_DESKTOP === "1";
+  // Middleware runs in a sandbox whose process.env is a copy taken at
+  // startup, so a key saved on the setup screen is not visible here until
+  // the next launch. The save-key route sets this cookie to bridge the gap;
+  // Electron clears it on every launch.
+  const savedThisSession = req.cookies.get("olly_llm_ready")?.value === "1";
   const hasLlm =
+    savedThisSession ||
     Boolean(process.env.OPENAI_API_KEY) ||
     Boolean(process.env.ANTHROPIC_API_KEY) ||
     Boolean(process.env.GEMINI_API_KEY);

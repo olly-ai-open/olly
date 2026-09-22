@@ -70,6 +70,9 @@ function serializeEnv(obj: Record<string, string>) {
   );
 }
 
+/** Also checked by middleware; see apps/web/src/middleware.ts. */
+const LLM_READY_COOKIE = "olly_llm_ready";
+
 const KEY_BY_PROVIDER: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
@@ -122,12 +125,23 @@ export async function POST(req: NextRequest) {
 
     fs.writeFileSync(file, serializeEnv(nextValues), "utf8");
 
-    // Take effect now: the model factory and the first-run gate both read
-    // process.env at request time.
+    // Take effect now for model calls, which read process.env at request
+    // time.
     process.env.LLM_PROVIDER = provider;
     process.env[KEY_BY_PROVIDER[provider]] = apiKey;
 
-    return NextResponse.json({ ok: true, provider, applied: true });
+    // The first-run gate lives in middleware, which runs in a sandbox with
+    // its own copy of the environment taken at startup, so it cannot see
+    // the key we just set. Tell it through a cookie instead. Electron
+    // clears the cookie on every launch, when the environment is fresh.
+    const res = NextResponse.json({ ok: true, provider, applied: true });
+    res.cookies.set(LLM_READY_COOKIE, "1", {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
+    return res;
   } catch {
     return NextResponse.json(
       { error: "Failed to save secrets" },
