@@ -100,7 +100,9 @@ Example format:
         }),
       ),
     });
-    const { object: parsed } = await createStructuredCompletion(
+    const { object: parsed } = await createStructuredCompletion<
+      z.infer<typeof StoriesSchema>
+    >(
       [{ role: "user", content: prompt }],
       StoriesSchema,
       { model: modelName, name: "user_stories" },

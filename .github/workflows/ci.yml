@@ -28,4 +28,8 @@ jobs:
         run: npm run lint --workspace=apps/web
 
       - name: Typecheck
+        env:
+          # The type checker peaks near 2 GB on this codebase; the runner's
+          # default heap is smaller than that.
+          NODE_OPTIONS: --max-old-space-size=4096
         run: npm run typecheck --workspace=apps/web

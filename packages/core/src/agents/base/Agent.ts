@@ -1,5 +1,4 @@
-import { ToolLoopAgent, Output, stepCountIs, type LanguageModel } from 'ai';
-import type { z } from 'zod';
+import { ToolLoopAgent, Output, stepCountIs, type FlexibleSchema, type LanguageModel } from 'ai';
 import { AgentMemory, InMemoryAgentMemory } from './Memory';
 import { OllyTool, ToolContext, toAITool } from './Tool';
 import { wrapLanguageModel } from 'ai';
@@ -12,6 +11,7 @@ import {
   getLLMEffort,
   getLLMTemperature,
   type LLMProvider,
+  type StructuredSchema,
 } from '../../llm';
 
 /**
@@ -41,7 +41,7 @@ export interface AgentConfig {
    * against this schema via the provider's structured-output mode. Keep it
    * strict-compatible: all keys required, nullable instead of optional.
    */
-  outputSchema?: z.ZodTypeAny;
+  outputSchema?: StructuredSchema;
 }
 
 /**
@@ -68,7 +68,7 @@ export abstract class BaseAgent {
   protected model: string;
   protected provider: LLMProvider;
   protected languageModel: LanguageModel;
-  protected outputSchema?: z.ZodTypeAny;
+  protected outputSchema?: StructuredSchema;
   protected temperature: number;
   protected maxTokens: number;
   protected maxToolRoundtrips: number;
@@ -97,7 +97,8 @@ export abstract class BaseAgent {
     const DEBUG_AI_SDK = process.env.DEBUG_AI_SDK === 'true';
     if (DEBUG_AI_SDK) {
       this.languageModel = wrapLanguageModel({
-        model,
+        // The factory always returns a current model object, never an id string.
+        model: model as Parameters<typeof wrapLanguageModel>[0]['model'],
         middleware: devToolsMiddleware(),
       });
     }
@@ -144,7 +145,7 @@ export abstract class BaseAgent {
     context?: ToolContext,
     options?: {
       /** Override the agent's output schema for this call; null disables it. */
-      outputSchema?: z.ZodTypeAny | null;
+      outputSchema?: StructuredSchema | null;
     },
   ): Promise<AgentResult> {
     const baseContext = context || {
@@ -188,7 +189,10 @@ export abstract class BaseAgent {
       },
       stopWhen: stepCountIs(this.maxToolRoundtrips),
       providerOptions: buildProviderOptions(this.provider, this.model, getLLMEffort()),
-      ...(outputSchema && { output: Output.object({ schema: outputSchema }) }),
+      // schema as any: see createStructuredCompletion in llm.ts.
+      ...(outputSchema && {
+        output: Output.object({ schema: outputSchema as FlexibleSchema<any> }),
+      }),
     } as any);
     
     // Execute using ToolLoopAgent

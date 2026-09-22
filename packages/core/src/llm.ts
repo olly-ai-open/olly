@@ -1,9 +1,8 @@
 import OpenAI from "openai";
-import { generateText, Output, type LanguageModel } from "ai";
+import { generateText, Output, type FlexibleSchema, type LanguageModel } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import type { z } from "zod";
 import { MEETING_BRIEF_PROMPT } from "./prompts/meetingBriefPrompt";
 import type { BriefJSON, MorningBriefJSON } from "./types/briefs";
 import type { EndOfDayActionItem } from "./types/endOfDay";
@@ -121,11 +120,23 @@ export function supportsEffort(provider: LLMProvider, model: string): boolean {
  * Provider-specific options for the AI SDK: today only the effort hint.
  * Returns undefined when there is nothing to send.
  */
+/**
+ * A zod (3 or 4) or JSON schema describing structured output. Typed as an
+ * opaque object on purpose: checking real schema types against the AI
+ * SDK's schema union costs the type checker about 2 GB on this codebase.
+ */
+export type StructuredSchema = object;
+
+export type LLMProviderOptions = Record<
+  string,
+  Record<string, string | Record<string, string>>
+>;
+
 export function buildProviderOptions(
   provider: LLMProvider,
   model: string,
   effort: LLMEffort | null,
-): Record<string, Record<string, unknown>> | undefined {
+): LLMProviderOptions | undefined {
   if (!effort || !supportsEffort(provider, model)) return undefined;
   switch (provider) {
     case "anthropic":
@@ -264,7 +275,11 @@ export async function createChatCompletion(
  */
 export async function createStructuredCompletion<T>(
   messages: ChatMessage[],
-  schema: z.ZodType<T>,
+  // Accepts zod 3, zod 4, and plain JSON schemas. The result type is NOT
+  // inferred from the schema: pass it explicitly, e.g.
+  // createStructuredCompletion<z.infer<typeof MySchema>>(msgs, MySchema).
+  // Inferring it costs the type checker gigabytes on large schemas.
+  schema: StructuredSchema,
   opts?: { temperature?: number; model?: string; name?: string }
 ): Promise<{ object: T; model: string; provider: LLMProvider }> {
   const { model, provider, modelName } = createLanguageModel(opts?.model);
@@ -275,7 +290,10 @@ export async function createStructuredCompletion<T>(
     model,
     system,
     messages: rest,
-    output: Output.object({ schema, name: opts?.name }),
+    // `as any`: letting TypeScript infer the AI SDK's output generics from a
+    // zod schema costs gigabytes of type-checker memory; the result is cast
+    // to T below anyway.
+    output: Output.object({ schema: schema as FlexibleSchema<any>, name: opts?.name }),
     ...(supportsTemperature(provider, modelName) && { temperature }),
     providerOptions: buildProviderOptions(provider, modelName, getLLMEffort()),
   });

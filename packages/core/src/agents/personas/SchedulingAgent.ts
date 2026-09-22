@@ -105,7 +105,9 @@ export async function parseSchedulingDirection(input: {
     "Return only the JSON object as described.",
   ].join("\n\n");
 
-  const { object: parsed } = await createStructuredCompletion(
+  const { object: parsed } = await createStructuredCompletion<
+    z.infer<typeof DirectionSchema>
+  >(
     [
       { role: "system", content: SCHEDULING_DIRECTION_PROMPT },
       { role: "user", content: user },
@@ -206,7 +208,9 @@ export async function draftSchedulingEmailBody(input: {
   ].join("\n\n");
 
   try {
-    const { object: parsed } = await createStructuredCompletion(
+    const { object: parsed } = await createStructuredCompletion<
+      z.infer<typeof OutreachSchema>
+    >(
       [
         { role: "system", content: SCHEDULING_OUTREACH_PROMPT },
         { role: "user", content: user },
@@ -273,7 +277,9 @@ export async function parseSchedulingReply(input: {
   ].join("\n\n");
 
   try {
-    const { object: parsed } = await createStructuredCompletion(
+    const { object: parsed } = await createStructuredCompletion<
+      z.infer<typeof ReplySchema>
+    >(
       [
         { role: "system", content: SCHEDULING_REPLY_PROMPT },
         { role: "user", content: user },
