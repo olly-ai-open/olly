@@ -14,6 +14,9 @@ name: Build Windows installer
 #       secrets: inherit
 #       with: { release_tag: desktop-latest }
 #
+# Add release_repo: owner/name (and a RELEASE_REPO_TOKEN secret) to publish
+# the installers into another repository, e.g. a public releases-only repo.
+#
 # By default the installers are stored as a workflow artifact. Pass
 # release_tag to attach them to a GitHub release instead: releases do not
 # count against the Actions artifact storage quota and are easier to share.
@@ -25,9 +28,18 @@ on:
         required: false
         type: string
         default: ""
+      release_repo:
+        description: "Repository that owns the release, as owner/name (optional, defaults to this repo). Needs the RELEASE_REPO_TOKEN secret."
+        required: false
+        type: string
+        default: ""
   workflow_call:
     inputs:
       release_tag:
+        required: false
+        type: string
+        default: ""
+      release_repo:
         required: false
         type: string
         default: ""
@@ -94,24 +106,37 @@ jobs:
         if: inputs.release_tag != ''
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          # To publish into a different repository (for example a public
+          # releases-only repo next to a private source repo), pass
+          # release_repo and store a fine-grained token with contents:write
+          # on that repo in the RELEASE_REPO_TOKEN secret.
+          GH_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN || github.token }}
           TAG: ${{ inputs.release_tag }}
+          RELEASE_REPO: ${{ inputs.release_repo || github.repository }}
         run: |
           set -euo pipefail
-          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            # Another platform's job may create it first; that is fine.
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "Desktop installers ($TAG)" --prerelease \
-              --notes "Rolling release: assets are replaced on every build. The build number in each file name identifies the run." \
-              || true
+          if ! gh release view "$TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1; then
+            # Another platform's job may create it first; that is fine. The
+            # commit only exists in this repo, so pin the tag to it only when
+            # publishing here.
+            notes="Rolling release: assets are replaced on every build. The build number in each file name identifies the run."
+            if [ "$RELEASE_REPO" = "$GITHUB_REPOSITORY" ]; then
+              gh release create "$TAG" --repo "$RELEASE_REPO" --target "$GITHUB_SHA" \
+                --title "Desktop installers ($TAG)" --prerelease --notes "$notes" || true
+            else
+              gh release create "$TAG" --repo "$RELEASE_REPO" \
+                --title "Desktop installers ($TAG)" --prerelease --notes "$notes" || true
+            fi
           fi
           # Keep one set of files per platform: drop this platform's previous assets.
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+          gh api "repos/$RELEASE_REPO/releases/tags/$TAG" \
             --jq '.assets[] | select(.name | test("\\.exe(\\.blockmap)?$")) | .name' \
             | while read -r name; do
-                gh release delete-asset "$TAG" "$name" --repo "$GITHUB_REPOSITORY" --yes
+                gh release delete-asset "$TAG" "$name" --repo "$RELEASE_REPO" --yes
               done
-          gh release upload "$TAG" dist/*.exe dist/*.exe.blockmap --repo "$GITHUB_REPOSITORY" --clobber
+          # Only the installer is published; the blockmap is for an
+          # auto-updater that is not configured.
+          gh release upload "$TAG" dist/*.exe --repo "$RELEASE_REPO" --clobber
 
       - name: Upload installer as a workflow artifact
         if: inputs.release_tag == ''

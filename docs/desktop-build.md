@@ -194,6 +194,15 @@ attached to a GitHub release of that name instead of an artifact. Releases
 have no such cap, and the release page is the easiest place to download
 from another machine.
 
+To hand installers to people who cannot see your repository, publish them
+into a second, public repository that holds nothing but releases. Create
+that repository, create a fine-grained personal access token with
+**Contents: read and write** on it, store the token as a repository secret
+named `RELEASE_REPO_TOKEN` in the repository that runs the build, and fill
+in **release_repo** with `owner/name` when you run the workflow. Only the
+DMGs and the Windows `.exe` are uploaded to a release; the zips and the
+blockmap stay in `dist/` on the runner.
+
 The workflows run the exact same npm scripts as a local build, with the
 strict env check turned on so a build that would ship a forbidden key fails
 instead of warning. CI builds get the run number stamped into the version,
