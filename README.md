@@ -110,4 +110,9 @@ Gemini providers, and Electron for the desktop build.
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE) for the code and documentation.
+
+The Olly name, the mascot image, and the application icons are not covered
+by the MIT license and remain reserved. If you distribute a fork under
+another name, replace them with your own; see the
+[build guide](docs/desktop-build.md#4-write-the-env-file) for which files.

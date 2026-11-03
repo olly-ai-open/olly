@@ -115,6 +115,20 @@ The build strips them, and if a stripped key somehow survives the build
 prints a warning and asks before continuing. The app generates its own
 secrets on first launch.
 
+### Forks: replace the name, mascot, and icons
+
+The MIT license covers the code, not the Olly name, mascot, or icons; see
+the exclusions at the end of [LICENSE](../LICENSE). Building for yourself
+is fine as-is. If you distribute your build under another name, replace
+these before building:
+
+| File | Used for |
+|---|---|
+| `build/icon.icns`, `build/icon.ico`, `build/icon.png` | App icon on macOS, Windows, and in the installer |
+| `apps/web/public/olly-mascot.png` | Mascot in the header, sign-in, setup, and loading screens |
+| `apps/web/public/favicon.ico` | Browser tab icon |
+| `productName` and `appId` in the root `package.json` | App name and bundle identifier |
+
 ## 5. Build on a Mac
 
 From the repository root:
