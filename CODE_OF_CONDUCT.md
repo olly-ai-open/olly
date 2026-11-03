@@ -27,6 +27,7 @@ edits, issues, and other contributions that violate this Code of Conduct.
 
 ## Reporting
 
-To report unacceptable behavior, contact the maintainers through a private
-channel and include enough detail for investigation.
-
+Olly is published as-is and has no maintainer on duty. To report
+unacceptable behavior, open a GitHub issue on this repository with enough
+detail for someone to understand what happened. Reports are read when
+someone is around to read them, and may not be acted on.

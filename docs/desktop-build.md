@@ -16,7 +16,8 @@ client, which you must do exactly once.
 - For a Windows build: a Windows machine, or GitHub Actions in your own
   fork. There is no cross-compilation from a Mac.
 - A Google account for the Google Cloud console.
-- An OpenAI or Anthropic API key. You enter it in the app, not at build time.
+- An OpenAI, Anthropic, or Gemini API key. You enter it in the app, not at
+  build time.
 
 ## 2. Create your Google OAuth client
 

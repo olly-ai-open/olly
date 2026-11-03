@@ -82,7 +82,7 @@ const brief = await agent.prepareMeetingBrief(meetingId, userId);
 LLM_PROVIDER=openai
 LLM_TEMPERATURE=0.2
 OPENAI_API_KEY=your-key
-OPENAI_MODEL=gpt-4.1-mini
+OPENAI_MODEL=gpt-5.6-luna
 # or ANTHROPIC_API_KEY + ANTHROPIC_MODEL, or GEMINI_API_KEY + GOOGLE_MODEL
 ```
 
@@ -122,20 +122,21 @@ export class MyTool extends BaseTool {
 }
 ```
 
-## Benefits Over Legacy System
+## Design goals
 
-1. **Autonomous Context Gathering**: Agents can search multiple sources without explicit instructions
-2. **Tool Composition**: Complex tasks can be broken down into tool calls
-3. **Memory & Learning**: Agents remember user preferences and improve over time
-4. **Parallel Execution**: Multiple tools can be executed concurrently
-5. **Extensibility**: Easy to add new tools and agents
-6. **Streaming Support**: Real-time responses for better UX
+1. **Autonomous context gathering**: agents search multiple sources without explicit instructions
+2. **Tool composition**: complex tasks break down into tool calls
+3. **Memory**: short-term context per session, with room for persistent storage
+4. **Parallel execution**: independent tools can run concurrently
+5. **Extensibility**: new tools and agents are small classes
+6. **Structured output**: every persona returns parsed, schema-validated JSON
 
-## Future Enhancements
+## Ideas not yet built
 
-- [ ] Add more agent personas (ActionTrackerAgent)
-- [ ] Add persistent memory storage (database-backed)
-- [ ] Create agent collaboration protocols
-- [ ] Implement agent self-evaluation and improvement
-- [ ] Add observability and monitoring
-- [ ] Create agent testing framework
+Olly is published as-is, so none of these are planned. They are listed for
+anyone who forks the project and wants a starting point.
+
+- Persistent, database-backed agent memory
+- An action-tracker persona that follows up on commitments
+- Agent tools for Jira and Airtable, which today connect but feed no brief
+- An evaluation harness for agent output quality
