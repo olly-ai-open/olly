@@ -33,7 +33,7 @@ const outEnv = path.join(webDir, ".env.packaged.local");
 //   3. Telemetry + hosted-backend creds — the desktop build is local-only and
 //      must not phone home. The packaged app always uses embedded Postgres
 //      (electron/main.js `ensureDatabase` ignores DATABASE_URL when packaged),
-//      so the hosted DB URLs are unused at runtime AND would otherwise leak a
+//      so the hosted DB URLs are unused at runtime AND would otherwise leak
 //      the builder's database connection string in plaintext inside every installer.
 //      With the Langfuse keys gone, `canEnable()` is false and tracing no-ops.
 const STRIP_KEYS = [
