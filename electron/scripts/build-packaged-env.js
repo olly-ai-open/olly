@@ -34,7 +34,7 @@ const outEnv = path.join(webDir, ".env.packaged.local");
 //      must not phone home. The packaged app always uses embedded Postgres
 //      (electron/main.js `ensureDatabase` ignores DATABASE_URL when packaged),
 //      so the hosted DB URLs are unused at runtime AND would otherwise leak a
-//      production Supabase connection string in plaintext inside every DMG/EXE.
+//      the builder's database connection string in plaintext inside every installer.
 //      With the Langfuse keys gone, `canEnable()` is false and tracing no-ops.
 const STRIP_KEYS = [
   // (1) LLM keys — user supplies their own via first-run /setup
@@ -49,13 +49,13 @@ const STRIP_KEYS = [
   "JIRA_API_TOKEN",
   "JIRA_EMAIL",
   "JIRA_BASE_URL",
-  // (3) Telemetry — must not send user data to our servers
+  // (3) Telemetry — must not send user data to the builder's tracing accounts
   "LANGFUSE_PUBLIC_KEY",
   "LANGFUSE_SECRET_KEY",
   "LANGFUSE_BASE_URL",
   "NEW_RELIC_LICENSE_KEY",
   "NEW_RELIC_APP_NAME",
-  // (3) Debug capture — flag + our S3 bucket name; desktop must not upload debug data
+  // (3) Debug capture — flag + S3 bucket name; desktop must not upload debug data
   "ENABLE_DEBUG_CAPTURE",
   "S3_DEBUG_BUCKET",
   // (3) Hosted backend DB — desktop uses embedded Postgres; never ship prod creds

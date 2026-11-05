@@ -27,7 +27,9 @@ edits, issues, and other contributions that violate this Code of Conduct.
 
 ## Reporting
 
-Olly is published as-is and has no maintainer on duty. To report
-unacceptable behavior, open a GitHub issue on this repository with enough
-detail for someone to understand what happened. Reports are read when
-someone is around to read them, and may not be acted on.
+Olly is published as-is and has no maintainer on duty. Do not report
+unacceptable behavior in a public issue, because that exposes you and the
+people involved. Use GitHub's own reporting instead: open the "..." menu on
+the comment, issue, or pull request and choose **Report content**, or use
+GitHub's [report abuse form](https://github.com/contact/report-abuse).
+GitHub reviews those reports; nobody on this project is guaranteed to.

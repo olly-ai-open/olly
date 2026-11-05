@@ -19,14 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Exclusions
-
-The Olly name, the Olly mascot image (apps/web/public/olly-mascot.png and
-apps/web/public/favicon.ico), and the application icons (the files under
-build/) are not covered by the license above. All rights to them are
-reserved. You may use them only to refer to this project. A fork that is
-distributed under another name, or as a competing product, must replace
-them with its own name, mascot, and icons.

@@ -25,15 +25,24 @@ Olly signs users in with Google and reads their Calendar, Gmail, and Drive.
 Google requires every app that does this to have its own OAuth client. You
 cannot skip this step, and the repository does not ship one.
 
+Google's console moves things around from time to time. The names below
+match the **Google Auth Platform** pages, which replaced the older "OAuth
+consent screen" page.
+
 1. Go to the [Google Cloud console](https://console.cloud.google.com/) and
    create a project, for example "Olly personal".
 2. Enable these APIs under **APIs and services, Library**: Google Calendar
    API, Gmail API, and Google Drive API.
-3. Open **APIs and services, OAuth consent screen**. Choose **External**
-   unless you have a Google Workspace organisation and want to restrict the
-   app to it, in which case choose **Internal** and skip the verification
-   discussion below.
-4. Fill in the app name and your email. Add these scopes:
+3. Open **Google Auth Platform** (search for it in the console's top bar)
+   and press **Get started**. Enter an app name and your email, then pick
+   the audience: **External**, unless you have a Google Workspace
+   organisation and want to restrict the app to it, in which case choose
+   **Internal** and skip the publishing discussion below. Finish the
+   wizard.
+4. Open **Data access** and press **Add or remove scopes**. Gmail and Drive
+   scopes are not in the list by default, so paste all of these into the
+   **Manually add scopes** box at the bottom of the panel, press **Add to
+   table**, then **Update** and **Save**:
 
    ```
    openid
@@ -47,27 +56,32 @@ cannot skip this step, and the repository does not ship one.
    https://www.googleapis.com/auth/gmail.send
    ```
 
-5. Open **Credentials**, create an **OAuth client ID** of type
-   **Web application** (not Desktop; Olly's server runs inside the app and
-   uses browser redirects), and add both redirect URIs:
+5. Open **Clients** and press **Create client**. Choose the application
+   type **Web application** (not Desktop; Olly's server runs inside the
+   app and uses browser redirects), and under **Authorized redirect URIs**
+   add both of these:
 
    ```
    http://localhost:3000/api/auth/callback/google
    http://localhost:3000/api/auth/google-connect/callback
    ```
 
-6. Copy the client ID and client secret.
+6. Press **Create** and copy the client ID and client secret. Newer
+   consoles show the secret only once, so save it now.
 
 ### Testing mode or published
 
-A new consent screen starts in **Testing** status. Two things follow from
+A new External app starts in **Testing** status. Three things follow from
 that, and one of them will bite you:
 
-- Only email addresses you list as **test users** can sign in. Add your own.
+- Only email addresses you list as **test users** can sign in. Add your own
+  under **Audience, Test users**.
 - **Refresh tokens expire after seven days.** Olly will lose access to your
   Google data weekly and you will have to reconnect on the Integrations page.
+- Sign-in still shows a "Google hasn't verified this app" warning. That is
+  expected; press **Continue**.
 
-To stop the weekly expiry, press **Publish app** on the consent screen. You
+To stop the weekly expiry, press **Publish app** under **Audience**. You
 do not need to complete Google's verification. Unverified published apps
 show a "Google hasn't verified this app" warning that you click through
 once, and are limited to 100 users. For a personal build that is the right
@@ -118,16 +132,22 @@ secrets on first launch.
 ### Forks: replace the name, mascot, and icons
 
 The MIT license covers the code, not the Olly name, mascot, or icons; see
-the exclusions at the end of [LICENSE](../LICENSE). Building for yourself
-is fine as-is. If you distribute your build under another name, replace
-these before building:
+[TRADEMARKS.md](../TRADEMARKS.md). Building for yourself is fine as-is. If
+you distribute a build, modified or not, replace these before building:
 
 | File | Used for |
 |---|---|
 | `build/icon.icns`, `build/icon.ico`, `build/icon.png` | App icon on macOS, Windows, and in the installer |
 | `apps/web/public/olly-mascot.png` | Mascot in the header, sign-in, setup, and loading screens |
 | `apps/web/public/favicon.ico` | Browser tab icon |
-| `productName` and `appId` in the root `package.json` | App name and bundle identifier |
+| Root `package.json` | Add `productName` and `appId` keys to the `build` block for the app name and bundle identifier. Without them electron-builder uses `name` ("olly") and a default identifier. |
+
+Changing the product name also changes where the app keeps its database
+and `state.json`, for example `~/Library/Application Support/<productName>/`.
+The LLM key file `secrets.env` stays in the `olly` folder, because its path
+is fixed in `electron/lib/user-secrets.js` and
+`apps/web/src/app/api/setup/secrets/route.ts`. Change both if you want one
+folder.
 
 ## 5. Build on a Mac
 
@@ -180,8 +200,17 @@ gets past it.
 The repository ships two manual workflows, one for Mac and one for Windows,
 so you can build either without owning the hardware.
 
-1. Fork the repository on GitHub.
-2. In your fork, open **Settings, Secrets and variables, Actions** and add
+**Check who can download the result first.** A fork of a public repository
+is itself public and cannot be made private. Anyone can see its releases,
+and any signed-in GitHub user can download its workflow artifacts. Both
+contain your Google client secret. If you want the installers private,
+don't fork: create a new private repository and push a copy of this one to
+it (GitHub's **Import repository** does this), then use that copy below.
+
+1. Fork the repository on GitHub, or make a private copy as above.
+2. Open the **Actions** tab. GitHub turns workflows off in new forks, so
+   press the button that enables them.
+3. In your repository, open **Settings, Secrets and variables, Actions** and add
    a repository secret named `OLLY_WEB_ENV_LOCAL` whose value is the full
    contents of your `apps/web/.env.local`. From a terminal with the GitHub
    CLI:
@@ -190,7 +219,7 @@ so you can build either without owning the hardware.
    gh secret set OLLY_WEB_ENV_LOCAL --repo <you>/<fork> < apps/web/.env.local
    ```
 
-3. Open the **Actions** tab, pick **Build Windows installer** or
+4. Open the **Actions** tab, pick **Build Windows installer** or
    **Build macOS installers**, and press **Run workflow**. Or:
 
    ```bash
@@ -199,7 +228,7 @@ so you can build either without owning the hardware.
    gh run download --repo <you>/<fork> --name olly-windows-installer
    ```
 
-4. Download the artifact from the finished run. Artifacts are kept for 14
+5. Download the artifact from the finished run. Artifacts are kept for 14
    days.
 
 Installers are large, and GitHub caps the artifact storage a repository can
@@ -225,9 +254,13 @@ for example `1.0.3-build.14`, so no two are alike.
 
 ## 7. First run
 
-1. **Mac:** open the DMG and drag Olly to Applications. On first launch,
-   right-click the app and choose **Open**, or run
-   `xattr -dr com.apple.quarantine /Applications/olly.app`.
+1. **Mac:** open the DMG and drag Olly to Applications. The build is not
+   notarized, so macOS blocks the first launch. Either run
+   `xattr -dr com.apple.quarantine /Applications/olly.app` once, or try to
+   open the app, then go to **System Settings, Privacy and Security** and
+   press **Open Anyway**. (Right-click and **Open** no longer works for
+   this on macOS 15 and later.) If macOS says the app "is damaged and
+   can't be opened", the `xattr` command fixes that too.
    **Windows:** run the installer. It creates a desktop shortcut.
 2. Olly shows a loading window, initialises its private Postgres, applies
    migrations, and starts the local server. First launch takes longer.
@@ -248,8 +281,8 @@ for example `1.0.3-build.14`, so no two are alike.
 - **The setup screen never appears and briefs fail.** An LLM key leaked
   into the bundle. Rebuild; the env check should have warned you.
 - **Google sign-in shows "Access blocked" or "app not verified".** In
-  Testing mode, add yourself as a test user. If published, click
-  **Advanced, Go to olly (unsafe)** once.
+  Testing mode, add yourself as a test user. On the "not verified" warning,
+  click **Advanced**, then **Go to (your app name) (unsafe)**.
 - **Google disconnects every week.** Your consent screen is in Testing
   mode. Publish it, see step 2.
 - **Slack connect returns an error page.** No Slack app credentials in the

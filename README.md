@@ -23,9 +23,9 @@ matters, what you promised, and what happened today.
 
 > [!WARNING]
 > ***Published as-is.** This repository is provided without support, without
-> prebuilt installers, and without a hosted service. It works, it is
-> documented, and you are on your own. Issues and pull requests may not get
-> a response.* ***If you need a change, fork.***
+> prebuilt installers, and without a hosted service. It is documented, and
+> you are on your own. Issues and pull requests may not get a response.*
+> ***If you need a change, fork.***
 
 ## Two ways to run it
 
@@ -65,9 +65,12 @@ before changing either.
 This runs the web app against a local Postgres. For a desktop build or a
 production deployment, use the guides above.
 
+Create an empty database first, for example with `createdb olly`, and point
+`DATABASE_URL` and `DIRECT_URL` at it.
+
 ```bash
 npm install
-cp .env.example apps/web/.env.local   # then fill in DATABASE_URL, Google OAuth, an LLM key
+cp .env.example apps/web/.env.local   # then fill in DATABASE_URL, DIRECT_URL, Google OAuth, an LLM key
 cd apps/web
 npx prisma migrate deploy
 npm run dev
@@ -76,8 +79,8 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000). Google sign-in needs
 the redirect URIs listed in the [desktop build guide](docs/desktop-build.md#2-create-your-google-oauth-client).
 
-Scheduled briefs need the cron routes to be called. In development, with no
-`CRON_SECRET` set, you can hit them by hand:
+Scheduled briefs need the cron routes to be called. In development, leave
+`CRON_SECRET` empty (as it is in `.env.example`) and hit them by hand:
 
 ```bash
 curl http://localhost:3000/api/cron/scheduler
@@ -113,6 +116,7 @@ Gemini providers, and Electron for the desktop build.
 [MIT](LICENSE) for the code and documentation.
 
 The Olly name, the mascot image, and the application icons are not covered
-by the MIT license and remain reserved. If you distribute a fork under
-another name, replace them with your own; see the
-[build guide](docs/desktop-build.md#4-write-the-env-file) for which files.
+by the MIT license; see [TRADEMARKS.md](TRADEMARKS.md). You can use them in
+builds for yourself. If you distribute a build, replace them with your own;
+the [build guide](docs/desktop-build.md#forks-replace-the-name-mascot-and-icons)
+lists the files.

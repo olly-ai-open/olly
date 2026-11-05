@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Olly Agent Framework transforms Olly from a reactive LLM system to a proactive, tool-equipped AI agent system. This framework enables Olly to autonomously gather context, make decisions, and take actions on behalf of users.
+The agent framework is a small set of classes for LLM calls that can use tools. An agent gets a system prompt and a list of tools (calendar, email, Drive, Slack, Notion), lets the model call those tools to gather context, and returns schema-validated JSON. The brief, document, and scheduling features are each one agent.
 
 ## Architecture
 
@@ -32,7 +32,7 @@ agents/
 
 The `BaseAgent` class provides:
 - Tool registration and execution
-- Memory management (short-term and long-term)
+- In-process memory (see Memory System below)
 - Streaming and non-streaming responses
 - Integration with Vercel AI SDK
 
@@ -58,9 +58,9 @@ Specialized agents for specific tasks:
 
 ### 4. Memory System
 
-- **Short-term memory**: Session-specific context
-- **Long-term memory**: User preferences and learned patterns
-- **Persistence**: Can be extended for database storage
+- **Short-term memory**: Context for one agent run
+- **Long-term memory**: A second key-value store with the same lifetime
+- **Persistence**: None. `InMemoryAgentMemory` keeps everything in process memory and loses it when the process ends.
 
 ## Usage
 
@@ -126,7 +126,7 @@ export class MyTool extends BaseTool {
 
 1. **Autonomous context gathering**: agents search multiple sources without explicit instructions
 2. **Tool composition**: complex tasks break down into tool calls
-3. **Memory**: short-term context per session, with room for persistent storage
+3. **Memory**: short-term context per run; nothing is persisted
 4. **Parallel execution**: independent tools can run concurrently
 5. **Extensibility**: new tools and agents are small classes
 6. **Structured output**: every persona returns parsed, schema-validated JSON

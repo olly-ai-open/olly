@@ -17,7 +17,7 @@ usage. Read the security section before inviting anyone else.
 
 - **Node.js 22** and npm 10 for building. Not needed on Vercel.
 - **PostgreSQL 14 or newer.** Any provider. Supabase is used as the example
-  below because its free tier is enough for a small team.
+  below.
 - **A Google Cloud project with an OAuth client.** Required; sign-in is
   Google only.
 - **An LLM API key** from OpenAI, Anthropic, or Google Gemini.
@@ -77,7 +77,8 @@ Follow step 3 of the desktop build guide with the redirect URL
 # Session signing secret
 openssl rand -base64 32
 
-# Field encryption key, from apps/web after npm install
+# Field encryption key, from apps/web after npm install.
+# Copy the value that starts with k1.aesgcm256.
 npx cloak generate
 
 # Cron secret
@@ -111,7 +112,6 @@ variables that matter for a server:
 | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SCOPES` | no | From step 3 |
 | `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | no | Push notifications. Subject is a `mailto:` address or `https:` URL identifying you. The public key appears twice because one copy is inlined into the browser bundle at build time. |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | no | LLM tracing |
-| `NEW_RELIC_LICENSE_KEY`, `NEW_RELIC_APP_NAME` | no | APM |
 | `METRICS_AGGREGATES_ENABLED` | no | Powers the admin metrics page. Defaults on. |
 
 Notion, Jira, and Airtable have no server-side configuration. Each user
@@ -122,10 +122,20 @@ pastes their own token.
 The web app is set up for Vercel: cron schedules live in
 `apps/web/vercel.json` and the build script runs migrations first.
 
-1. Push the repository to GitHub and import it in Vercel.
+**You need a paid Vercel plan.** Both cron jobs run every minute, and
+Vercel's free Hobby plan only allows cron jobs that run once a day; a
+deploy with these schedules fails on Hobby. On Hobby, delete the `crons`
+block from `vercel.json` and call the two routes from an external cron
+caller instead, as described in step 7.
+
+1. Push the repository to GitHub and import it in Vercel. Vercel starts the
+   first deploy from the import screen, so do steps 2 and 3 on that screen
+   before you press **Deploy**.
 2. Set the project's **Root Directory** to `apps/web`. Vercel detects the
    npm workspace and installs from the repository root.
-3. Add every environment variable from step 5 under **Settings,
+3. Add every environment variable from step 5 under **Environment
+   Variables**. The build needs the database URLs to run migrations, so a
+   deploy without them fails. Later changes go under **Settings,
    Environment Variables** for the Production environment.
 4. Deploy. The `vercel-build` script runs `prisma migrate deploy` and then
    `next build`, so the schema is applied before the new code goes live.
@@ -148,14 +158,26 @@ proxy, and a cron caller.
 
 ```bash
 npm ci
-npm run build --workspace=apps/web
+npm run build:web
 node electron/scripts/copy-standalone-assets.js
+node electron/scripts/copy-prisma-resources.js
 ```
 
-The second script copies static assets and the `public/` folder into the
-standalone tree. Next omits them by design, and without them the UI renders
-without styles. It is in the `electron` folder because the desktop build
-needs it too, but it has no Electron dependency.
+`build:web` is the web app's production build with a larger Node memory
+limit; the default limit can run out on small machines.
+
+The two scripts fill gaps in Next's standalone output. The first copies
+static assets and the `public/` folder, which Next omits by design; without
+them the UI renders without styles. The second copies every Prisma query
+engine listed in `schema.prisma`, so a build made on one operating system
+runs on another, for example built on a Mac and run on Linux. Both live in
+the `electron` folder because the desktop build needs them too, but neither
+has an Electron dependency.
+
+**Environment.** The standalone server and the Prisma CLI read their
+configuration from the process environment. Set the variables from step 5
+there, through your process manager, container, or platform settings, for
+both the migrate and run commands below.
 
 **Migrate:**
 

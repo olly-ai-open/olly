@@ -20,7 +20,9 @@ not work compared with running Olly as a server. To build it, see
 - A job loop that runs the scheduler and worker once a minute while the app
   is open, so morning, evening, and meeting briefs generate on schedule.
 - A first-run setup screen where you paste your own OpenAI, Anthropic, or
-  Gemini key. Keys can be added or replaced later in Settings.
+  Gemini key. In Settings you can later add a key for a second provider,
+  replace a revoked key, and pick the provider, model, and reasoning
+  effort. Changes apply to the next brief without a restart.
 
 ## Benefits
 
@@ -35,11 +37,13 @@ them, and none of them ship inside the installer. Your LLM key is never in
 the installer either; you enter it on first run.
 
 **Control.** You own the process. Quit the app and everything stops. Delete
-one folder and every trace of your data is gone. Pick the model, rotate your
-key, or move to a different provider whenever you like.
+the app data folder and the copy on your machine is gone; whatever was sent
+to your LLM provider stays under that provider's retention policy. Pick the
+model, rotate your key, or move to a different provider whenever you like.
 
-**No operator.** There is no server, no account with a third party, no
-billing beyond your own LLM usage, and no one else with access to your data.
+**No operator.** There is no Olly server, no Olly account, and no billing
+beyond your own LLM usage. Apart from your LLM provider and the services you
+connect, nobody else receives your data.
 
 ## What stays on your machine
 
@@ -65,17 +69,25 @@ Turn on FileVault or BitLocker.
 
 ## What is bundled in the installer
 
-The build copies a sanitized version of your `apps/web/.env.local` into the
-app. After stripping, it contains only:
+The build copies your `apps/web/.env.local` into the app after removing a
+fixed list of keys that must not ship: LLM keys, database URLs, session and
+encryption secrets, push keys, telemetry keys, and model settings. Every
+other line in the file ships as-is. If you write the minimal file shown in
+the build guide, the installer contains only:
 
 - Your Google OAuth client ID and secret
 - Your Slack app client ID and secret, if you set one up
 - `NEXTAUTH_URL=http://localhost:3000`
 
+If you reuse a full development `.env.local` instead, its other values,
+such as `CRON_SECRET` or any custom variables, ship too.
+
 The Google client secret is inside the app bundle in plaintext. That is how
 desktop OAuth clients work, and Google treats it as non-confidential for
 installed apps. Anyone you give the installer to can use your OAuth client.
-If you only build for yourself, this is a non-issue.
+If you only build for yourself and keep the installer private, this is a
+non-issue. A build made in a public GitHub repository, including a fork,
+is not private; see the build guide.
 
 ## What will not work, or works differently
 
@@ -108,9 +120,6 @@ Compared with a [self-hosted server](self-hosting.md):
   computer.
 - **Port 3000 must be free.** The app refuses to start if something else is
   listening on it.
-- **Your keys, your account.** Settings lets you add a key for a second
-  provider, replace a revoked key, and pick the provider, model, and
-  reasoning effort. Changes apply to the next brief; no restart.
 - **Closing the window quits the app** on every platform, including macOS.
 - **No telemetry, no tracing.** Langfuse and New Relic keys are stripped.
   That is a feature for privacy and a limitation for debugging.
@@ -123,12 +132,15 @@ Compared with a [self-hosted server](self-hosting.md):
 
 ## Platform support
 
+"Builds" means the build scripts produce an installer for it. It is not a
+promise of support.
+
 | Platform | Status |
 |---|---|
-| macOS, Apple Silicon | Supported, built as `-arm64.dmg` |
-| macOS, Intel | Supported, built as the `.dmg` without an arch suffix |
-| Windows 10 and 11, x64 | Supported, built as an NSIS `.exe` |
-| Linux | Not supported. The embedded Postgres package and build targets are not configured for it. |
+| macOS, Apple Silicon | Builds, as `-arm64.dmg` |
+| macOS, Intel | Builds, as the `.dmg` without an arch suffix |
+| Windows 10 and 11, x64 | Builds, as an NSIS `.exe` |
+| Linux | Not built. The embedded Postgres package and build targets are not configured for it. |
 
 ## Updating, resetting, and uninstalling
 
@@ -137,6 +149,9 @@ Compared with a [self-hosted server](self-hosting.md):
 - **Reset only the LLM key.** Quit Olly and delete `secrets.env` from the app
   data folder. The setup screen appears on the next launch.
 - **Start from scratch.** Quit Olly and delete the whole app data folder.
+  (A fork renamed with its own `productName` keeps the database and
+  `state.json` in a folder of that name, while `secrets.env` stays in
+  `olly`; delete both.)
   You lose every brief and every connection. On Windows, uninstalling from
   Settings does this automatically.
 - **Never edit `state.json` by hand.** Changing the encryption key makes
