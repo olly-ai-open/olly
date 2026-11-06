@@ -8,8 +8,11 @@ This page explains what you get, what stays on your machine, and what does
 not work compared with running Olly as a server. To build it, see
 [Build the desktop app](desktop-build.md).
 
-> Olly is published as-is. There are no prebuilt installers, no updates, and
-> no support. You build it from source with your own Google OAuth client.
+> Olly is published as-is. This repository publishes no installers, no
+> updates, and no support. You build it from source with your own Google
+> OAuth client. Any prebuilt installer you come across was built by someone
+> with their own Google OAuth client and will only sign in the accounts that
+> client allows.
 
 ## What it is
 
